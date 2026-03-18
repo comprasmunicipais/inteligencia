@@ -89,6 +89,9 @@ export interface ContractDTO {
   status: string;
   start_date?: string;
   end_date?: string;
+  notes?: string;
+  department?: string;
+  secretariat?: string;
   is_expiring_soon?: boolean;
   account_name?: string;
   created_at?: string;
