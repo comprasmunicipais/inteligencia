@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Info,
   ChevronRight,
+  Building2,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/safe-helpers';
