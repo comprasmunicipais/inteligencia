@@ -51,6 +51,7 @@ export interface TimelineEventDTO {
   date?: string;
   contact_name?: string;
   municipality_name?: string;
+  account_name?: string;
   created_at?: string;
   updated_at?: string;
 }
