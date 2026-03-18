@@ -32,6 +32,7 @@ import { useCompany } from '@/components/providers/CompanyProvider';
 import { opportunityService } from '@/lib/services/opportunities';
 import { OpportunityDTO } from '@/lib/types/dtos';
 import EmptyState from '@/components/shared/EmptyState';
+import { municipalityService, MunicipalityOption } from '@/lib/services/municipalities';
 
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 
@@ -41,7 +42,10 @@ export default function OpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
+  const [opps, setOpps] = useState<OpportunityDTO[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
+
   const [stats, setStats] = useState({
     total: 0,
     newLastSync: 0,
@@ -68,21 +72,16 @@ export default function OpportunitiesPage() {
     if (!companyId) return;
 
     setLoading(true);
-
-    let oppsFailed = false;
-    let statsFailed = false;
-
     try {
-      const oppsData = await opportunityService.getAll(companyId);
-      setOpportunities(oppsData || []);
-    } catch (error) {
-      oppsFailed = true;
-      console.error('Erro ao carregar oportunidades (getAll):', error);
-      setOpportunities([]);
-    }
+      const [oppsData, statsData, munData] = await Promise.all([
+        opportunityService.getAll(companyId),
+        opportunityService.getStats(companyId),
+        municipalityService.getAllForSelect()
+      ]);
 
-    try {
-      const statsData = await opportunityService.getStats(companyId);
+      console.log('OPPS DATA:', oppsData);
+
+      setOpps(oppsData || []);
       setStats(
         statsData || {
           total: 0,
@@ -92,27 +91,14 @@ export default function OpportunitiesPage() {
           converted: 0,
         }
       );
+      setMatches([]);
+      setMunicipalities(munData || []);
     } catch (error) {
-      statsFailed = true;
-      console.error('Erro ao carregar estatísticas (getStats):', error);
-      setStats({
-        total: 0,
-        newLastSync: 0,
-        highMatch: 0,
-        expiringSoon: 0,
-        converted: 0,
-      });
-    }
-
-    if (oppsFailed && statsFailed) {
+      console.error('ERRO REAL:', error);
       toast.error('Erro ao carregar dados de inteligência.');
-    } else if (oppsFailed) {
-      toast.error('Não foi possível carregar a listagem de oportunidades.');
-    } else if (statsFailed) {
-      toast.error('Não foi possível carregar os indicadores da inteligência.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [companyId]);
 
   useEffect(() => {
@@ -165,7 +151,7 @@ export default function OpportunitiesPage() {
   };
 
   const filteredOpps = useMemo(() => {
-    return opportunities.filter((opp) => {
+    return opps.filter((opp) => {
       const matchesTab =
         activeTab === 'all' ? true : opp.internal_status === activeTab;
 
@@ -193,7 +179,7 @@ export default function OpportunitiesPage() {
         matchesScore
       );
     });
-  }, [opportunities, activeTab, searchTerm, filters]);
+  }, [opps, activeTab, searchTerm, filters]);
 
   const iaSummary = useMemo(() => {
     const ordered = [...filteredOpps].sort(
@@ -383,7 +369,13 @@ export default function OpportunitiesPage() {
                             <div
                               className={cn(
                                 'size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
-                                getScoreColor(Number(opp.match_score || 0))
+                                Number(opp.match_score || 0) >= 90
+                                  ? 'border-green-100 text-green-600 bg-green-50'
+                                  : Number(opp.match_score || 0) >= 70
+                                    ? 'border-blue-100 text-blue-600 bg-blue-50'
+                                    : Number(opp.match_score || 0) >= 50
+                                      ? 'border-amber-100 text-amber-600 bg-amber-50'
+                                      : 'border-gray-100 text-gray-400 bg-gray-50'
                               )}
                             >
                               {Number(opp.match_score || 0)}%
