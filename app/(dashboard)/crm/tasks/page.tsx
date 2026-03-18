@@ -288,86 +288,93 @@ export default function TasksPage() {
                   <Loader2 className="size-8 text-[#0f49bd] animate-spin mb-4" />
                   <p className="text-sm text-gray-500">Carregando tarefas...</p>
                 </div>
-              ) : filteredTasks.map((task) => (
-                <div key={task.id} className="p-6 hover:bg-gray-50/50 transition-colors flex items-start gap-4 group">
-                  <button 
-                    onClick={() => toggleTaskStatus(task.id)}
-                    className="mt-1 text-gray-300 hover:text-[#0f49bd] transition-colors"
-                  >
-                    {task.status === TaskStatus.COMPLETED ? (
-                      <CheckCircle2 className="size-6 text-green-500" />
-                    ) : (
-                      <Circle className="size-6" />
-                    )}
-                  </button>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-4">
-                      <h3 className={cn(
-                        "text-base font-bold text-gray-900 truncate",
-                        task.status === TaskStatus.COMPLETED && "line-through text-gray-400"
-                      )}>
-                        {task.title}
-                      </h3>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                          task.priority === TaskPriority.HIGH ? "bg-red-50 text-red-600" :
-                          task.priority === TaskPriority.MEDIUM ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
-                        )}>
-                          {task.priority}
-                        </span>
-                        
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-gray-100">
-                              <MoreHorizontal className="size-5" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setEditingTask(task); setIsEditModalOpen(true); }}>
-                              <Edit className="size-4 mr-2" /> Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDuplicateTask(task)}>
-                              <Copy className="size-4 mr-2" /> Duplicar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toggleTaskStatus(task.id)}>
-                              {task.status === TaskStatus.COMPLETED ? (
-                                <><RotateCcw className="size-4 mr-2" /> Reabrir</>
-                              ) : (
-                                <><CheckCircle2 className="size-4 mr-2" /> Concluir</>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => { setDeletingTask(task); setIsDeleteModalOpen(true); }}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="size-4 mr-2" /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
+              ) : filteredTasks.map((task) => {
+                const isOverdue =
+                  !!task.due_date &&
+                  new Date(task.due_date).getTime() < new Date().getTime() &&
+                  task.status === TaskStatus.PENDING;
+
+                return (
+                  <div key={task.id} className="p-6 hover:bg-gray-50/50 transition-colors flex items-start gap-4 group">
+                    <button 
+                      onClick={() => toggleTaskStatus(task.id)}
+                      className="mt-1 text-gray-300 hover:text-[#0f49bd] transition-colors"
+                    >
+                      {task.status === TaskStatus.COMPLETED ? (
+                        <CheckCircle2 className="size-6 text-green-500" />
+                      ) : (
+                        <Circle className="size-6" />
+                      )}
+                    </button>
                     
-                    <div className="flex flex-wrap items-center gap-4 mt-2">
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-                        <Building2 className="size-3.5" />
-                        {task.account_name}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className={cn(
+                          "text-base font-bold text-gray-900 truncate",
+                          task.status === TaskStatus.COMPLETED && "line-through text-gray-400"
+                        )}>
+                          {task.title}
+                        </h3>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                            task.priority === TaskPriority.HIGH ? "bg-red-50 text-red-600" :
+                            task.priority === TaskPriority.MEDIUM ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
+                          )}>
+                            {task.priority}
+                          </span>
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-gray-100">
+                                <MoreHorizontal className="size-5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setEditingTask(task); setIsEditModalOpen(true); }}>
+                                <Edit className="size-4 mr-2" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDuplicateTask(task)}>
+                                <Copy className="size-4 mr-2" /> Duplicar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toggleTaskStatus(task.id)}>
+                                {task.status === TaskStatus.COMPLETED ? (
+                                  <><RotateCcw className="size-4 mr-2" /> Reabrir</>
+                                ) : (
+                                  <><CheckCircle2 className="size-4 mr-2" /> Concluir</>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => { setDeletingTask(task); setIsDeleteModalOpen(true); }}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="size-4 mr-2" /> Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                      <div className={cn(
-                        "flex items-center gap-1.5 text-xs font-bold",
-                        new Date(task.due_date) < new Date() && task.status === TaskStatus.PENDING ? "text-red-600" : "text-gray-500"
-                      )}>
-                        <Clock className="size-3.5" />
-                        {task.due_date ? formatDate(task.due_date) : 'Sem data'}
+                      
+                      <div className="flex flex-wrap items-center gap-4 mt-2">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                          <Building2 className="size-3.5" />
+                          {task.account_name}
+                        </div>
+                        <div className={cn(
+                          "flex items-center gap-1.5 text-xs font-bold",
+                          isOverdue ? "text-red-600" : "text-gray-500"
+                        )}>
+                          <Clock className="size-3.5" />
+                          {task.due_date ? formatDate(task.due_date) : 'Sem data'}
+                        </div>
                       </div>
+                      {task.description && (
+                        <p className="text-xs text-gray-500 mt-2 line-clamp-2">{task.description}</p>
+                      )}
                     </div>
-                    {task.description && (
-                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">{task.description}</p>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               {!loading && filteredTasks.length === 0 && (
                 <div className="p-12 flex flex-col items-center justify-center text-center">
@@ -435,7 +442,7 @@ export default function TasksPage() {
                     id="edit-dueDate"
                     type="datetime-local"
                     className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                    value={editingTask.due_date.slice(0, 16)}
+                    value={editingTask.due_date ? editingTask.due_date.slice(0, 16) : ''}
                     onChange={(e) => setEditingTask({ ...editingTask, due_date: e.target.value })}
                   />
                 </div>
