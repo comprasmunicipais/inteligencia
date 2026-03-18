@@ -31,6 +31,8 @@ export interface ContactDTO {
   email?: string;
   phone?: string;
   whatsapp?: string;
+  location?: string;
+  notes?: string;
   status?: string;
   account_name?: string;
   created_at?: string;
