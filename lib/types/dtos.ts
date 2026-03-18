@@ -75,6 +75,9 @@ export interface ProposalDTO {
   value: number;
   status: string;
   date?: string;
+  notes?: string;
+  department?: string;
+  secretariat?: string;
   account_name?: string;
   created_at?: string;
   updated_at?: string;
