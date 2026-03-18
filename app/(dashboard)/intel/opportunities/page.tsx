@@ -9,13 +9,11 @@ import {
   Sparkles,
   MapPin,
   Calendar,
-  DollarSign,
   ExternalLink,
   Eye,
   Loader2,
   AlertCircle,
   CheckCircle2,
-  Info,
   ChevronRight,
   Building2,
 } from 'lucide-react';
@@ -70,21 +68,51 @@ export default function OpportunitiesPage() {
     if (!companyId) return;
 
     setLoading(true);
-    try {
-      const [oppsData, statsData] = await Promise.all([
-        opportunityService.getAll(companyId),
-        opportunityService.getStats(companyId),
-      ]);
 
+    let oppsFailed = false;
+    let statsFailed = false;
+
+    try {
+      const oppsData = await opportunityService.getAll(companyId);
       setOpportunities(oppsData || []);
-      setStats(statsData);
     } catch (error) {
-      console.error('Erro ao carregar oportunidades:', error);
-      toast.error('Erro ao carregar dados de inteligência.');
+      oppsFailed = true;
+      console.error('Erro ao carregar oportunidades (getAll):', error);
       setOpportunities([]);
-    } finally {
-      setLoading(false);
     }
+
+    try {
+      const statsData = await opportunityService.getStats(companyId);
+      setStats(
+        statsData || {
+          total: 0,
+          newLastSync: 0,
+          highMatch: 0,
+          expiringSoon: 0,
+          converted: 0,
+        }
+      );
+    } catch (error) {
+      statsFailed = true;
+      console.error('Erro ao carregar estatísticas (getStats):', error);
+      setStats({
+        total: 0,
+        newLastSync: 0,
+        highMatch: 0,
+        expiringSoon: 0,
+        converted: 0,
+      });
+    }
+
+    if (oppsFailed && statsFailed) {
+      toast.error('Erro ao carregar dados de inteligência.');
+    } else if (oppsFailed) {
+      toast.error('Não foi possível carregar a listagem de oportunidades.');
+    } else if (statsFailed) {
+      toast.error('Não foi possível carregar os indicadores da inteligência.');
+    }
+
+    setLoading(false);
   }, [companyId]);
 
   useEffect(() => {
@@ -99,6 +127,7 @@ export default function OpportunitiesPage() {
       toast.info('A sincronização automática ainda será conectada à fonte oficial.');
       await loadData();
     } catch (error) {
+      console.error('Erro ao sincronizar:', error);
       toast.error('Erro ao sincronizar dados.');
     } finally {
       setSyncing(false);
@@ -140,11 +169,15 @@ export default function OpportunitiesPage() {
       const matchesTab =
         activeTab === 'all' ? true : opp.internal_status === activeTab;
 
-      const searchBase = `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
+      const searchBase =
+        `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
       const matchesSearch = searchBase.includes(searchTerm.toLowerCase());
 
-      const locationBase = `${opp.city || ''} ${opp.state || ''} ${opp.municipality_name || ''}`.toLowerCase();
-      const matchesLocation = !filters.location || locationBase.includes(filters.location.toLowerCase());
+      const locationBase =
+        `${opp.city || ''} ${opp.state || ''} ${opp.municipality_name || ''}`.toLowerCase();
+      const matchesLocation =
+        !filters.location ||
+        locationBase.includes(filters.location.toLowerCase());
 
       const matchesModality =
         !filters.modality ||
@@ -152,7 +185,13 @@ export default function OpportunitiesPage() {
 
       const matchesScore = Number(opp.match_score || 0) >= filters.minScore;
 
-      return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore;
+      return (
+        matchesTab &&
+        matchesSearch &&
+        matchesLocation &&
+        matchesModality &&
+        matchesScore
+      );
     });
   }, [opportunities, activeTab, searchTerm, filters]);
 
