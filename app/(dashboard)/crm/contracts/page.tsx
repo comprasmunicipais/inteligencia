@@ -229,6 +229,7 @@ export default function ContractsPage() {
   const activeCount = contracts.filter(c => c.status === 'active').length;
   const totalValue = contracts.reduce((acc, c) => acc + c.value, 0);
   const expiringSoon = contracts.filter(c => {
+    if (!c.end_date) return false;
     const end = new Date(c.end_date);
     const now = new Date();
     const diff = end.getTime() - now.getTime();
@@ -372,7 +373,6 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      {/* View Contract Details Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -459,7 +459,6 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Contract Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -594,7 +593,6 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Contract Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -728,7 +726,6 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -757,7 +754,6 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Filter Modal */}
       <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
