@@ -1,39 +1,25 @@
-import { MunicipalityEntity, ContactEntity, ProposalEntity, ContractEntity, DealEntity, TimelineEventEntity, TaskEntity } from './entities';
+export interface OpportunityDTO {
+  id: string;
+  title: string;
+  description?: string;
+  organ_name: string;
+  modality?: string;
+  situation?: string;
 
-/**
- * Data Transfer Objects (DTOs) for the UI
- */
+  city?: string;
+  state?: string;
 
-export interface MunicipalityDTO extends MunicipalityEntity {
-  // Add any UI-specific computed fields here
+  estimated_value?: number;
+  opening_date?: string;
+  publication_date?: string;
+
+  official_url?: string;
+
+  match_score: number;
+  match_reason?: string;
+
+  internal_status: string;
+
+  municipality_id?: string;
+  municipality_name?: string;
 }
-
-export interface ContactDTO extends ContactEntity {
-  account_name?: string;
-}
-
-export interface ProposalDTO extends ProposalEntity {
-  account_name?: string;
-}
-
-export interface ContractDTO extends ContractEntity {
-  account_name?: string;
-  is_expiring_soon?: boolean;
-}
-
-export interface DealDTO extends DealEntity {
-  account_name?: string;
-}
-
-export interface TaskDTO extends TaskEntity {
-  account_name?: string;
-}
-
-export interface TimelineEventDTO extends TimelineEventEntity {
-  contact_name?: string;
-  account_name?: string;
-}
-
-// Listing vs Detail variations if needed
-export type MunicipalityListItem = Pick<MunicipalityDTO, 'id' | 'name' | 'city' | 'state' | 'status' | 'population'>;
-export type ContactListItem = Pick<ContactDTO, 'id' | 'name' | 'role' | 'account_name' | 'status' | 'email' | 'phone'>;
