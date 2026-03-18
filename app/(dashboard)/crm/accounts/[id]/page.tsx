@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Header from '@/components/shared/Header';
-import { 
+import {
   Plus,
-  ArrowLeft, 
-  Building2, 
-  MapPin, 
-  Globe, 
+  ArrowLeft,
+  Building2,
+  MapPin,
+  Globe,
   User,
   FileText,
   ExternalLink,
@@ -19,7 +18,6 @@ import {
   Download,
   Eye,
   Loader2,
-  X
 } from 'lucide-react';
 import { cn, formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -39,14 +37,21 @@ import { documentService, MunicipalityDocument } from '@/lib/services/documents'
 import { dealService } from '@/lib/services/deals';
 import { proposalService } from '@/lib/services/proposals';
 import { contractService } from '@/lib/services/contracts';
-import { MunicipalityDTO, ContactDTO, TimelineEventDTO, DealDTO, ProposalDTO, ContractDTO } from '@/lib/types/dtos';
+import {
+  MunicipalityDTO,
+  ContactDTO,
+  TimelineEventDTO,
+  DealDTO,
+  ProposalDTO,
+  ContractDTO
+} from '@/lib/types/dtos';
 import { Region, DealStage, AccountStatus } from '@/lib/types/enums';
 
 export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { companyId, user } = useCompany();
-  
+
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<MunicipalityDTO | null>(null);
   const [contacts, setContacts] = useState<ContactDTO[]>([]);
@@ -55,12 +60,11 @@ export default function AccountDetailPage() {
   const [deals, setDeals] = useState<DealDTO[]>([]);
   const [proposals, setProposals] = useState<ProposalDTO[]>([]);
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  
+
   const [editData, setEditData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -69,19 +73,8 @@ export default function AccountDetailPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Load main account data first (mandatory)
-      const acc = await accountService.getById(params.id as string);
-      setAccount(acc);
-
-      // 2. Load secondary data with allSettled for resilience
-      const [
-        contactsRes,
-        timelineRes,
-        documentsRes,
-        dealsRes,
-        proposalsRes,
-        contractsRes
-      ] = await Promise.allSettled([
+      const [acc, conts, events, docs, dealsData, proposalsData, contractsData] = await Promise.all([
+        accountService.getById(params.id as string),
         contactService.getByMunicipality(params.id as string),
         timelineService.getByMunicipality(params.id as string),
         documentService.getByMunicipality(params.id as string),
@@ -90,48 +83,13 @@ export default function AccountDetailPage() {
         contractService.getByMunicipality(params.id as string)
       ]);
 
-      // 3. Process each result
-      if (contactsRes.status === 'fulfilled') {
-        setContacts(contactsRes.value);
-      } else {
-        console.error('Error loading contacts:', contactsRes.reason);
-        setContacts([]);
-      }
-
-      if (timelineRes.status === 'fulfilled') {
-        setTimelineEvents(timelineRes.value);
-      } else {
-        console.error('Error loading timeline events:', timelineRes.reason);
-        setTimelineEvents([]);
-      }
-
-      if (documentsRes.status === 'fulfilled') {
-        setDocuments(documentsRes.value);
-      } else {
-        console.error('Error loading documents:', documentsRes.reason);
-        setDocuments([]);
-      }
-
-      if (dealsRes.status === 'fulfilled') {
-        setDeals(dealsRes.value);
-      } else {
-        console.error('Error loading deals:', dealsRes.reason);
-        setDeals([]);
-      }
-
-      if (proposalsRes.status === 'fulfilled') {
-        setProposals(proposalsRes.value);
-      } else {
-        console.error('Error loading proposals:', proposalsRes.reason);
-        setProposals([]);
-      }
-
-      if (contractsRes.status === 'fulfilled') {
-        setContracts(contractsRes.value);
-      } else {
-        console.error('Error loading contracts:', contractsRes.reason);
-        setContracts([]);
-      }
+      setAccount(acc);
+      setContacts(conts);
+      setTimelineEvents(events);
+      setDocuments(docs);
+      setDeals(dealsData);
+      setProposals(proposalsData);
+      setContracts(contractsData);
     } catch (error) {
       console.error('Error loading account data:', error);
       toast.error('Erro ao carregar dados da prefeitura.');
@@ -152,7 +110,7 @@ export default function AccountDetailPage() {
       toast.error('Por favor, preencha o nome da prefeitura.');
       return;
     }
-    
+
     try {
       const updated = await accountService.update(account!.id, editData);
       setAccount(updated);
@@ -177,7 +135,7 @@ export default function AccountDetailPage() {
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
-    
+
     if (!editingEvent.title || !editingEvent.date) {
       toast.error('Preencha o título e a data do evento.');
       return;
@@ -198,10 +156,8 @@ export default function AccountDetailPage() {
         toast.success('Evento adicionado!');
       }
       setIsEventModalOpen(false);
-    } catch (error: any) {
-      console.error('Error saving event:', error);
-      const message = error.message || 'Erro ao salvar evento.';
-      toast.error(message);
+    } catch (error) {
+      toast.error('Erro ao salvar evento.');
     }
   };
 
@@ -209,7 +165,6 @@ export default function AccountDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -217,7 +172,7 @@ export default function AccountDetailPage() {
       'image/jpeg',
       'image/png'
     ];
-    
+
     if (!allowedTypes.includes(file.type)) {
       toast.error('Tipo de arquivo não permitido. Use PDF, DOCX, XLSX ou imagens.');
       return;
@@ -230,10 +185,8 @@ export default function AccountDetailPage() {
       const doc = await documentService.upload(file, account!.id, companyId!, user!.id);
       setDocuments([doc, ...documents]);
       toast.success('Documento enviado com sucesso!', { id: toastId });
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      const message = error.message || 'Erro ao enviar documento.';
-      toast.error(message, { id: toastId });
+    } catch (error) {
+      toast.error('Erro ao enviar documento.', { id: toastId });
     } finally {
       setUploading(false);
     }
@@ -286,7 +239,7 @@ export default function AccountDetailPage() {
         <Building2 className="size-16 text-gray-200 mb-4" />
         <h2 className="text-xl font-bold text-gray-900">Prefeitura não encontrada</h2>
         <p className="text-gray-500 mt-2">O registro que você está tentando acessar não existe ou foi removido.</p>
-        <button 
+        <button
           onClick={() => router.push('/crm/accounts')}
           className="mt-6 px-6 py-2 bg-[#0f49bd] text-white rounded-xl font-bold"
         >
@@ -308,7 +261,7 @@ export default function AccountDetailPage() {
     <>
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => router.back()}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
@@ -320,16 +273,16 @@ export default function AccountDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => {
-              setEditData({...account});
+              setEditData({ ...account });
               setIsEditModalOpen(true);
             }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Edit className="size-4" /> Editar
           </button>
-          <button 
+          <button
             onClick={() => setIsDeleteModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
           >
@@ -340,7 +293,6 @@ export default function AccountDetailPage() {
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Summary */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
               <div className="size-20 rounded-2xl bg-blue-50 flex items-center justify-center text-[#0f49bd] border border-blue-100 shadow-sm mb-4">
@@ -359,7 +311,7 @@ export default function AccountDetailPage() {
               </div>
 
               <div className="mt-8 space-y-4">
-                <button 
+                <button
                   onClick={handleVisitWebsite}
                   className="w-full bg-[#0f49bd] text-white py-3 rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-sm flex items-center justify-center gap-2"
                 >
@@ -407,11 +359,10 @@ export default function AccountDetailPage() {
             </div>
           </div>
 
-          {/* Right Column: Details & Tabs */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="flex border-b border-gray-100">
-                <button 
+                <button
                   onClick={() => setActiveTab('overview')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -420,7 +371,7 @@ export default function AccountDetailPage() {
                 >
                   Visão Geral
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('contacts')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -429,7 +380,7 @@ export default function AccountDetailPage() {
                 >
                   Contatos ({contacts.length})
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('deals')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -438,7 +389,7 @@ export default function AccountDetailPage() {
                 >
                   Negócios ({deals.length})
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('proposals')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -447,7 +398,7 @@ export default function AccountDetailPage() {
                 >
                   Propostas ({proposals.length})
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('contracts')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -456,7 +407,7 @@ export default function AccountDetailPage() {
                 >
                   Contratos ({contracts.length})
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('documents')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all",
@@ -466,14 +417,16 @@ export default function AccountDetailPage() {
                   Documentos
                 </button>
               </div>
-              
+
               <div className="p-8">
                 {activeTab === 'overview' && (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                       <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
                         <span className="text-xs font-bold text-blue-600 uppercase tracking-wider block mb-2">Região</span>
-                        <span className="text-2xl font-bold text-[#0f49bd]">{account.region ? (regionLabels[account.region] || account.region) : 'N/A'}</span>
+                        <span className="text-2xl font-bold text-[#0f49bd]">
+                          {account.region ? (regionLabels[account.region] || account.region) : 'N/A'}
+                        </span>
                       </div>
                       <div className="p-6 bg-purple-50/50 rounded-2xl border border-purple-100">
                         <span className="text-xs font-bold text-purple-600 uppercase tracking-wider block mb-2">Área Territorial</span>
@@ -512,7 +465,7 @@ export default function AccountDetailPage() {
                               <Phone className="size-3" /> {contact.phone || 'N/A'}
                             </div>
                           </div>
-                          <button 
+                          <button
                             onClick={() => router.push(`/crm/contacts/${contact.id}`)}
                             className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
                           >
@@ -543,7 +496,7 @@ export default function AccountDetailPage() {
                           )}>
                             {deal.status}
                           </span>
-                          <button 
+                          <button
                             onClick={() => router.push('/crm/pipeline')}
                             className="text-xs font-bold text-[#0f49bd] hover:underline"
                           >
@@ -568,9 +521,11 @@ export default function AccountDetailPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">{formatDate(proposal.date)}</span>
+                            <span className="text-xs text-gray-400">
+                              {proposal.date ? formatDate(proposal.date) : 'N/A'}
+                            </span>
                           </div>
-                          <button 
+                          <button
                             onClick={() => router.push('/crm/proposals')}
                             className="text-xs font-bold text-[#0f49bd] hover:underline"
                           >
@@ -595,12 +550,14 @@ export default function AccountDetailPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">Vence em: {formatDate(contract.end_date)}</span>
+                            <span className="text-xs text-gray-500">
+                              Vence em: {contract.end_date ? formatDate(contract.end_date) : 'N/A'}
+                            </span>
                             {contract.is_expiring_soon && (
                               <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded uppercase">Vencendo</span>
                             )}
                           </div>
-                          <button 
+                          <button
                             onClick={() => router.push('/crm/contracts')}
                             className="text-xs font-bold text-[#0f49bd] hover:underline"
                           >
@@ -631,13 +588,13 @@ export default function AccountDetailPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             onClick={() => handleDownloadDoc(doc)}
                             className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
                           >
                             <Download className="size-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteDoc(doc)}
                             className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm"
                           >
@@ -646,16 +603,16 @@ export default function AccountDetailPage() {
                         </div>
                       </div>
                     ))}
-                    
+
                     <div className="relative">
-                      <input 
-                        type="file" 
-                        id="file-upload" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
                         onChange={handleFileUpload}
                         disabled={uploading}
                       />
-                      <label 
+                      <label
                         htmlFor="file-upload"
                         className={cn(
                           "w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd] transition-all flex flex-col items-center justify-center gap-2 cursor-pointer",
@@ -683,7 +640,7 @@ export default function AccountDetailPage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-8 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <h3 className="font-bold text-gray-900">Linha do Tempo</h3>
-                <button 
+                <button
                   onClick={() => {
                     setEditingEvent({ title: '', date: new Date().toISOString().split('T')[0], type: 'meeting', description: '' });
                     setIsEventModalOpen(true);
@@ -704,16 +661,16 @@ export default function AccountDetailPage() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-gray-900 text-sm">{item.title}</h4>
-                          <button 
+                          <button
                             onClick={() => {
-                              setEditingEvent({...item});
+                              setEditingEvent({ ...item });
                               setIsEventModalOpen(true);
                             }}
                             className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded transition-all"
                           >
                             <Edit className="size-3 text-gray-400" />
                           </button>
-                          <button 
+                          <button
                             onClick={async () => {
                               if (confirm('Excluir este evento?')) {
                                 try {
@@ -730,7 +687,9 @@ export default function AccountDetailPage() {
                             <Trash2 className="size-3 text-red-400" />
                           </button>
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">{item.date ? formatDate(item.date) : 'N/A'}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">
+                          {item.date ? formatDate(item.date) : 'N/A'}
+                        </span>
                       </div>
                       <p className="text-xs text-gray-500">{item.description}</p>
                     </div>
@@ -742,7 +701,6 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
-      {/* Event Modal */}
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -774,7 +732,7 @@ export default function AccountDetailPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">Tipo</label>
-                  <select 
+                  <select
                     className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
                     value={editingEvent.type}
                     onChange={(e) => setEditingEvent({ ...editingEvent, type: e.target.value })}
@@ -796,14 +754,14 @@ export default function AccountDetailPage() {
                 />
               </div>
               <DialogFooter className="pt-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsEventModalOpen(false)}
                   className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
                 >
@@ -815,7 +773,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Account Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -864,7 +821,7 @@ export default function AccountDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">Região</label>
-                  <select 
+                  <select
                     className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
                     value={editData.region}
                     onChange={(e) => setEditData({ ...editData, region: e.target.value as Region })}
@@ -921,14 +878,14 @@ export default function AccountDetailPage() {
                 </div>
               </div>
               <DialogFooter className="pt-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsEditModalOpen(false)}
                   className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
                 >
@@ -940,7 +897,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -950,13 +906,13 @@ export default function AccountDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 pt-4">
-            <button 
+            <button
               onClick={() => setIsDeleteModalOpen(false)}
               className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg"
             >
               Cancelar
             </button>
-            <button 
+            <button
               onClick={handleDelete}
               className="flex-1 bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-700 shadow-sm transition-all"
             >
