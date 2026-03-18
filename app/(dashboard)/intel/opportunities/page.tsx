@@ -1,30 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from '@/components/shared/Header';
-import { 
-  Search, 
-  Filter, 
-  Plus,
-  Bookmark, 
-  Eye, 
-  Trash2, 
-  MapPin, 
-  Calendar, 
+import {
+  Search,
+  Filter,
+  RefreshCw,
+  Sparkles,
+  MapPin,
+  Calendar,
   DollarSign,
   ExternalLink,
-  Sparkles,
-  ChevronRight,
-  Info,
-  CheckCircle2,
+  Eye,
+  Loader2,
   AlertCircle,
-  Building2,
-  RefreshCw,
-  Star,
-  Loader2
+  CheckCircle2,
+  Info,
+  ChevronRight,
 } from 'lucide-react';
-import { cn, formatCurrency, formatDate } from '@/lib/utils';
-
+import { cn, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils/safe-helpers';
 import {
   Dialog,
   DialogContent,
@@ -32,58 +27,60 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { getCentralOpportunities, runIncrementalSync, addManualOpportunity } from '@/lib/intel/services';
-import { Opportunity, CompanyOpportunityMatch, OpportunityStatus } from '@/lib/intel/types';
 import { useCompany } from '@/components/providers/CompanyProvider';
-import { intelService } from '@/lib/services/intel';
-import { municipalityService, MunicipalityOption } from '@/lib/services/municipalities';
+import { opportunityService } from '@/lib/services/opportunities';
+import { OpportunityDTO } from '@/lib/types/dtos';
+import EmptyState from '@/components/shared/EmptyState';
+
+type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 
 export default function OpportunitiesPage() {
   const { companyId } = useCompany();
+
   const [loading, setLoading] = useState(true);
-  const [opps, setOpps] = useState<Opportunity[]>([]);
-  const [matches, setMatches] = useState<CompanyOpportunityMatch[]>([]);
-  const [activeTab, setActiveTab] = useState('all');
+  const [syncing, setSyncing] = useState(false);
+
+  const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    newLastSync: 0,
+    highMatch: 0,
+    expiringSoon: 0,
+    converted: 0,
+  });
+
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isIAInsightsModalOpen, setIsIAInsightsModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  
-  const [selectedOpp, setSelectedOpp] = useState<any>(null);
-  const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
-  const [newManualOpp, setNewManualOpp] = useState({
-    title: '',
-    municipality_id: '',
-    department: '',
-    secretariat: '',
-    estimated_value: '',
-    category: 'Educação',
-    description: '',
-    status: 'active' as OpportunityStatus
+
+  const [selectedOpp, setSelectedOpp] = useState<OpportunityDTO | null>(null);
+
+  const [filters, setFilters] = useState({
+    location: '',
+    modality: '',
+    minScore: 0,
   });
-  const [filters, setFilters] = useState({ location: '', minScore: 0, priority: 'all', onlyFavorites: false });
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
 
   const loadData = useCallback(async () => {
+    if (!companyId) return;
+
     setLoading(true);
     try {
-      const [centralOpps, companyMatches, munData] = await Promise.all([
-        getCentralOpportunities(),
-        intelService.getMatches(companyId!),
-        municipalityService.getAllForSelect()
+      const [oppsData, statsData] = await Promise.all([
+        opportunityService.getAll(companyId),
+        opportunityService.getStats(companyId),
       ]);
-      
-      setOpps(centralOpps);
-      setMatches(companyMatches);
-      setMunicipalities(munData);
+
+      setOpportunities(oppsData || []);
+      setStats(statsData);
     } catch (error) {
+      console.error('Erro ao carregar oportunidades:', error);
       toast.error('Erro ao carregar dados de inteligência.');
+      setOpportunities([]);
     } finally {
       setLoading(false);
     }
@@ -96,176 +93,117 @@ export default function OpportunitiesPage() {
   }, [companyId, loadData]);
 
   const handleSync = async () => {
-    setIsSyncing(true);
+    setSyncing(true);
     try {
-      await runIncrementalSync();
+      toast.info('A sincronização automática ainda será conectada à fonte oficial.');
       await loadData();
-      toast.success('Base de oportunidades atualizada!');
     } catch (error) {
       toast.error('Erro ao sincronizar dados.');
     } finally {
-      setIsSyncing(false);
+      setSyncing(false);
     }
   };
 
-  const getMatchForOpp = (oppId: string) => {
-    return matches.find(m => m.opportunity_id === oppId);
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'border-green-100 text-green-600 bg-green-50';
+    if (score >= 70) return 'border-blue-100 text-blue-600 bg-blue-50';
+    if (score >= 50) return 'border-amber-100 text-amber-600 bg-amber-50';
+    return 'border-gray-100 text-gray-400 bg-gray-50';
   };
 
-  const handleToggleSave = async (oppId: string) => {
-    const match = getMatchForOpp(oppId);
-    if (match) {
-      const newStatus = match.status === 'saved' ? 'new' : 'saved';
-      try {
-        const updated = await intelService.updateMatchStatus(match.id, newStatus);
-        setMatches(matches.map(m => m.id === match.id ? updated : m));
-        toast.success(newStatus === 'saved' ? 'Oportunidade salva!' : 'Removida das salvas.');
-      } catch (error) {
-        toast.error('Erro ao atualizar status.');
-      }
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'new':
+        return 'Nova';
+      case 'updated':
+        return 'Atualizada';
+      case 'under_review':
+        return 'Em revisão';
+      case 'relevant':
+        return 'Relevante';
+      case 'discarded':
+        return 'Descartada';
+      case 'converted_to_task':
+        return 'Convertida em tarefa';
+      case 'converted_to_deal':
+        return 'Convertida em negócio';
+      case 'converted_to_proposal':
+        return 'Convertida em proposta';
+      default:
+        return 'Sem status';
     }
   };
 
-  const handleDelete = async (oppId: string) => {
-    const match = getMatchForOpp(oppId);
-    if (match) {
-      try {
-        const updated = await intelService.updateMatchStatus(match.id, 'dismissed');
-        setMatches(matches.map(m => m.id === match.id ? updated : m));
-        toast.success('Oportunidade descartada.');
-      } catch (error) {
-        toast.error('Erro ao descartar oportunidade.');
-      }
-    }
-  };
+  const filteredOpps = useMemo(() => {
+    return opportunities.filter((opp) => {
+      const matchesTab =
+        activeTab === 'all' ? true : opp.internal_status === activeTab;
 
-  const enrichedOpps = opps.map(opp => {
-    const match = getMatchForOpp(opp.id);
+      const searchBase = `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
+      const matchesSearch = searchBase.includes(searchTerm.toLowerCase());
+
+      const locationBase = `${opp.city || ''} ${opp.state || ''} ${opp.municipality_name || ''}`.toLowerCase();
+      const matchesLocation = !filters.location || locationBase.includes(filters.location.toLowerCase());
+
+      const matchesModality =
+        !filters.modality ||
+        (opp.modality || '').toLowerCase().includes(filters.modality.toLowerCase());
+
+      const matchesScore = Number(opp.match_score || 0) >= filters.minScore;
+
+      return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore;
+    });
+  }, [opportunities, activeTab, searchTerm, filters]);
+
+  const iaSummary = useMemo(() => {
+    const ordered = [...filteredOpps].sort(
+      (a, b) => Number(b.match_score || 0) - Number(a.match_score || 0)
+    );
+
     return {
-      ...opp,
-      matchScore: match?.match_score || 0,
-      matchReason: match?.match_reason || '',
-      matchStatus: match?.status || 'new',
-      priority: match?.priority_level || 'low',
-      isFavorite: match?.status === 'saved'
+      totalAnalyzed: filteredOpps.length,
+      highMatch: filteredOpps.filter((o) => Number(o.match_score || 0) >= 90),
+      mediumMatch: filteredOpps.filter(
+        (o) => Number(o.match_score || 0) >= 70 && Number(o.match_score || 0) < 90
+      ),
+      topRecommendation: ordered[0] || null,
     };
-  }).filter(o => o.matchStatus !== 'dismissed')
-    .sort((a, b) => b.matchScore - a.matchScore);
-
-  const filteredOpps = enrichedOpps.filter(o => {
-    const matchesTab = activeTab === 'all' || o.matchStatus === activeTab;
-    const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         o.buyer_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = !filters.location || o.state.toLowerCase().includes(filters.location.toLowerCase()) || o.municipality.toLowerCase().includes(filters.location.toLowerCase());
-    const matchesScore = o.matchScore >= filters.minScore;
-    const matchesPriority = filters.priority === 'all' || o.priority === filters.priority;
-    const matchesFavorites = !filters.onlyFavorites || o.isFavorite;
-    
-    return matchesTab && matchesSearch && matchesLocation && matchesScore && matchesPriority && matchesFavorites;
-  });
-
-  const totalPages = Math.ceil(filteredOpps.length / itemsPerPage);
-  const paginatedOpps = filteredOpps.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  }, [filteredOpps]);
 
   const handleApplyFilters = () => {
-    setCurrentPage(1);
     toast.success('Filtros aplicados!');
     setIsFilterModalOpen(false);
   };
 
   const handleResetFilters = () => {
-    setFilters({ location: '', minScore: 0, priority: 'all', onlyFavorites: false });
-    setCurrentPage(1);
+    setFilters({
+      location: '',
+      modality: '',
+      minScore: 0,
+    });
     toast.info('Filtros limpos.');
   };
 
-  const handleOpenNotice = (url: string) => {
+  const handleOpenNotice = (url?: string) => {
     if (!url) {
-      toast.error('Edital oficial ainda não disponível para esta oportunidade.');
+      toast.error('Link oficial ainda não disponível para esta oportunidade.');
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleIAInsights = () => {
-    setIsIAInsightsModalOpen(true);
-  };
-
-  const handleCreateManualOpp = async () => {
-    if (!newManualOpp.title || !newManualOpp.municipality_id) {
-      toast.error('Título e Prefeitura são obrigatórios.');
-      return;
-    }
-
-    try {
-      const selectedMun = municipalities.find(m => m.id === newManualOpp.municipality_id);
-      
-      const manualOpp: Partial<Opportunity> = {
-        title: newManualOpp.title,
-        description: newManualOpp.description,
-        municipality: selectedMun?.label || '',
-        state: selectedMun?.state || '',
-        estimated_value: parseFloat(newManualOpp.estimated_value) || 0,
-        category: newManualOpp.category,
-        status: newManualOpp.status,
-        source: 'manual' as any,
-        publish_date: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true
-      };
-
-      await addManualOpportunity(manualOpp as Opportunity);
-      await loadData();
-      
-      setIsManualModalOpen(false);
-      setNewManualOpp({
-        title: '',
-        municipality_id: '',
-        department: '',
-        secretariat: '',
-        estimated_value: '',
-        category: 'Educação',
-        description: '',
-        status: 'active'
-      });
-      
-      toast.success('Oportunidade manual criada com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao criar oportunidade manual.');
-    }
-  };
-
-  const handleViewDetail = (opp: any) => {
+  const handleViewDetail = (opp: OpportunityDTO) => {
     setSelectedOpp(opp);
     setIsDetailModalOpen(true);
   };
 
-  const handleViewAnalysis = (opp: any) => {
-    setSelectedOpp(opp);
-    setIsAnalysisModalOpen(true);
-  };
-
-  const iaSummary = {
-    totalAnalyzed: filteredOpps.length,
-    highMatch: filteredOpps.filter(o => o.matchScore >= 90),
-    mediumMatch: filteredOpps.filter(o => o.matchScore >= 70 && o.matchScore < 90),
-    topRecommendation: filteredOpps.sort((a, b) => b.matchScore - a.matchScore)[0]
-  };
-
   return (
     <>
-      <Header 
-        title="Oportunidades PNCP" 
-        subtitle="Monitoramento em tempo real de licitações e editais publicados no Portal Nacional de Contratações Públicas." 
+      <Header
+        title="Licitações Abertas e Publicadas"
+        subtitle="Monitoramento em tempo real de oportunidades públicas com destaque para aderência ao perfil da empresa."
       />
-      
+
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         {loading ? (
           <div className="flex justify-center py-12">
@@ -273,44 +211,61 @@ export default function OpportunitiesPage() {
           </div>
         ) : (
           <div className="max-w-7xl mx-auto space-y-6">
-            {/* Filters & Search */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Total Capturadas</span>
+                <span className="text-2xl font-black text-gray-900">{stats.total}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Novas na Última Atualização</span>
+                <span className="text-2xl font-black text-blue-600">{stats.newLastSync}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Alta Aderência</span>
+                <span className="text-2xl font-black text-green-600">{stats.highMatch}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Vencendo em Breve</span>
+                <span className="text-2xl font-black text-red-600">{stats.expiringSoon}</span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Convertidas</span>
+                <span className="text-2xl font-black text-purple-600">{stats.converted}</span>
+              </div>
+            </div>
+
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-5" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar por objeto, órgão ou palavra-chave..." 
+                <input
+                  type="text"
+                  placeholder="Buscar por objeto, órgão ou palavra-chave..."
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] outline-none transition-all text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+
               <div className="flex items-center gap-2 w-full md:w-auto">
-                <button 
-                  onClick={() => setIsManualModalOpen(true)}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Plus className="size-4" />
-                  Nova Oportunidade
-                </button>
-                <button 
+                <button
                   onClick={handleSync}
-                  disabled={isSyncing}
+                  disabled={syncing}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  title="Sincronizar com PNCP"
                 >
-                  <RefreshCw className={cn("size-4", isSyncing && "animate-spin")} />
+                  <RefreshCw className={cn('size-4', syncing && 'animate-spin')} />
                   Sincronizar
                 </button>
-                <button 
+
+                <button
                   onClick={() => setIsFilterModalOpen(true)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Filter className="size-4" />
                   Filtros Avançados
                 </button>
-                <button 
-                  onClick={handleIAInsights}
+
+                <button
+                  onClick={() => setIsIAInsightsModalOpen(true)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0f49bd] text-white rounded-lg text-sm font-bold hover:bg-[#0a3690] transition-colors shadow-sm"
                 >
                   <Sparkles className="size-4" />
@@ -319,345 +274,186 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            {/* Tabs */}
             <div className="flex items-center gap-1 border-b border-gray-200">
-              {['all', 'new', 'saved', 'viewed'].map((tab) => (
+              {[
+                { key: 'all', label: 'Todas' },
+                { key: 'new', label: 'Novas' },
+                { key: 'under_review', label: 'Em Revisão' },
+                { key: 'relevant', label: 'Relevantes' },
+                { key: 'discarded', label: 'Descartadas' },
+              ].map((tab) => (
                 <button
-                  key={tab}
-                  onClick={() => {
-                    setActiveTab(tab);
-                    setCurrentPage(1);
-                  }}
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as TabKey)}
                   className={cn(
-                    "px-6 py-3 text-sm font-bold transition-all border-b-2 capitalize",
-                    activeTab === tab 
-                      ? "border-[#0f49bd] text-[#0f49bd]" 
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    'px-6 py-3 text-sm font-bold transition-all border-b-2',
+                    activeTab === tab.key
+                      ? 'border-[#0f49bd] text-[#0f49bd]'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   )}
                 >
-                  {tab === 'all' ? 'Todas' : tab === 'new' ? 'Novas' : tab === 'saved' ? 'Salvas' : 'Visualizadas'}
+                  {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* Opportunities List */}
-            <div className="grid grid-cols-1 gap-4">
-              {paginatedOpps.map((opp) => (
-                <div 
-                  key={opp.id} 
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
-                >
-                  <div className="p-6 flex flex-col md:flex-row gap-6">
-                    <div className="flex-1 space-y-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-blue-100">
-                              {opp.source}
-                            </span>
-                            <span className={cn(
-                              "text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border",
-                              opp.priority === 'critical' ? "bg-red-50 text-red-700 border-red-100" :
-                              opp.priority === 'high' ? "bg-orange-50 text-orange-700 border-orange-100" :
-                              opp.priority === 'medium' ? "bg-blue-50 text-blue-700 border-blue-100" :
-                              "bg-gray-50 text-gray-700 border-gray-100"
-                            )}>
-                              Prioridade {opp.priority === 'critical' ? 'Crítica' : opp.priority === 'high' ? 'Alta' : opp.priority === 'medium' ? 'Média' : 'Baixa'}
-                            </span>
-                            <span className="text-gray-400 text-xs">•</span>
-                            <span className="text-gray-500 text-xs font-medium flex items-center gap-1">
-                              <Calendar className="size-3" />
-                              Publicado em {opp.publish_date ? formatDate(opp.publish_date) : 'N/A'}
-                            </span>
-                          </div>
-                          <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#0f49bd] transition-colors">
-                            {opp.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 font-medium mt-1 flex items-center gap-1">
-                            <MapPin className="size-3 text-gray-400" />
-                            {opp.buyer_name} - {opp.municipality} ({opp.state})
-                          </p>
-                        </div>
-                        
-                        <div className="flex flex-col items-end">
-                          <div className={cn(
-                            "size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold",
-                            opp.matchScore >= 90 ? "border-green-100 text-green-600" :
-                            opp.matchScore >= 70 ? "border-blue-100 text-blue-600" : "border-gray-100 text-gray-400"
-                          )}>
-                            {opp.matchScore}%
-                          </div>
-                          <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">Match IA</span>
-                        </div>
-                      </div>
+            {filteredOpps.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+                <EmptyState
+                  icon={AlertCircle}
+                  title="Nenhuma oportunidade encontrada"
+                  description="Não há registros compatíveis com os filtros aplicados ou ainda não existem oportunidades carregadas na base."
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {filteredOpps.map((opp) => (
+                  <div
+                    key={opp.id}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
+                  >
+                    <div className="p-6 flex flex-col md:flex-row gap-6">
+                      <div className="flex-1 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-blue-100">
+                                Licitação
+                              </span>
 
-                      <div className="flex flex-wrap gap-2">
-                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
-                          {opp.category}
-                        </span>
-                        <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
-                          {opp.modality_name}
-                        </span>
-                      </div>
+                              <span className="text-gray-400 text-xs">•</span>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-50">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Valor Estimado</span>
-                          <span className="text-sm font-bold text-gray-900">{formatCurrency(opp.estimated_value)}</span>
+                              <span className="text-gray-500 text-xs font-medium flex items-center gap-1">
+                                <Calendar className="size-3" />
+                                Publicado em {opp.publication_date ? formatDate(opp.publication_date) : 'N/A'}
+                              </span>
+                            </div>
+
+                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#0f49bd] transition-colors">
+                              {opp.title}
+                            </h3>
+
+                            <p className="text-sm text-gray-600 font-medium mt-1 flex items-center gap-1">
+                              <MapPin className="size-3 text-gray-400" />
+                              {opp.organ_name} - {opp.city || opp.municipality_name || 'N/A'} ({opp.state || 'N/A'})
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col items-end">
+                            <div
+                              className={cn(
+                                'size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
+                                getScoreColor(Number(opp.match_score || 0))
+                              )}
+                            >
+                              {Number(opp.match_score || 0)}%
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">Match IA</span>
+                          </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Abertura</span>
-                          <span className="text-sm font-bold text-gray-900">{opp.deadline_date ? formatDate(opp.deadline_date) : 'N/A'}</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Status</span>
-                          <span className={cn(
-                            "text-sm font-bold capitalize",
-                            opp.matchStatus === 'new' ? "text-blue-600" : 
-                            opp.matchStatus === 'saved' ? "text-amber-600" : "text-gray-500"
-                          )}>
-                            {opp.matchStatus === 'new' ? 'Nova' : opp.matchStatus === 'saved' ? 'Salva' : 'Visualizada'}
+
+                        <div className="flex flex-wrap gap-2">
+                          {!!opp.modality && (
+                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
+                              {opp.modality}
+                            </span>
+                          )}
+
+                          {!!opp.situation && (
+                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
+                              {opp.situation}
+                            </span>
+                          )}
+
+                          <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
+                            {getStatusLabel(opp.internal_status)}
                           </span>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID Externo</span>
-                          <span className="text-sm font-medium text-gray-500">#{opp.source_external_id}</span>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-50">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Valor Estimado</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {opp.estimated_value ? formatCurrency(opp.estimated_value) : 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Abertura</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {opp.opening_date ? formatDate(opp.opening_date) : 'N/A'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Município Vinculado</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {opp.municipality_name || 'Não vinculado'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Status Interno</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {getStatusLabel(opp.internal_status)}
+                            </span>
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex flex-row md:flex-col gap-2 justify-end md:border-l md:border-gray-100 md:pl-6">
+                        <button
+                          onClick={() => handleViewDetail(opp)}
+                          className="flex-1 md:flex-none p-2.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-[#0f49bd] transition-all flex items-center justify-center gap-2 text-sm font-bold"
+                        >
+                          <Eye className="size-5" />
+                          <span className="md:hidden">Visualizar</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenNotice(opp.official_url)}
+                          className="flex-1 md:flex-none p-2.5 rounded-lg bg-[#0f49bd] text-white hover:bg-[#0a3690] transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-sm"
+                        >
+                          <ExternalLink className="size-5" />
+                          <span className="md:hidden">Link Oficial</span>
+                        </button>
                       </div>
                     </div>
 
-                      <div className="flex flex-row md:flex-col gap-2 justify-end md:border-l md:border-gray-100 md:pl-6">
-                        <button 
-                          onClick={() => handleToggleSave(opp.id)}
-                          className={cn(
-                            "flex-1 md:flex-none p-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 text-sm font-bold",
-                            opp.isFavorite 
-                              ? "bg-amber-50 border-amber-200 text-amber-600" 
-                              : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-[#0f49bd]"
-                          )}
+                    {Number(opp.match_score || 0) >= 50 && (
+                      <div className="bg-blue-50/50 px-6 py-3 border-t border-blue-100 flex items-center gap-3">
+                        <Sparkles className="size-4 text-blue-600" />
+                        <p className="text-xs text-blue-800 font-medium">
+                          <span className="font-bold">Análise IA:</span> {opp.match_reason || 'Sem justificativa disponível.'}
+                        </p>
+                        <button
+                          onClick={() => handleViewDetail(opp)}
+                          className="ml-auto text-xs font-bold text-blue-700 hover:underline flex items-center"
                         >
-                          <Star className={cn("size-5", opp.isFavorite && "fill-current")} />
-                          <span className="md:hidden">Favoritar</span>
+                          Ver Detalhes <ChevronRight className="size-3 ml-1" />
                         </button>
-                      <button 
-                        onClick={() => handleViewDetail(opp)}
-                        className="flex-1 md:flex-none p-2.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-[#0f49bd] transition-all flex items-center justify-center gap-2 text-sm font-bold"
-                      >
-                        <Eye className="size-5" />
-                        <span className="md:hidden">Visualizar</span>
-                      </button>
-                      <button 
-                        onClick={() => handleOpenNotice(opp.source_url)}
-                        className="flex-1 md:flex-none p-2.5 rounded-lg bg-[#0f49bd] text-white hover:bg-[#0a3690] transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-sm"
-                      >
-                        <ExternalLink className="size-5" />
-                        <span className="md:hidden">Ir para Edital</span>
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(opp.id)}
-                        className="flex-1 md:flex-none p-2.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-2 text-sm font-bold"
-                      >
-                        <Trash2 className="size-5" />
-                        <span className="md:hidden">Descartar</span>
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* IA Insight Banner */}
-                  {opp.matchScore >= 50 && (
-                    <div className="bg-blue-50/50 px-6 py-3 border-t border-blue-100 flex items-center gap-3">
-                      <Sparkles className="size-4 text-blue-600" />
-                      <p className="text-xs text-blue-800 font-medium">
-                        <span className="font-bold">Análise IA:</span> {opp.matchReason}
-                      </p>
-                      <button 
-                        onClick={() => handleViewAnalysis(opp)}
-                        className="ml-auto text-xs font-bold text-blue-700 hover:underline flex items-center"
-                      >
-                        Ver Detalhes <ChevronRight className="size-3 ml-1" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 py-8">
-                <button 
-                  disabled={currentPage === 1}
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-500 hover:bg-white transition-all disabled:opacity-50"
-                >
-                  Anterior
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button 
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all",
-                      currentPage === page ? "bg-[#0f49bd] text-white" : "border border-gray-200 text-gray-500 hover:bg-white"
+                      </div>
                     )}
-                  >
-                    {page}
-                  </button>
+                  </div>
                 ))}
-                <button 
-                  disabled={currentPage === totalPages}
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-500 hover:bg-white transition-all disabled:opacity-50"
-                >
-                  Próxima
-                </button>
               </div>
             )}
           </div>
         )}
       </div>
-      {/* Manual Opportunity Modal */}
-      <Dialog open={isManualModalOpen} onOpenChange={setIsManualModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nova Oportunidade Manual</DialogTitle>
-            <DialogDescription>
-              Cadastre uma oportunidade que não foi capturada automaticamente pelo PNCP.
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            <div className="col-span-2 space-y-2">
-              <label className="text-sm font-medium">Título da Oportunidade</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Aquisição de licenças de software..."
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.title}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, title: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prefeitura / Órgão</label>
-              <select 
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.municipality_id}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, municipality_id: e.target.value })}
-              >
-                <option value="">Selecione uma prefeitura...</option>
-                {municipalities.map(m => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Valor Estimado</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                <input 
-                  type="number" 
-                  placeholder="0,00"
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                  value={newManualOpp.estimated_value}
-                  onChange={(e) => setNewManualOpp({ ...newManualOpp, estimated_value: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Departamento</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Secretaria de Educação"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.department}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, department: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Secretaria</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Coordenação de TI"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.secretariat}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, secretariat: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Categoria</label>
-              <select 
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.category}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, category: e.target.value })}
-              >
-                <option value="Educação">Educação</option>
-                <option value="Saúde">Saúde</option>
-                <option value="Tecnologia">Tecnologia</option>
-                <option value="Infraestrutura">Infraestrutura</option>
-                <option value="Administração">Administração</option>
-                <option value="Outros">Outros</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <select 
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none"
-                value={newManualOpp.status}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, status: e.target.value as any })}
-              >
-                <option value="active">Ativa</option>
-                <option value="inactive">Inativa</option>
-                <option value="expired">Expirada</option>
-              </select>
-            </div>
-
-            <div className="col-span-2 space-y-2">
-              <label className="text-sm font-medium">Descrição / Observações</label>
-              <textarea 
-                rows={3}
-                placeholder="Detalhes adicionais sobre a oportunidade..."
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none resize-none"
-                value={newManualOpp.description}
-                onChange={(e) => setNewManualOpp({ ...newManualOpp, description: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <button 
-              onClick={() => setIsManualModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleCreateManualOpp}
-              className="px-4 py-2 text-sm font-bold text-white bg-[#0f49bd] hover:bg-[#0a3690] rounded-lg transition-colors shadow-sm"
-            >
-              Criar Oportunidade
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* IA Insights Modal */}
       <Dialog open={isIAInsightsModalOpen} onOpenChange={setIsIAInsightsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-5 text-[#0f49bd]" />
-              IA Insights - Análise de Oportunidades
+              IA Insights - Oportunidades
             </DialogTitle>
             <DialogDescription>
-              Resumo inteligente das oportunidades filtradas com base no seu perfil.
+              Resumo das oportunidades carregadas com base na aderência identificada.
             </DialogDescription>
           </DialogHeader>
+
           <div className="py-6 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -679,7 +475,7 @@ export default function OpportunitiesPage() {
                 <div className="p-4 bg-green-50 rounded-xl border border-green-100">
                   <p className="text-sm font-bold text-green-900 mb-1">{iaSummary.topRecommendation.title}</p>
                   <p className="text-xs text-green-700 leading-relaxed">
-                    <span className="font-bold">Justificativa:</span> {iaSummary.topRecommendation.matchReason}
+                    <span className="font-bold">Justificativa:</span> {iaSummary.topRecommendation.match_reason || 'Sem justificativa disponível.'}
                   </p>
                 </div>
               </div>
@@ -688,22 +484,23 @@ export default function OpportunitiesPage() {
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <AlertCircle className="size-4 text-amber-600" />
-                Alertas e Riscos
+                Alertas
               </h4>
               <ul className="space-y-2">
                 <li className="text-xs text-gray-600 flex items-start gap-2">
                   <div className="size-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  {iaSummary.totalAnalyzed > 10 ? "Volume alto de editais para o período. Risco de sobrecarga na equipe de orçamentação." : "Baixa concorrência prevista para os editais de Santa Catarina."}
+                  O painel já destaca automaticamente oportunidades com maior aderência ao perfil estratégico.
                 </li>
                 <li className="text-xs text-gray-600 flex items-start gap-2">
                   <div className="size-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  Atenção aos prazos de impugnação que vencem nos próximos 3 dias.
+                  A sincronização automática com a fonte oficial ainda será conectada na próxima etapa.
                 </li>
               </ul>
             </div>
           </div>
+
           <DialogFooter>
-            <button 
+            <button
               onClick={() => setIsIAInsightsModalOpen(false)}
               className="w-full bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
             >
@@ -713,71 +510,77 @@ export default function OpportunitiesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detailed View Modal */}
       <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Detalhes da Oportunidade</DialogTitle>
             <DialogDescription>
-              Informações completas extraídas do PNCP.
+              Informações completas da oportunidade selecionada.
             </DialogDescription>
           </DialogHeader>
+
           {selectedOpp && (
             <div className="py-4 space-y-6">
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-gray-900">{selectedOpp.title}</h3>
                 <p className="text-sm text-gray-500 flex items-center gap-1">
-                  <Building2 className="size-4" /> {selectedOpp.buyer_name}
+                  <Building2 className="size-4" /> {selectedOpp.organ_name}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Valor Estimado</span>
-                  <span className="text-sm font-bold text-gray-900">{formatCurrency(selectedOpp.estimated_value)}</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {selectedOpp.estimated_value ? formatCurrency(selectedOpp.estimated_value) : 'Não informado'}
+                  </span>
                 </div>
+
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Modalidade</span>
-                  <span className="text-sm font-bold text-gray-900">{selectedOpp.modality_name}</span>
+                  <span className="text-sm font-bold text-gray-900">{selectedOpp.modality || 'N/A'}</span>
                 </div>
+
                 <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Prazo de Abertura</span>
-                  <span className="text-sm font-bold text-gray-900">{selectedOpp.deadline_date ? formatDate(selectedOpp.deadline_date) : 'N/A'}</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Abertura</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {selectedOpp.opening_date ? formatDate(selectedOpp.opening_date) : 'N/A'}
+                  </span>
                 </div>
+
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Match IA</span>
-                  <span className={cn(
-                    "text-sm font-bold",
-                    selectedOpp.matchScore >= 90 ? "text-green-600" : "text-blue-600"
-                  )}>{selectedOpp.matchScore}%</span>
+                  <span
+                    className={cn(
+                      'text-sm font-bold',
+                      Number(selectedOpp.match_score || 0) >= 90 ? 'text-green-600' : 'text-blue-600'
+                    )}
+                  >
+                    {Number(selectedOpp.match_score || 0)}%
+                  </span>
                 </div>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Resumo Analítico</h4>
                 <p className="text-sm text-gray-600 leading-relaxed italic">
-                  &quot;{selectedOpp.matchReason}&quot;
+                  &quot;{selectedOpp.match_reason || 'Sem justificativa analítica disponível.'}&quot;
+                </p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Descrição</h4>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {selectedOpp.description || 'Sem descrição detalhada disponível.'}
                 </p>
               </div>
 
               <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                <button 
-                  onClick={() => handleOpenNotice(selectedOpp.source_url)}
+                <button
+                  onClick={() => handleOpenNotice(selectedOpp.official_url)}
                   className="flex-1 bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all flex items-center justify-center gap-2"
                 >
-                  <ExternalLink className="size-4" /> Ver Edital Oficial
-                </button>
-                <button 
-                  onClick={() => handleToggleSave(selectedOpp.id)}
-                  className={cn(
-                    "flex-1 py-2.5 rounded-lg font-bold text-sm border transition-all flex items-center justify-center gap-2",
-                    selectedOpp.matchStatus === 'saved' 
-                      ? "bg-amber-50 border-amber-200 text-amber-600" 
-                      : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <Bookmark className={cn("size-4", selectedOpp.matchStatus === 'saved' && "fill-current")} />
-                  {selectedOpp.matchStatus === 'saved' ? 'Salvo' : 'Salvar'}
+                  <ExternalLink className="size-4" /> Ver Link Oficial
                 </button>
               </div>
             </div>
@@ -785,118 +588,46 @@ export default function OpportunitiesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Analysis Modal */}
-      <Dialog open={isAnalysisModalOpen} onOpenChange={setIsAnalysisModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="size-5 text-[#0f49bd]" />
-              Análise Profunda da Licitação
-            </DialogTitle>
-          </DialogHeader>
-          {selectedOpp && (
-            <div className="py-4 space-y-6">
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <h4 className="text-sm font-bold text-blue-900 mb-2">Por que participar?</h4>
-                <p className="text-xs text-blue-800 leading-relaxed">
-                  {selectedOpp.matchReason} O órgão tem um histórico de 98% de empenho e pagamento em dia para este tipo de objeto.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-bold text-gray-900">Pontos de Atenção</h4>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="size-5 rounded bg-amber-100 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">
-                      <Info className="size-3" />
-                    </div>
-                    <p className="text-xs text-gray-600">Exigência de atestado de capacidade técnica para 50% do volume total.</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="size-5 rounded bg-green-100 flex items-center justify-center text-green-600 shrink-0 mt-0.5">
-                      <CheckCircle2 className="size-3" />
-                    </div>
-                    <p className="text-xs text-gray-600">Sua empresa possui todas as certidões negativas exigidas no item 9.2 do edital.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Estimativa de Concorrência</h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-700">Baixa / Média</span>
-                  <div className="flex gap-1">
-                    <div className="w-8 h-2 rounded bg-green-500" />
-                    <div className="w-8 h-2 rounded bg-green-500" />
-                    <div className="w-8 h-2 rounded bg-gray-200" />
-                    <div className="w-8 h-2 rounded bg-gray-200" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <button 
-              onClick={() => setIsAnalysisModalOpen(false)}
-              className="w-full bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-            >
-              Fechar Análise
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Filtros Avançados</DialogTitle>
             <DialogDescription>
-              Refine sua busca por oportunidades no PNCP.
+              Refine a visualização das oportunidades carregadas.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Localização (UF ou Cidade)</label>
-              <input 
+              <input
                 className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
                 placeholder="Ex: SP ou Curitiba"
                 value={filters.location}
                 onChange={(e) => setFilters({ ...filters, location: e.target.value })}
               />
             </div>
+
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700">Prioridade</label>
-              <select 
+              <label className="text-sm font-bold text-gray-700">Modalidade</label>
+              <input
                 className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.priority}
-                onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
-              >
-                <option value="all">Todas as Prioridades</option>
-                <option value="critical">Crítica</option>
-                <option value="high">Alta</option>
-                <option value="medium">Média</option>
-                <option value="low">Baixa</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 py-2">
-              <input 
-                type="checkbox" 
-                id="onlyFavorites"
-                className="size-4 rounded border-gray-300 text-[#0f49bd] focus:ring-[#0f49bd]"
-                checked={filters.onlyFavorites}
-                onChange={(e) => setFilters({ ...filters, onlyFavorites: e.target.checked })}
+                placeholder="Ex: Pregão Eletrônico"
+                value={filters.modality}
+                onChange={(e) => setFilters({ ...filters, modality: e.target.value })}
               />
-              <label htmlFor="onlyFavorites" className="text-sm font-bold text-gray-700 cursor-pointer">Apenas Favoritas</label>
             </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Match IA Mínimo ({filters.minScore}%)</label>
-              <input 
+              <input
                 type="range"
                 min="0"
                 max="100"
                 step="5"
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f49bd]"
                 value={filters.minScore}
-                onChange={(e) => setFilters({ ...filters, minScore: parseInt(e.target.value) })}
+                onChange={(e) => setFilters({ ...filters, minScore: parseInt(e.target.value, 10) })}
               />
               <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
                 <span>0%</span>
@@ -905,14 +636,15 @@ export default function OpportunitiesPage() {
               </div>
             </div>
           </div>
+
           <DialogFooter className="flex gap-2">
-            <button 
+            <button
               onClick={handleResetFilters}
               className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg"
             >
               Limpar
             </button>
-            <button 
+            <button
               onClick={handleApplyFilters}
               className="flex-1 bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
             >
