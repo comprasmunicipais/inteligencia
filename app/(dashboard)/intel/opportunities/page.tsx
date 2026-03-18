@@ -32,7 +32,6 @@ import { useCompany } from '@/components/providers/CompanyProvider';
 import { opportunityService } from '@/lib/services/opportunities';
 import { OpportunityDTO } from '@/lib/types/dtos';
 import EmptyState from '@/components/shared/EmptyState';
-import { municipalityService, MunicipalityOption } from '@/lib/services/municipalities';
 
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 
@@ -43,9 +42,6 @@ export default function OpportunitiesPage() {
   const [syncing, setSyncing] = useState(false);
 
   const [opps, setOpps] = useState<OpportunityDTO[]>([]);
-  const [matches, setMatches] = useState<any[]>([]);
-  const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
-
   const [stats, setStats] = useState({
     total: 0,
     newLastSync: 0,
@@ -72,16 +68,23 @@ export default function OpportunitiesPage() {
     if (!companyId) return;
 
     setLoading(true);
+
+    let oppsError = false;
+    let statsError = false;
+
     try {
-      const [oppsData, statsData, munData] = await Promise.all([
-        opportunityService.getAll(companyId),
-        opportunityService.getStats(companyId),
-        municipalityService.getAllForSelect()
-      ]);
-
+      const oppsData = await opportunityService.getAll(companyId);
       console.log('OPPS DATA:', oppsData);
-
       setOpps(oppsData || []);
+    } catch (error) {
+      oppsError = true;
+      console.error('ERRO REAL getAll:', error);
+      setOpps([]);
+    }
+
+    try {
+      const statsData = await opportunityService.getStats(companyId);
+      console.log('STATS DATA:', statsData);
       setStats(
         statsData || {
           total: 0,
@@ -91,14 +94,27 @@ export default function OpportunitiesPage() {
           converted: 0,
         }
       );
-      setMatches([]);
-      setMunicipalities(munData || []);
     } catch (error) {
-      console.error('ERRO REAL:', error);
-      toast.error('Erro ao carregar dados de inteligência.');
-    } finally {
-      setLoading(false);
+      statsError = true;
+      console.error('ERRO REAL getStats:', error);
+      setStats({
+        total: 0,
+        newLastSync: 0,
+        highMatch: 0,
+        expiringSoon: 0,
+        converted: 0,
+      });
     }
+
+    if (oppsError && statsError) {
+      toast.error('Erro ao carregar dados de inteligência.');
+    } else if (oppsError) {
+      toast.error('Não foi possível carregar a listagem de oportunidades.');
+    } else if (statsError) {
+      toast.error('Não foi possível carregar os indicadores.');
+    }
+
+    setLoading(false);
   }, [companyId]);
 
   useEffect(() => {
@@ -118,13 +134,6 @@ export default function OpportunitiesPage() {
     } finally {
       setSyncing(false);
     }
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'border-green-100 text-green-600 bg-green-50';
-    if (score >= 70) return 'border-blue-100 text-blue-600 bg-blue-50';
-    if (score >= 50) return 'border-amber-100 text-amber-600 bg-amber-50';
-    return 'border-gray-100 text-gray-400 bg-gray-50';
   };
 
   const getStatusLabel = (status?: string) => {
@@ -189,9 +198,6 @@ export default function OpportunitiesPage() {
     return {
       totalAnalyzed: filteredOpps.length,
       highMatch: filteredOpps.filter((o) => Number(o.match_score || 0) >= 90),
-      mediumMatch: filteredOpps.filter(
-        (o) => Number(o.match_score || 0) >= 70 && Number(o.match_score || 0) < 90
-      ),
       topRecommendation: ordered[0] || null,
     };
   }, [filteredOpps]);
