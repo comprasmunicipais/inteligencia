@@ -1,3 +1,11 @@
+export interface MunicipalityListItem {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  label?: string;
+}
+
 export interface MunicipalityDTO {
   id: string;
   name: string;
