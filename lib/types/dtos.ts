@@ -22,4 +22,11 @@ export interface OpportunityDTO {
 
   municipality_id?: string;
   municipality_name?: string;
+
+export interface DealDTO {
+  id: string;
+  title: string;
+  value?: number;
+  municipality_id?: string;
+  status: string;
 }
