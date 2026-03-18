@@ -33,6 +33,7 @@ export interface ContactDTO {
   whatsapp?: string;
   location?: string;
   notes?: string;
+  bio?: string;
   status?: string;
   account_name?: string;
   created_at?: string;
