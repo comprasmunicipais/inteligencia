@@ -22,40 +22,95 @@ export async function GET() {
     const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`;
 
     const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
       cache: 'no-store',
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      return NextResponse.json({
+        ok: false,
+        error: 'Erro ao buscar PNCP',
+        status: response.status,
+        detail: errorText,
+        url,
+      });
+    }
 
     const json = await response.json();
     const items = json?.data || [];
 
     let inserted = 0;
+    const errors: Array<{
+      external_id: string;
+      message: string;
+      details: string | null;
+      hint: string | null;
+    }> = [];
 
     for (const item of items) {
-      const { error } = await supabase
-        .from('pncp_contratacoes')
-        .upsert({
-          numero_controle: item.numeroControlePNCP,
-          orgao: item.orgaoEntidade?.razaoSocial,
-          objeto: item.objetoCompra,
-          municipio: item.unidadeOrgao?.municipioNome,
-          uf: item.unidadeOrgao?.ufSigla,
-          valor: item.valorTotalEstimado,
-          data_publicacao: item.dataPublicacaoPncp,
-          raw: item,
-        }, {
-          onConflict: 'numero_controle'
-        });
+      const externalId =
+        item.numeroControlePNCP ||
+        `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
 
-      if (!error) inserted++;
+      const oportunidade = {
+        company_id: 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3',
+        external_id: String(externalId),
+        source: 'PNCP',
+        title: item.objetoCompra || 'Objeto não informado',
+        description: item.objetoCompra || null,
+        organ_name: item.orgaoEntidade?.razaoSocial || 'Órgão não informado',
+        city: item.unidadeOrgao?.municipioNome || null,
+        state: item.unidadeOrgao?.ufSigla || null,
+        municipality_name:
+          item.unidadeOrgao?.municipioNome && item.unidadeOrgao?.ufSigla
+            ? `${item.unidadeOrgao.municipioNome} (${item.unidadeOrgao.ufSigla})`
+            : null,
+        modality: item.modalidadeNome || 'Pregão Eletrônico',
+        situation: item.situacaoCompraNome || 'Publicada',
+        publication_date: item.dataPublicacaoPncp || null,
+        opening_date: item.dataAberturaProposta || null,
+        estimated_value: item.valorTotalEstimado || null,
+        official_url:
+          item.linkSistemaOrigem ||
+          (item.numeroControlePNCP
+            ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}`
+            : null),
+        sync_hash: String(externalId),
+        match_score: 0,
+        match_reason: 'Importado automaticamente do PNCP',
+        internal_status: 'new',
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('opportunities')
+        .upsert(oportunidade, { onConflict: 'external_id' });
+
+      if (error) {
+        errors.push({
+          external_id: String(externalId),
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+      } else {
+        inserted++;
+      }
     }
 
     return NextResponse.json({
       ok: true,
       total_recebidos: items.length,
       inseridos: inserted,
+      total_erros: errors.length,
+      primeiro_erro: errors[0] || null,
     });
-
   } catch (error) {
     return NextResponse.json({
       ok: false,
