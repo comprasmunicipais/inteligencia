@@ -26,9 +26,9 @@ export async function GET(request: Request) {
       codigoModalidadeContratacao: '6',
     });
 
-    const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`;
+    const pncpUrl = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`;
 
-    const response = await fetch(url, {
+    const response = await fetch(pncpUrl, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
         error: 'Erro ao buscar PNCP',
         status: response.status,
         detail: errorText,
-        url,
+        url: pncpUrl,
       });
     }
 
@@ -52,6 +52,8 @@ export async function GET(request: Request) {
     const items = json?.data || [];
 
     let inserted = 0;
+    let updated = 0;
+
     const errors: Array<{
       external_id: string;
       message: string;
@@ -64,9 +66,11 @@ export async function GET(request: Request) {
         item.numeroControlePNCP ||
         `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
 
+      const externalIdString = String(externalId);
+
       const oportunidade = {
         company_id: 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3',
-        external_id: String(externalId),
+        external_id: externalIdString,
         source: 'PNCP',
         title: item.objetoCompra || 'Objeto não informado',
         description: item.objetoCompra || null,
@@ -87,7 +91,7 @@ export async function GET(request: Request) {
           (item.numeroControlePNCP
             ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}`
             : null),
-        sync_hash: String(externalId),
+        sync_hash: externalIdString,
         match_score: 0,
         match_reason: 'Importado automaticamente do PNCP',
         internal_status: 'new',
@@ -95,19 +99,39 @@ export async function GET(request: Request) {
         updated_at: new Date().toISOString(),
       };
 
+      const { data: existingRecord, error: existingError } = await supabase
+        .from('opportunities')
+        .select('id')
+        .eq('external_id', externalIdString)
+        .maybeSingle();
+
+      if (existingError) {
+        errors.push({
+          external_id: externalIdString,
+          message: existingError.message,
+          details: existingError.details,
+          hint: existingError.hint,
+        });
+        continue;
+      }
+
       const { error } = await supabase
         .from('opportunities')
         .upsert(oportunidade, { onConflict: 'external_id' });
 
       if (error) {
         errors.push({
-          external_id: String(externalId),
+          external_id: externalIdString,
           message: error.message,
           details: error.details,
           hint: error.hint,
         });
       } else {
-        inserted++;
+        if (existingRecord) {
+          updated++;
+        } else {
+          inserted++;
+        }
       }
     }
 
@@ -115,13 +139,18 @@ export async function GET(request: Request) {
       ok: true,
       total_recebidos: items.length,
       inseridos: inserted,
+      atualizados: updated,
       total_erros: errors.length,
       primeiro_erro: errors[0] || null,
+      sincronizado_em: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json({
-      ok: false,
-      error: error instanceof Error ? error.message : 'Erro desconhecido',
-    });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+      },
+      { status: 500 }
+    );
   }
 }
