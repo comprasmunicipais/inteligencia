@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  if (pathname === '/api/pncp/sync') {
+  // 🚨 LIBERA TODAS AS ROTAS DE API (CRÍTICO PARA CRON)
+  if (pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 
@@ -42,7 +43,6 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthPage = pathname.startsWith('/login');
-  const isPublicPage = pathname === '/';
   const isPrivatePage =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/pipeline') ||
