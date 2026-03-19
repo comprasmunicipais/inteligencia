@@ -10,11 +10,13 @@ function isAuthorized(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
+    console.log('CRON AUTH: missing CRON_SECRET');
     return false;
   }
 
   const authHeader = request.headers.get('authorization');
   if (authHeader === `Bearer ${cronSecret}`) {
+    console.log('CRON AUTH: authorized by header');
     return true;
   }
 
@@ -22,20 +24,27 @@ function isAuthorized(request: NextRequest) {
   const token = url.searchParams.get('token');
 
   if (token && token === cronSecret) {
+    console.log('CRON AUTH: authorized by query token');
     return true;
   }
 
+  console.log('CRON AUTH: unauthorized request');
   return false;
 }
 
 export async function GET(request: NextRequest) {
+  console.log('CRON START');
+
   try {
     if (!isAuthorized(request)) {
+      console.log('CRON STOP: unauthorized');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+
+    console.log('CRON STEP: building PNCP request');
 
     const dataInicial = '20260301';
     const dataFinal = '20260331';
@@ -48,6 +57,8 @@ export async function GET(request: NextRequest) {
       `&dataFinal=${dataFinal}` +
       `&codigoModalidadeContratacao=${codigoModalidadeContratacao}`;
 
+    console.log('CRON STEP: fetching PNCP', url);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -56,8 +67,26 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
     });
 
+    console.log('CRON STEP: PNCP response status', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('CRON ERROR: PNCP non-200 response', errorText);
+
+      return NextResponse.json(
+        {
+          error: 'Erro ao consultar PNCP',
+          status: response.status,
+          detail: errorText,
+        },
+        { status: 502 }
+      );
+    }
+
     const json = await response.json();
     const items = json.data || [];
+
+    console.log('CRON STEP: PNCP items received', items.length);
 
     let inserted = 0;
     const errors: Array<{
@@ -108,6 +137,13 @@ export async function GET(request: NextRequest) {
         .upsert(oportunidade, { onConflict: 'external_id' });
 
       if (error) {
+        console.error('CRON UPSERT ERROR:', {
+          external_id: String(externalId),
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+
         errors.push({
           external_id: String(externalId),
           message: error.message,
@@ -119,6 +155,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log('CRON FINISHED', {
+      total_recebidos: items.length,
+      inseridos: inserted,
+      total_erros: errors.length,
+    });
+
     return NextResponse.json({
       success: true,
       total_recebidos: items.length,
@@ -127,6 +169,8 @@ export async function GET(request: NextRequest) {
       primeiro_erro: errors[0] || null,
     });
   } catch (error) {
+    console.error('CRON FATAL ERROR:', error);
+
     return NextResponse.json(
       {
         error: 'Erro ao sincronizar PNCP',
