@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const dataInicial = '2026-03-01';
-    const dataFinal = '2026-03-31';
+    const dataInicial = '20260301';
+    const dataFinal = '20260331';
     const codigoModalidadeContratacao = '6';
 
     const url =
