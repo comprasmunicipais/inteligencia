@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,8 +6,37 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
+function isAuthorized(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    return false;
+  }
+
+  const authHeader = request.headers.get('authorization');
+  if (authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token');
+
+  if (token && token === cronSecret) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function GET(request: NextRequest) {
   try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const dataInicial = '20260301';
     const dataFinal = '20260331';
     const codigoModalidadeContratacao = '6';
@@ -31,7 +60,12 @@ export async function GET() {
     const items = json.data || [];
 
     let inserted = 0;
-    const errors: any[] = [];
+    const errors: Array<{
+      external_id: string;
+      message: string;
+      details: string | null;
+      hint: string | null;
+    }> = [];
 
     for (const item of items) {
       const externalId =
@@ -75,7 +109,7 @@ export async function GET() {
 
       if (error) {
         errors.push({
-          external_id: externalId,
+          external_id: String(externalId),
           message: error.message,
           details: error.details,
           hint: error.hint,
