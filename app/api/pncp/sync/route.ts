@@ -2,6 +2,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET() {
   try {
@@ -16,33 +22,40 @@ export async function GET() {
     const url = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`;
 
     const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    const json = await response.json();
+    const items = json?.data || [];
 
-      return NextResponse.json({
-        ok: false,
-        error: 'Erro ao buscar PNCP',
-        status: response.status,
-        detail: errorText,
-        url,
-      });
+    let inserted = 0;
+
+    for (const item of items) {
+      const { error } = await supabase
+        .from('pncp_contratacoes')
+        .upsert({
+          numero_controle: item.numeroControlePNCP,
+          orgao: item.orgaoEntidade?.razaoSocial,
+          objeto: item.objetoCompra,
+          municipio: item.unidadeOrgao?.municipioNome,
+          uf: item.unidadeOrgao?.ufSigla,
+          valor: item.valorTotalEstimado,
+          data_publicacao: item.dataPublicacaoPncp,
+          raw: item,
+        }, {
+          onConflict: 'numero_controle'
+        });
+
+      if (!error) inserted++;
     }
-
-    const data = await response.json();
 
     return NextResponse.json({
       ok: true,
-      total: data?.data?.length || 0,
-      sample: data?.data?.slice(0, 3) || [],
-      url,
+      total_recebidos: items.length,
+      inseridos: inserted,
     });
+
   } catch (error) {
     return NextResponse.json({
       ok: false,
