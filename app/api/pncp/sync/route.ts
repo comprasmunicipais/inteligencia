@@ -1,0 +1,12 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    source: 'PNCP_SYNC_RECRIADA',
+    timestamp: new Date().toISOString(),
+  });
+}
