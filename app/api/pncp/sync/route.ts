@@ -9,7 +9,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
+export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const token = requestUrl.searchParams.get('token');
+
+  if (token !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const params = new URLSearchParams({
       pagina: '1',
