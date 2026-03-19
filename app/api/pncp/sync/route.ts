@@ -4,10 +4,14 @@ export async function GET() {
   try {
     const dataInicial = '2026-03-01';
     const dataFinal = '2026-03-31';
+    const codigoModalidadeContratacao = '6';
 
     const url =
       `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao` +
-      `?pagina=1&tamanhoPagina=20&dataInicial=${dataInicial}&dataFinal=${dataFinal}`;
+      `?pagina=1&tamanhoPagina=20` +
+      `&dataInicial=${dataInicial}` +
+      `&dataFinal=${dataFinal}` +
+      `&codigoModalidadeContratacao=${codigoModalidadeContratacao}`;
 
     const response = await fetch(url, {
       method: 'GET',
