@@ -4,11 +4,17 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  console.log('PNCP SYNC TEST OK');
-
-  return NextResponse.json({
-    ok: true,
-    message: 'rota pncp sync funcionando',
-    timestamp: new Date().toISOString(),
-  });
+  return new NextResponse(
+    JSON.stringify({
+      ok: true,
+      source: 'ROUTE_DIRETA',
+      timestamp: new Date().toISOString(),
+    }),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
 }
