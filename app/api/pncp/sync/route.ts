@@ -19,60 +19,84 @@ export async function GET() {
       `&dataFinal=${dataFinal}` +
       `&codigoModalidadeContratacao=${codigoModalidadeContratacao}`;
 
-    const response = await fetch(url);
-    const json = await response.json();
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
 
+    const json = await response.json();
     const items = json.data || [];
 
     let inserted = 0;
+    const errors: any[] = [];
 
     for (const item of items) {
+      const externalId =
+        item.numeroControlePNCP ||
+        `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
+
       const oportunidade = {
-        company_id: 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3', // seu ID
-
-        title: item.objetoCompra,
-        description: item.objetoCompra,
-
-        organ_name: item.orgaoEntidade?.razaoSocial || null,
-
-        modality: item.modalidadeNome || 'Pregão',
-        situation: 'publicada',
-
+        company_id: 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3',
+        external_id: String(externalId),
+        source: 'PNCP',
+        title: item.objetoCompra || 'Objeto não informado',
+        description: item.objetoCompra || null,
+        organ_name: item.orgaoEntidade?.razaoSocial || 'Órgão não informado',
         city: item.unidadeOrgao?.municipioNome || null,
         state: item.unidadeOrgao?.ufSigla || null,
-
-        estimated_value: item.valorTotalEstimado || null,
-
-        opening_date: item.dataAberturaProposta || null,
+        municipality_name:
+          item.unidadeOrgao?.municipioNome && item.unidadeOrgao?.ufSigla
+            ? `${item.unidadeOrgao.municipioNome} (${item.unidadeOrgao.ufSigla})`
+            : null,
+        modality: item.modalidadeNome || 'Pregão Eletrônico',
+        situation: item.situacaoCompraNome || 'Publicada',
         publication_date: item.dataPublicacaoPncp || null,
-
+        opening_date: item.dataAberturaProposta || null,
+        estimated_value: item.valorTotalEstimado || null,
         official_url:
           item.linkSistemaOrigem ||
-          `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}`,
-
+          (item.numeroControlePNCP
+            ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}`
+            : null),
+        sync_hash: String(externalId),
         match_score: 0,
-        match_reason: 'Importado do PNCP',
-
-        internal_status: 'nova'
+        match_reason: 'Importado automaticamente do PNCP',
+        internal_status: 'new',
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
         .from('opportunities')
-        .insert(oportunidade);
+        .upsert(oportunidade, { onConflict: 'external_id' });
 
-      if (!error) inserted++;
+      if (error) {
+        errors.push({
+          external_id: externalId,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+      } else {
+        inserted++;
+      }
     }
 
     return NextResponse.json({
       success: true,
       total_recebidos: items.length,
-      inseridos: inserted
+      inseridos: inserted,
+      total_erros: errors.length,
+      primeiro_erro: errors[0] || null,
     });
   } catch (error) {
     return NextResponse.json(
       {
         error: 'Erro ao sincronizar PNCP',
-        detail: error instanceof Error ? error.message : 'Erro desconhecido'
+        detail: error instanceof Error ? error.message : 'Erro desconhecido',
       },
       { status: 500 }
     );
