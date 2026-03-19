@@ -1,33 +1,20 @@
-import { NextResponse } from 'next/server';
+const response = await fetch(url, {
+  method: 'GET',
+  headers: {
+    Accept: 'application/json',
+  },
+  cache: 'no-store',
+});
 
-export async function GET() {
-  try {
-    const url =
-      'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?pagina=1&tamanhoPagina=20';
+const rawText = await response.text();
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-      cache: 'no-store',
-    });
+console.log('STATUS:', response.status);
+console.log('BODY:', rawText);
 
-    const rawText = await response.text();
-
-    return NextResponse.json({
-      ok: response.ok,
-      status: response.status,
-      url,
-      body_preview: rawText.slice(0, 3000),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Erro ao testar API do PNCP.',
-        detail: error instanceof Error ? error.message : 'Erro desconhecido',
-      },
-      { status: 500 }
-    );
-  }
+if (!response.ok) {
+  return NextResponse.json({
+    error: 'PNCP respondeu com erro',
+    status: response.status,
+    body: rawText.slice(0, 1000),
+  });
 }
