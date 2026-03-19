@@ -9,6 +9,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function formatDateToPNCP(date: Date) {
+  return date.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const token = requestUrl.searchParams.get('token');
@@ -18,11 +22,38 @@ export async function GET(request: Request) {
   }
 
   try {
+    const { data: lastSyncData, error: lastSyncError } = await supabase
+      .from('sync_control')
+      .select('last_sync')
+      .eq('source', 'PNCP')
+      .maybeSingle();
+
+    if (lastSyncError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Erro ao consultar controle de sincronização',
+          detail: lastSyncError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    const now = new Date();
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultStart.getDate() - 1);
+
+    const dataInicialDate = lastSyncData?.last_sync
+      ? new Date(lastSyncData.last_sync)
+      : defaultStart;
+
+    const dataFinalDate = now;
+
     const params = new URLSearchParams({
       pagina: '1',
       tamanhoPagina: '20',
-      dataInicial: '20260301',
-      dataFinal: '20260331',
+      dataInicial: formatDateToPNCP(dataInicialDate),
+      dataFinal: formatDateToPNCP(dataFinalDate),
       codigoModalidadeContratacao: '6',
     });
 
@@ -135,6 +166,27 @@ export async function GET(request: Request) {
       }
     }
 
+    const { error: syncControlError } = await supabase
+      .from('sync_control')
+      .upsert(
+        {
+          source: 'PNCP',
+          last_sync: new Date().toISOString(),
+        },
+        { onConflict: 'source' }
+      );
+
+    if (syncControlError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Erro ao salvar controle de sincronização',
+          detail: syncControlError.message,
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       total_recebidos: items.length,
@@ -143,6 +195,10 @@ export async function GET(request: Request) {
       total_erros: errors.length,
       primeiro_erro: errors[0] || null,
       sincronizado_em: new Date().toISOString(),
+      janela_consultada: {
+        data_inicial: formatDateToPNCP(dataInicialDate),
+        data_final: formatDateToPNCP(dataFinalDate),
+      },
     });
   } catch (error) {
     return NextResponse.json(
