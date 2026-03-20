@@ -13,6 +13,15 @@ function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+function normalizeText(value: string | null | undefined) {
+  if (!value) return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const token = requestUrl.searchParams.get('token');
@@ -99,6 +108,38 @@ export async function GET(request: Request) {
 
       const externalIdString = String(externalId);
 
+      const city = item.unidadeOrgao?.municipioNome || null;
+      const state = item.unidadeOrgao?.ufSigla || null;
+
+      let municipalityId: string | null = null;
+
+      if (city && state) {
+        const { data: municipalities, error: municipalitySearchError } = await supabase
+          .from('municipalities')
+          .select('id, city, state')
+          .eq('state', state);
+
+        if (municipalitySearchError) {
+          errors.push({
+            external_id: externalIdString,
+            message: municipalitySearchError.message,
+            details: municipalitySearchError.details,
+            hint: municipalitySearchError.hint,
+          });
+          continue;
+        }
+
+        const normalizedCity = normalizeText(city);
+
+        const matchedMunicipality = (municipalities || []).find(
+          (municipality) =>
+            normalizeText(municipality.city) === normalizedCity &&
+            normalizeText(municipality.state) === normalizeText(state)
+        );
+
+        municipalityId = matchedMunicipality?.id ?? null;
+      }
+
       const oportunidade = {
         company_id: 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3',
         external_id: externalIdString,
@@ -106,12 +147,13 @@ export async function GET(request: Request) {
         title: item.objetoCompra || 'Objeto não informado',
         description: item.objetoCompra || null,
         organ_name: item.orgaoEntidade?.razaoSocial || 'Órgão não informado',
-        city: item.unidadeOrgao?.municipioNome || null,
-        state: item.unidadeOrgao?.ufSigla || null,
+        city,
+        state,
         municipality_name:
-          item.unidadeOrgao?.municipioNome && item.unidadeOrgao?.ufSigla
-            ? `${item.unidadeOrgao.municipioNome} (${item.unidadeOrgao.ufSigla})`
+          city && state
+            ? `${city} (${state})`
             : null,
+        municipality_id: municipalityId,
         modality: item.modalidadeNome || 'Pregão Eletrônico',
         situation: item.situacaoCompraNome || 'Publicada',
         publication_date: item.dataPublicacaoPncp || null,
@@ -124,7 +166,9 @@ export async function GET(request: Request) {
             : null),
         sync_hash: externalIdString,
         match_score: 0,
-        match_reason: 'Importado automaticamente do PNCP',
+        match_reason: municipalityId
+          ? 'Importado automaticamente do PNCP e vinculado ao município'
+          : 'Importado automaticamente do PNCP',
         internal_status: 'new',
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
