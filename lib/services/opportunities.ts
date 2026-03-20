@@ -37,6 +37,23 @@ export const opportunityService = {
     return (data || []).map(mapOpportunityToDTO);
   },
 
+  async getByMunicipality(municipalityId: string): Promise<OpportunityDTO[]> {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from('opportunities')
+      .select('*')
+      .eq('municipality_id', municipalityId)
+      .order('publication_date', { ascending: false });
+
+    if (error) {
+      console.error('SUPABASE ERROR (opportunities.getByMunicipality):', error);
+      throw error;
+    }
+
+    return (data || []).map(mapOpportunityToDTO);
+  },
+
   async getById(id: string): Promise<OpportunityDTO> {
     const supabase = createClient();
 
