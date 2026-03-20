@@ -18,6 +18,8 @@ import {
   Download,
   Eye,
   Loader2,
+  Mail,
+  Copy,
 } from 'lucide-react';
 import { cn, formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -46,6 +48,20 @@ import {
   ContractDTO
 } from '@/lib/types/dtos';
 import { Region, DealStage, AccountStatus } from '@/lib/types/enums';
+import { createClient } from '@supabase/supabase-js';
+
+type MunicipalityEmailDTO = {
+  id: string;
+  email: string;
+  department_label: string | null;
+  priority_score: number | null;
+  is_strategic: boolean | null;
+};
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -60,27 +76,42 @@ export default function AccountDetailPage() {
   const [deals, setDeals] = useState<DealDTO[]>([]);
   const [proposals, setProposals] = useState<ProposalDTO[]>([]);
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
+  const [municipalityEmails, setMunicipalityEmails] = useState<MunicipalityEmailDTO[]>([]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
 
   const [editData, setEditData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [acc, conts, events, docs, dealsData, proposalsData, contractsData] = await Promise.all([
+      const [
+        acc,
+        conts,
+        events,
+        docs,
+        dealsData,
+        proposalsData,
+        contractsData,
+        emailsResult
+      ] = await Promise.all([
         accountService.getById(params.id as string),
         contactService.getByMunicipality(params.id as string),
         timelineService.getByMunicipality(params.id as string),
         documentService.getByMunicipality(params.id as string),
         dealService.getByMunicipality(params.id as string),
         proposalService.getByMunicipality(params.id as string),
-        contractService.getByMunicipality(params.id as string)
+        contractService.getByMunicipality(params.id as string),
+        supabase
+          .from('municipality_emails')
+          .select('id, email, department_label, priority_score, is_strategic')
+          .eq('municipality_id', params.id as string)
+          .order('priority_score', { ascending: false })
       ]);
 
       setAccount(acc);
@@ -90,6 +121,13 @@ export default function AccountDetailPage() {
       setDeals(dealsData);
       setProposals(proposalsData);
       setContracts(contractsData);
+
+      if (emailsResult.error) {
+        console.error('Error loading municipality emails:', emailsResult.error);
+        toast.error('Erro ao carregar e-mails da prefeitura.');
+      } else {
+        setMunicipalityEmails((emailsResult.data || []) as MunicipalityEmailDTO[]);
+      }
     } catch (error) {
       console.error('Error loading account data:', error);
       toast.error('Erro ao carregar dados da prefeitura.');
@@ -216,6 +254,18 @@ export default function AccountDetailPage() {
       toast.error('Erro ao excluir documento.');
     }
   };
+
+  const handleCopyEmail = async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      toast.success('E-mail copiado!');
+    } catch (error) {
+      toast.error('Erro ao copiar e-mail.');
+    }
+  };
+
+  const strategicEmails = municipalityEmails.filter(email => email.is_strategic);
+  const nonStrategicEmails = municipalityEmails.filter(email => !email.is_strategic);
 
   const regionLabels: Record<string, string> = {
     [Region.NORTH]: 'Norte',
@@ -357,15 +407,29 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Inteligência de Contatos</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block mb-1">Total de e-mails</span>
+                  <span className="text-2xl font-bold text-[#0f49bd]">{municipalityEmails.length}</span>
+                </div>
+                <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
+                  <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider block mb-1">Estratégicos</span>
+                  <span className="text-2xl font-bold text-green-700">{strategicEmails.length}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="flex border-b border-gray-100">
+              <div className="flex border-b border-gray-100 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab('overview')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'overview' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -374,16 +438,25 @@ export default function AccountDetailPage() {
                 <button
                   onClick={() => setActiveTab('contacts')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'contacts' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
                   Contatos ({contacts.length})
                 </button>
                 <button
+                  onClick={() => setActiveTab('emails')}
+                  className={cn(
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'emails' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  E-mails ({municipalityEmails.length})
+                </button>
+                <button
                   onClick={() => setActiveTab('deals')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'deals' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -392,7 +465,7 @@ export default function AccountDetailPage() {
                 <button
                   onClick={() => setActiveTab('proposals')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'proposals' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -401,7 +474,7 @@ export default function AccountDetailPage() {
                 <button
                   onClick={() => setActiveTab('contracts')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'contracts' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -410,7 +483,7 @@ export default function AccountDetailPage() {
                 <button
                   onClick={() => setActiveTab('documents')}
                   className={cn(
-                    "px-8 py-4 text-sm font-bold transition-all",
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
                     activeTab === 'documents' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
@@ -435,6 +508,23 @@ export default function AccountDetailPage() {
                       <div className="p-6 bg-green-50/50 rounded-2xl border border-green-100">
                         <span className="text-xs font-bold text-green-600 uppercase tracking-wider block mb-2">Ano de Instalação</span>
                         <span className="text-2xl font-bold text-green-700">{account.installation_year || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Contatos Estratégicos</span>
+                        <span className="text-3xl font-bold text-gray-900">{strategicEmails.length}</span>
+                        <p className="text-sm text-gray-500 mt-2">
+                          E-mails com maior probabilidade de gerar conexão comercial.
+                        </p>
+                      </div>
+                      <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Total de E-mails</span>
+                        <span className="text-3xl font-bold text-gray-900">{municipalityEmails.length}</span>
+                        <p className="text-sm text-gray-500 mt-2">
+                          Base completa de contatos vinculados a esta prefeitura.
+                        </p>
                       </div>
                     </div>
 
@@ -477,6 +567,108 @@ export default function AccountDetailPage() {
                     <button className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd] transition-all">
                       + Adicionar Novo Contato
                     </button>
+                  </div>
+                )}
+
+                {activeTab === 'emails' && (
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-4">Contatos Estratégicos</h3>
+                      <div className="space-y-3">
+                        {strategicEmails.length > 0 ? strategicEmails.map((emailRow) => (
+                          <div
+                            key={emailRow.id}
+                            className="flex items-center justify-between p-4 bg-green-50/40 rounded-xl border border-green-100"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-900 break-all">{emailRow.email}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-white border border-green-200 text-green-700">
+                                  {emailRow.department_label || 'Geral'}
+                                </span>
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-100 text-green-700">
+                                  Estratégico
+                                </span>
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                  Score {emailRow.priority_score ?? 0}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 ml-4">
+                              <button
+                                onClick={() => handleCopyEmail(emailRow.email)}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                                title="Copiar e-mail"
+                              >
+                                <Copy className="size-4" />
+                              </button>
+                              <a
+                                href={`mailto:${emailRow.email}`}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                                title="Enviar e-mail"
+                              >
+                                <Mail className="size-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                            Nenhum e-mail estratégico encontrado para esta prefeitura.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-4">Todos os E-mails</h3>
+                      <div className="space-y-3">
+                        {municipalityEmails.length > 0 ? municipalityEmails.map((emailRow) => (
+                          <div
+                            key={emailRow.id}
+                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-900 break-all">{emailRow.email}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-white border border-gray-200 text-gray-700">
+                                  {emailRow.department_label || 'Geral'}
+                                </span>
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                  Score {emailRow.priority_score ?? 0}
+                                </span>
+                                {emailRow.is_strategic && (
+                                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-100 text-green-700">
+                                    Estratégico
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 ml-4">
+                              <button
+                                onClick={() => handleCopyEmail(emailRow.email)}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                                title="Copiar e-mail"
+                              >
+                                <Copy className="size-4" />
+                              </button>
+                              <a
+                                href={`mailto:${emailRow.email}`}
+                                className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                                title="Enviar e-mail"
+                              >
+                                <Mail className="size-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                            Nenhum e-mail encontrado para esta prefeitura.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
