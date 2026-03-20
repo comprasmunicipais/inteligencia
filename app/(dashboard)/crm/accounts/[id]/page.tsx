@@ -39,13 +39,15 @@ import { documentService, MunicipalityDocument } from '@/lib/services/documents'
 import { dealService } from '@/lib/services/deals';
 import { proposalService } from '@/lib/services/proposals';
 import { contractService } from '@/lib/services/contracts';
+import { opportunityService } from '@/lib/services/opportunities';
 import {
   MunicipalityDTO,
   ContactDTO,
   TimelineEventDTO,
   DealDTO,
   ProposalDTO,
-  ContractDTO
+  ContractDTO,
+  OpportunityDTO
 } from '@/lib/types/dtos';
 import { Region, DealStage, AccountStatus } from '@/lib/types/enums';
 import { createClient } from '@supabase/supabase-js';
@@ -76,6 +78,7 @@ export default function AccountDetailPage() {
   const [deals, setDeals] = useState<DealDTO[]>([]);
   const [proposals, setProposals] = useState<ProposalDTO[]>([]);
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
+  const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
   const [municipalityEmails, setMunicipalityEmails] = useState<MunicipalityEmailDTO[]>([]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -83,7 +86,7 @@ export default function AccountDetailPage() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
 
   const [editData, setEditData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'opportunities' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -98,6 +101,7 @@ export default function AccountDetailPage() {
         dealsData,
         proposalsData,
         contractsData,
+        opportunitiesData,
         emailsResult
       ] = await Promise.all([
         accountService.getById(params.id as string),
@@ -107,6 +111,7 @@ export default function AccountDetailPage() {
         dealService.getByMunicipality(params.id as string),
         proposalService.getByMunicipality(params.id as string),
         contractService.getByMunicipality(params.id as string),
+        opportunityService.getByMunicipality(params.id as string),
         supabase
           .from('municipality_emails')
           .select('id, email, department_label, priority_score, is_strategic')
@@ -121,6 +126,7 @@ export default function AccountDetailPage() {
       setDeals(dealsData);
       setProposals(proposalsData);
       setContracts(contractsData);
+      setOpportunities(opportunitiesData);
 
       if (emailsResult.error) {
         console.error('Error loading municipality emails:', emailsResult.error);
@@ -265,7 +271,6 @@ export default function AccountDetailPage() {
   };
 
   const strategicEmails = municipalityEmails.filter(email => email.is_strategic);
-  const nonStrategicEmails = municipalityEmails.filter(email => !email.is_strategic);
 
   const regionLabels: Record<string, string> = {
     [Region.NORTH]: 'Norte',
@@ -421,6 +426,22 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Inteligência de Licitações</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100">
+                  <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block mb-1">Total de licitações</span>
+                  <span className="text-2xl font-bold text-purple-700">{opportunities.length}</span>
+                </div>
+                <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                  <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block mb-1">Com link oficial</span>
+                  <span className="text-2xl font-bold text-orange-700">
+                    {opportunities.filter(op => !!op.official_url).length}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-6">
@@ -452,6 +473,15 @@ export default function AccountDetailPage() {
                   )}
                 >
                   E-mails ({municipalityEmails.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('opportunities')}
+                  className={cn(
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'opportunities' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Licitações ({opportunities.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('deals')}
@@ -520,10 +550,10 @@ export default function AccountDetailPage() {
                         </p>
                       </div>
                       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Total de E-mails</span>
-                        <span className="text-3xl font-bold text-gray-900">{municipalityEmails.length}</span>
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Licitações Vinculadas</span>
+                        <span className="text-3xl font-bold text-gray-900">{opportunities.length}</span>
                         <p className="text-sm text-gray-500 mt-2">
-                          Base completa de contatos vinculados a esta prefeitura.
+                          Oportunidades públicas vinculadas automaticamente à prefeitura.
                         </p>
                       </div>
                     </div>
