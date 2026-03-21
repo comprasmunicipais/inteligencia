@@ -14,18 +14,53 @@ import {
   ShieldCheck,
   RefreshCw,
   Loader2,
+  Upload,
+  FileText,
+  Trash2,
+  Download,
+  Package,
+  Plus,
 } from 'lucide-react';
 import { getCompanyProfile, saveCompanyProfile } from '@/lib/intel/services';
 import { CompanyIntelligenceProfile } from '@/lib/intel/types';
+import { catalogService, CompanyCatalog } from '@/lib/services/catalogs';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
+
+const ALLOWED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/png',
+];
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+};
+
+const fileTypeLabel = (type: string) => {
+  if (type.includes('pdf')) return 'PDF';
+  if (type.includes('word')) return 'DOCX';
+  if (type.includes('sheet')) return 'XLSX';
+  if (type.includes('image')) return 'Imagem';
+  return 'Arquivo';
+};
 
 export default function IntelProfilePage() {
   const { companyId } = useCompany();
   const [profile, setProfile] = useState<CompanyIntelligenceProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Catalogs state
+  const [catalogs, setCatalogs] = useState<CompanyCatalog[]>([]);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [productLineName, setProductLineName] = useState('');
 
   useEffect(() => {
     if (!companyId) return;
@@ -43,6 +78,22 @@ export default function IntelProfilePage() {
     load();
   }, [companyId]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const loadCatalogs = async () => {
+      setLoadingCatalogs(true);
+      try {
+        const data = await catalogService.getByCompany(companyId);
+        setCatalogs(data);
+      } catch (error) {
+        toast.error('Erro ao carregar catálogos.');
+      } finally {
+        setLoadingCatalogs(false);
+      }
+    };
+    loadCatalogs();
+  }, [companyId]);
+
   const handleSave = async () => {
     if (!profile || !companyId) return;
     setIsSaving(true);
@@ -53,6 +104,61 @@ export default function IntelProfilePage() {
       toast.error('Erro ao salvar perfil estratégico.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !companyId) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Formato não permitido. Use PDF, DOCX, XLSX ou imagens.');
+      return;
+    }
+
+    if (!productLineName.trim()) {
+      toast.error('Informe o nome da linha de produto antes de fazer o upload.');
+      return;
+    }
+
+    setUploading(true);
+    const toastId = toast.loading('Fazendo upload do catálogo...');
+    try {
+      const created = await catalogService.upload(file, companyId, productLineName.trim());
+      setCatalogs([created, ...catalogs]);
+      setProductLineName('');
+      toast.success('Catálogo enviado com sucesso!', { id: toastId });
+    } catch (error) {
+      toast.error('Erro ao enviar catálogo.', { id: toastId });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDownload = async (catalog: CompanyCatalog) => {
+    try {
+      const blob = await catalogService.download(catalog.file_path);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', catalog.file_name);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      toast.error('Erro ao baixar catálogo.');
+    }
+  };
+
+  const handleDelete = async (catalog: CompanyCatalog) => {
+    if (!confirm(`Excluir "${catalog.file_name}"?`)) return;
+    try {
+      await catalogService.delete(catalog.id, catalog.file_path);
+      setCatalogs(catalogs.filter(c => c.id !== catalog.id));
+      toast.success('Catálogo excluído.');
+    } catch (error) {
+      toast.error('Erro ao excluir catálogo.');
     }
   };
 
@@ -110,49 +216,24 @@ export default function IntelProfilePage() {
                   <Building2 className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Identidade Comercial</h3>
                 </div>
-
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nome da Empresa</label>
-                    <input
-                      type="text"
-                      value={profile.company_name}
-                      onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900"
-                    />
+                    <input type="text" value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" />
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Segmento Principal</label>
-                      <input
-                        type="text"
-                        value={profile.main_segment}
-                        onChange={(e) => setProfile({ ...profile, main_segment: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900"
-                        placeholder="Ex: Tecnologia da Informação"
-                      />
+                      <input type="text" value={profile.main_segment} onChange={(e) => setProfile({ ...profile, main_segment: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Ex: Tecnologia da Informação" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Subsegmentos</label>
-                      <input
-                        type="text"
-                        value={profile.subsegments}
-                        onChange={(e) => setProfile({ ...profile, subsegments: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900"
-                        placeholder="Ex: SaaS, Consultoria"
-                      />
+                      <input type="text" value={profile.subsegments} onChange={(e) => setProfile({ ...profile, subsegments: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Ex: SaaS, Consultoria" />
                     </div>
                   </div>
-
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Categorias de Interesse (PNCP)</label>
-                    <textarea
-                      value={profile.target_categories}
-                      onChange={(e) => setProfile({ ...profile, target_categories: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]"
-                      placeholder="Ex: Software, Serviços de TI, Licenciamento"
-                    />
+                    <textarea value={profile.target_categories} onChange={(e) => setProfile({ ...profile, target_categories: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]" placeholder="Ex: Software, Serviços de TI, Licenciamento" />
                   </div>
                 </div>
               </section>
@@ -163,26 +244,14 @@ export default function IntelProfilePage() {
                   <Tag className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Palavras-Chave de Inteligência</h3>
                 </div>
-
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-green-600 uppercase tracking-wider">Termos Positivos (Match +)</label>
-                    <textarea
-                      value={profile.positive_keywords}
-                      onChange={(e) => setProfile({ ...profile, positive_keywords: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-green-50/30 border border-green-100 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none font-medium text-gray-900 min-h-[80px]"
-                      placeholder="Termos que indicam alta aderência (separados por vírgula)"
-                    />
+                    <textarea value={profile.positive_keywords} onChange={(e) => setProfile({ ...profile, positive_keywords: e.target.value })} className="w-full px-4 py-2.5 bg-green-50/30 border border-green-100 rounded-lg focus:ring-2 focus:ring-green-500/20 outline-none font-medium text-gray-900 min-h-[80px]" placeholder="Termos que indicam alta aderência (separados por vírgula)" />
                   </div>
-
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-red-600 uppercase tracking-wider">Termos Negativos (Match -)</label>
-                    <textarea
-                      value={profile.negative_keywords}
-                      onChange={(e) => setProfile({ ...profile, negative_keywords: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-red-50/30 border border-red-100 rounded-lg focus:ring-2 focus:ring-red-500/20 outline-none font-medium text-gray-900 min-h-[80px]"
-                      placeholder="Termos que devem penalizar o score (separados por vírgula)"
-                    />
+                    <textarea value={profile.negative_keywords} onChange={(e) => setProfile({ ...profile, negative_keywords: e.target.value })} className="w-full px-4 py-2.5 bg-red-50/30 border border-red-100 rounded-lg focus:ring-2 focus:ring-red-500/20 outline-none font-medium text-gray-900 min-h-[80px]" placeholder="Termos que devem penalizar o score (separados por vírgula)" />
                   </div>
                 </div>
               </section>
@@ -193,27 +262,119 @@ export default function IntelProfilePage() {
                   <ShieldCheck className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Alvos Específicos</h3>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Órgãos Prioritários</label>
-                    <textarea
-                      value={profile.preferred_buyers}
-                      onChange={(e) => setProfile({ ...profile, preferred_buyers: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]"
-                      placeholder="Nomes de órgãos que você já tem bom relacionamento"
-                    />
+                    <textarea value={profile.preferred_buyers} onChange={(e) => setProfile({ ...profile, preferred_buyers: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]" placeholder="Nomes de órgãos que você já tem bom relacionamento" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Órgãos a Evitar</label>
-                    <textarea
-                      value={profile.excluded_buyers}
-                      onChange={(e) => setProfile({ ...profile, excluded_buyers: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]"
-                      placeholder="Órgãos com histórico ruim ou fora de escopo"
-                    />
+                    <textarea value={profile.excluded_buyers} onChange={(e) => setProfile({ ...profile, excluded_buyers: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900 min-h-[80px]" placeholder="Órgãos com histórico ruim ou fora de escopo" />
                   </div>
                 </div>
+              </section>
+
+              {/* Catálogos de Produtos */}
+              <section className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 mb-2">
+                  <Package className="size-5 text-[#0f49bd]" />
+                  <h3 className="font-bold">Catálogos de Produtos</h3>
+                </div>
+                <p className="text-xs text-gray-500 -mt-4">
+                  Faça upload dos catálogos por linha de produto. O sistema usará essas informações para aumentar a precisão do score de aderência.
+                </p>
+
+                {/* Upload */}
+                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Catálogo</p>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                      placeholder="Nome da linha de produto (ex: Software de Gestão)"
+                      value={productLineName}
+                      onChange={(e) => setProductLineName(e.target.value)}
+                    />
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="catalog-upload"
+                        className="hidden"
+                        accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                      />
+                      <label
+                        htmlFor="catalog-upload"
+                        className={cn(
+                          'h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors',
+                          uploading
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]'
+                        )}
+                      >
+                        {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        {uploading ? 'Enviando...' : 'Upload'}
+                      </label>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
+                </div>
+
+                {/* Lista de catálogos */}
+                {loadingCatalogs ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="size-5 text-[#0f49bd] animate-spin" />
+                  </div>
+                ) : catalogs.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    Nenhum catálogo enviado ainda.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {catalogs.map((catalog) => (
+                      <div key={catalog.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 bg-white rounded-lg border border-gray-200 flex-shrink-0">
+                            <FileText className="size-4 text-gray-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-900 truncate">{catalog.file_name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {catalog.product_line && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
+                                  {catalog.product_line}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                {fileTypeLabel(catalog.file_type)}
+                              </span>
+                              <span className="text-[10px] text-gray-400">
+                                {formatFileSize(catalog.file_size)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                          <button
+                            onClick={() => handleDownload(catalog)}
+                            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                            title="Baixar"
+                          >
+                            <Download className="size-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(catalog)}
+                            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm"
+                            title="Excluir"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
 
@@ -226,25 +387,14 @@ export default function IntelProfilePage() {
                   <DollarSign className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Capacidade Financeira</h3>
                 </div>
-
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ticket Mínimo (R$)</label>
-                    <input
-                      type="number"
-                      value={profile.min_ticket}
-                      onChange={(e) => setProfile({ ...profile, min_ticket: Number(e.target.value) })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-bold text-gray-900"
-                    />
+                    <input type="number" value={profile.min_ticket} onChange={(e) => setProfile({ ...profile, min_ticket: Number(e.target.value) })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-bold text-gray-900" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ticket Máximo (R$)</label>
-                    <input
-                      type="number"
-                      value={profile.max_ticket}
-                      onChange={(e) => setProfile({ ...profile, max_ticket: Number(e.target.value) })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-bold text-gray-900"
-                    />
+                    <input type="number" value={profile.max_ticket} onChange={(e) => setProfile({ ...profile, max_ticket: Number(e.target.value) })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-bold text-gray-900" />
                   </div>
                 </div>
               </section>
@@ -255,7 +405,6 @@ export default function IntelProfilePage() {
                   <MapPin className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Alcance Geográfico</h3>
                 </div>
-
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estados de Atuação</label>
@@ -282,16 +431,9 @@ export default function IntelProfilePage() {
                       ))}
                     </div>
                   </div>
-
                   <div className="space-y-2 pt-4">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Municípios Prioritários</label>
-                    <input
-                      type="text"
-                      value={profile.target_municipalities}
-                      onChange={(e) => setProfile({ ...profile, target_municipalities: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900"
-                      placeholder="Ex: Curitiba, São Paulo"
-                    />
+                    <input type="text" value={profile.target_municipalities} onChange={(e) => setProfile({ ...profile, target_municipalities: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Ex: Curitiba, São Paulo" />
                   </div>
                 </div>
               </section>
@@ -302,7 +444,6 @@ export default function IntelProfilePage() {
                   <ChevronRight className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Modalidades</h3>
                 </div>
-
                 <div className="space-y-2">
                   {modalities.map(mod => (
                     <label key={mod} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
@@ -311,9 +452,7 @@ export default function IntelProfilePage() {
                         checked={profile.target_modalities?.includes(mod)}
                         onChange={(e) => {
                           const current = profile.target_modalities || [];
-                          const next = e.target.checked
-                            ? [...current, mod]
-                            : current.filter(m => m !== mod);
+                          const next = e.target.checked ? [...current, mod] : current.filter(m => m !== mod);
                           setProfile({ ...profile, target_modalities: next });
                         }}
                         className="size-4 rounded border-gray-300 text-[#0f49bd] focus:ring-[#0f49bd]"
@@ -329,7 +468,7 @@ export default function IntelProfilePage() {
                 <div className="flex items-start gap-3">
                   <Info className="size-5 text-blue-600 shrink-0" />
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Dica da IA:</span> Quanto mais específico for o seu perfil, menor será o ruído na sua caixa de entrada. Use palavras-chave que aparecem com frequência nos editais que você costuma vencer.
+                    <span className="font-bold">Dica da IA:</span> Quanto mais específico for o seu perfil e mais catálogos você enviar, maior será a precisão do score de aderência nas licitações.
                   </p>
                 </div>
               </div>
