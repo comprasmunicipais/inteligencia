@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Building2,
+  Zap,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/safe-helpers';
@@ -40,6 +41,7 @@ export default function OpportunitiesPage() {
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const [opps, setOpps] = useState<OpportunityDTO[]>([]);
   const [stats, setStats] = useState({
@@ -66,61 +68,28 @@ export default function OpportunitiesPage() {
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
-
     setLoading(true);
-
-    let oppsError = false;
-    let statsError = false;
 
     try {
       const oppsData = await opportunityService.getAll(companyId);
-      console.log('OPPS DATA:', oppsData);
       setOpps(oppsData || []);
     } catch (error) {
-      oppsError = true;
       console.error('ERRO REAL getAll:', error);
       setOpps([]);
     }
 
     try {
       const statsData = await opportunityService.getStats(companyId);
-      console.log('STATS DATA:', statsData);
-      setStats(
-        statsData || {
-          total: 0,
-          newLastSync: 0,
-          highMatch: 0,
-          expiringSoon: 0,
-          converted: 0,
-        }
-      );
+      setStats(statsData || { total: 0, newLastSync: 0, highMatch: 0, expiringSoon: 0, converted: 0 });
     } catch (error) {
-      statsError = true;
       console.error('ERRO REAL getStats:', error);
-      setStats({
-        total: 0,
-        newLastSync: 0,
-        highMatch: 0,
-        expiringSoon: 0,
-        converted: 0,
-      });
-    }
-
-    if (oppsError && statsError) {
-      toast.error('Erro ao carregar dados de inteligência.');
-    } else if (oppsError) {
-      toast.error('Não foi possível carregar a listagem de oportunidades.');
-    } else if (statsError) {
-      toast.error('Não foi possível carregar os indicadores.');
     }
 
     setLoading(false);
   }, [companyId]);
 
   useEffect(() => {
-    if (companyId) {
-      loadData();
-    }
+    if (companyId) loadData();
   }, [companyId, loadData]);
 
   const handleSync = async () => {
@@ -129,72 +98,67 @@ export default function OpportunitiesPage() {
       toast.info('A sincronização automática ainda será conectada à fonte oficial.');
       await loadData();
     } catch (error) {
-      console.error('Erro ao sincronizar:', error);
       toast.error('Erro ao sincronizar dados.');
     } finally {
       setSyncing(false);
     }
   };
 
+  const handleRecalculateScores = async () => {
+    if (!companyId) return;
+    setRecalculating(true);
+    const toastId = toast.loading('Recalculando scores com base no seu perfil estratégico...');
+    try {
+      const response = await fetch('/api/intel/recalculate-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: companyId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao recalcular scores.');
+      }
+
+      toast.success(`Score atualizado em ${result.updated} oportunidades!`, { id: toastId });
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao recalcular scores.', { id: toastId });
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const getStatusLabel = (status?: string) => {
     switch (status) {
-      case 'new':
-        return 'Nova';
-      case 'updated':
-        return 'Atualizada';
-      case 'under_review':
-        return 'Em revisão';
-      case 'relevant':
-        return 'Relevante';
-      case 'discarded':
-        return 'Descartada';
-      case 'converted_to_task':
-        return 'Convertida em tarefa';
-      case 'converted_to_deal':
-        return 'Convertida em negócio';
-      case 'converted_to_proposal':
-        return 'Convertida em proposta';
-      default:
-        return 'Sem status';
+      case 'new': return 'Nova';
+      case 'updated': return 'Atualizada';
+      case 'under_review': return 'Em revisão';
+      case 'relevant': return 'Relevante';
+      case 'discarded': return 'Descartada';
+      case 'converted_to_task': return 'Convertida em tarefa';
+      case 'converted_to_deal': return 'Convertida em negócio';
+      case 'converted_to_proposal': return 'Convertida em proposta';
+      default: return 'Sem status';
     }
   };
 
   const filteredOpps = useMemo(() => {
     return opps.filter((opp) => {
-      const matchesTab =
-        activeTab === 'all' ? true : opp.internal_status === activeTab;
-
-      const searchBase =
-        `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
+      const matchesTab = activeTab === 'all' ? true : opp.internal_status === activeTab;
+      const searchBase = `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
       const matchesSearch = searchBase.includes(searchTerm.toLowerCase());
-
-      const locationBase =
-        `${opp.city || ''} ${opp.state || ''} ${opp.municipality_name || ''}`.toLowerCase();
-      const matchesLocation =
-        !filters.location ||
-        locationBase.includes(filters.location.toLowerCase());
-
-      const matchesModality =
-        !filters.modality ||
-        (opp.modality || '').toLowerCase().includes(filters.modality.toLowerCase());
-
+      const locationBase = `${opp.city || ''} ${opp.state || ''} ${opp.municipality_name || ''}`.toLowerCase();
+      const matchesLocation = !filters.location || locationBase.includes(filters.location.toLowerCase());
+      const matchesModality = !filters.modality || (opp.modality || '').toLowerCase().includes(filters.modality.toLowerCase());
       const matchesScore = Number(opp.match_score || 0) >= filters.minScore;
-
-      return (
-        matchesTab &&
-        matchesSearch &&
-        matchesLocation &&
-        matchesModality &&
-        matchesScore
-      );
+      return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore;
     });
   }, [opps, activeTab, searchTerm, filters]);
 
   const iaSummary = useMemo(() => {
-    const ordered = [...filteredOpps].sort(
-      (a, b) => Number(b.match_score || 0) - Number(a.match_score || 0)
-    );
-
+    const ordered = [...filteredOpps].sort((a, b) => Number(b.match_score || 0) - Number(a.match_score || 0));
     return {
       totalAnalyzed: filteredOpps.length,
       highMatch: filteredOpps.filter((o) => Number(o.match_score || 0) >= 90),
@@ -208,11 +172,7 @@ export default function OpportunitiesPage() {
   };
 
   const handleResetFilters = () => {
-    setFilters({
-      location: '',
-      modality: '',
-      minScore: 0,
-    });
+    setFilters({ location: '', modality: '', minScore: 0 });
     toast.info('Filtros limpos.');
   };
 
@@ -280,6 +240,16 @@ export default function OpportunitiesPage() {
 
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <button
+                  onClick={handleRecalculateScores}
+                  disabled={recalculating}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title="Recalcula o score de todas as oportunidades usando seu perfil estratégico atual"
+                >
+                  <Zap className={cn('size-4', recalculating && 'animate-pulse text-yellow-500')} />
+                  {recalculating ? 'Recalculando...' : 'Recalcular Score'}
+                </button>
+
+                <button
                   onClick={handleSync}
                   disabled={syncing}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -293,7 +263,7 @@ export default function OpportunitiesPage() {
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Filter className="size-4" />
-                  Filtros Avançados
+                  Filtros
                 </button>
 
                 <button
@@ -352,19 +322,15 @@ export default function OpportunitiesPage() {
                               <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-blue-100">
                                 Licitação
                               </span>
-
                               <span className="text-gray-400 text-xs">•</span>
-
                               <span className="text-gray-500 text-xs font-medium flex items-center gap-1">
                                 <Calendar className="size-3" />
                                 Publicado em {opp.publication_date ? formatDate(opp.publication_date) : 'N/A'}
                               </span>
                             </div>
-
                             <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#0f49bd] transition-colors">
                               {opp.title}
                             </h3>
-
                             <p className="text-sm text-gray-600 font-medium mt-1 flex items-center gap-1">
                               <MapPin className="size-3 text-gray-400" />
                               {opp.organ_name} - {opp.city || opp.municipality_name || 'N/A'} ({opp.state || 'N/A'})
@@ -372,18 +338,13 @@ export default function OpportunitiesPage() {
                           </div>
 
                           <div className="flex flex-col items-end">
-                            <div
-                              className={cn(
-                                'size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
-                                Number(opp.match_score || 0) >= 90
-                                  ? 'border-green-100 text-green-600 bg-green-50'
-                                  : Number(opp.match_score || 0) >= 70
-                                    ? 'border-blue-100 text-blue-600 bg-blue-50'
-                                    : Number(opp.match_score || 0) >= 50
-                                      ? 'border-amber-100 text-amber-600 bg-amber-50'
-                                      : 'border-gray-100 text-gray-400 bg-gray-50'
-                              )}
-                            >
+                            <div className={cn(
+                              'size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
+                              Number(opp.match_score || 0) >= 90 ? 'border-green-100 text-green-600 bg-green-50' :
+                              Number(opp.match_score || 0) >= 70 ? 'border-blue-100 text-blue-600 bg-blue-50' :
+                              Number(opp.match_score || 0) >= 50 ? 'border-amber-100 text-amber-600 bg-amber-50' :
+                              'border-gray-100 text-gray-400 bg-gray-50'
+                            )}>
                               {Number(opp.match_score || 0)}%
                             </div>
                             <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">Match IA</span>
@@ -392,17 +353,11 @@ export default function OpportunitiesPage() {
 
                         <div className="flex flex-wrap gap-2">
                           {!!opp.modality && (
-                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
-                              {opp.modality}
-                            </span>
+                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">{opp.modality}</span>
                           )}
-
                           {!!opp.situation && (
-                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
-                              {opp.situation}
-                            </span>
+                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">{opp.situation}</span>
                           )}
-
                           <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded">
                             {getStatusLabel(opp.internal_status)}
                           </span>
@@ -415,21 +370,18 @@ export default function OpportunitiesPage() {
                               {opp.estimated_value ? formatCurrency(opp.estimated_value) : 'Não informado'}
                             </span>
                           </div>
-
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Abertura</span>
                             <span className="text-sm font-bold text-gray-900">
                               {opp.opening_date ? formatDate(opp.opening_date) : 'N/A'}
                             </span>
                           </div>
-
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Município Vinculado</span>
                             <span className="text-sm font-bold text-gray-900">
                               {opp.municipality_name || 'Não vinculado'}
                             </span>
                           </div>
-
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Status Interno</span>
                             <span className="text-sm font-bold text-gray-900">
@@ -447,7 +399,6 @@ export default function OpportunitiesPage() {
                           <Eye className="size-5" />
                           <span className="md:hidden">Visualizar</span>
                         </button>
-
                         <button
                           onClick={() => handleOpenNotice(opp.official_url)}
                           className="flex-1 md:flex-none p-2.5 rounded-lg bg-[#0f49bd] text-white hover:bg-[#0a3690] transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-sm"
@@ -480,6 +431,7 @@ export default function OpportunitiesPage() {
         )}
       </div>
 
+      {/* Modal: IA Insights */}
       <Dialog open={isIAInsightsModalOpen} onOpenChange={setIsIAInsightsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -487,11 +439,8 @@ export default function OpportunitiesPage() {
               <Sparkles className="size-5 text-[#0f49bd]" />
               IA Insights - Oportunidades
             </DialogTitle>
-            <DialogDescription>
-              Resumo das oportunidades carregadas com base na aderência identificada.
-            </DialogDescription>
+            <DialogDescription>Resumo das oportunidades carregadas com base na aderência identificada.</DialogDescription>
           </DialogHeader>
-
           <div className="py-6 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -503,7 +452,6 @@ export default function OpportunitiesPage() {
                 <span className="text-2xl font-black text-[#0f49bd]">{iaSummary.highMatch.length}</span>
               </div>
             </div>
-
             {iaSummary.topRecommendation && (
               <div className="space-y-3">
                 <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
@@ -518,7 +466,6 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
             )}
-
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <AlertCircle className="size-4 text-amber-600" />
@@ -527,36 +474,30 @@ export default function OpportunitiesPage() {
               <ul className="space-y-2">
                 <li className="text-xs text-gray-600 flex items-start gap-2">
                   <div className="size-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  O painel já destaca automaticamente oportunidades com maior aderência ao perfil estratégico.
+                  Use o botão "Recalcular Score" sempre que atualizar seu perfil estratégico.
                 </li>
                 <li className="text-xs text-gray-600 flex items-start gap-2">
                   <div className="size-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  A sincronização automática com a fonte oficial ainda será conectada na próxima etapa.
+                  O painel destaca automaticamente oportunidades com maior aderência ao perfil estratégico.
                 </li>
               </ul>
             </div>
           </div>
-
           <DialogFooter>
-            <button
-              onClick={() => setIsIAInsightsModalOpen(false)}
-              className="w-full bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-            >
+            <button onClick={() => setIsIAInsightsModalOpen(false)} className="w-full bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">
               Entendido
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Modal: Detalhe */}
       <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Detalhes da Oportunidade</DialogTitle>
-            <DialogDescription>
-              Informações completas da oportunidade selecionada.
-            </DialogDescription>
+            <DialogDescription>Informações completas da oportunidade selecionada.</DialogDescription>
           </DialogHeader>
-
           {selectedOpp && (
             <div className="py-4 space-y-6">
               <div className="space-y-2">
@@ -565,7 +506,6 @@ export default function OpportunitiesPage() {
                   <Building2 className="size-4" /> {selectedOpp.organ_name}
                 </p>
               </div>
-
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Valor Estimado</span>
@@ -573,46 +513,35 @@ export default function OpportunitiesPage() {
                     {selectedOpp.estimated_value ? formatCurrency(selectedOpp.estimated_value) : 'Não informado'}
                   </span>
                 </div>
-
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Modalidade</span>
                   <span className="text-sm font-bold text-gray-900">{selectedOpp.modality || 'N/A'}</span>
                 </div>
-
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Abertura</span>
                   <span className="text-sm font-bold text-gray-900">
                     {selectedOpp.opening_date ? formatDate(selectedOpp.opening_date) : 'N/A'}
                   </span>
                 </div>
-
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Match IA</span>
-                  <span
-                    className={cn(
-                      'text-sm font-bold',
-                      Number(selectedOpp.match_score || 0) >= 90 ? 'text-green-600' : 'text-blue-600'
-                    )}
-                  >
+                  <span className={cn('text-sm font-bold', Number(selectedOpp.match_score || 0) >= 90 ? 'text-green-600' : 'text-blue-600')}>
                     {Number(selectedOpp.match_score || 0)}%
                   </span>
                 </div>
               </div>
-
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Resumo Analítico</h4>
                 <p className="text-sm text-gray-600 leading-relaxed italic">
                   &quot;{selectedOpp.match_reason || 'Sem justificativa analítica disponível.'}&quot;
                 </p>
               </div>
-
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Descrição</h4>
                 <p className="text-sm text-gray-700 leading-relaxed">
                   {selectedOpp.description || 'Sem descrição detalhada disponível.'}
                 </p>
               </div>
-
               <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleOpenNotice(selectedOpp.official_url)}
@@ -626,68 +555,33 @@ export default function OpportunitiesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal: Filtros */}
       <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Filtros Avançados</DialogTitle>
-            <DialogDescription>
-              Refine a visualização das oportunidades carregadas.
-            </DialogDescription>
+            <DialogDescription>Refine a visualização das oportunidades carregadas.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Localização (UF ou Cidade)</label>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: SP ou Curitiba"
-                value={filters.location}
-                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-              />
+              <input className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: SP ou Curitiba" value={filters.location} onChange={(e) => setFilters({ ...filters, location: e.target.value })} />
             </div>
-
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Modalidade</label>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: Pregão Eletrônico"
-                value={filters.modality}
-                onChange={(e) => setFilters({ ...filters, modality: e.target.value })}
-              />
+              <input className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: Pregão Eletrônico" value={filters.modality} onChange={(e) => setFilters({ ...filters, modality: e.target.value })} />
             </div>
-
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Match IA Mínimo ({filters.minScore}%)</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f49bd]"
-                value={filters.minScore}
-                onChange={(e) => setFilters({ ...filters, minScore: parseInt(e.target.value, 10) })}
-              />
+              <input type="range" min="0" max="100" step="5" className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0f49bd]" value={filters.minScore} onChange={(e) => setFilters({ ...filters, minScore: parseInt(e.target.value, 10) })} />
               <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
+                <span>0%</span><span>50%</span><span>100%</span>
               </div>
             </div>
           </div>
-
           <DialogFooter className="flex gap-2">
-            <button
-              onClick={handleResetFilters}
-              className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg"
-            >
-              Limpar
-            </button>
-            <button
-              onClick={handleApplyFilters}
-              className="flex-1 bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-            >
-              Aplicar Filtros
-            </button>
+            <button onClick={handleResetFilters} className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">Limpar</button>
+            <button onClick={handleApplyFilters} className="flex-1 bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">Aplicar Filtros</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
