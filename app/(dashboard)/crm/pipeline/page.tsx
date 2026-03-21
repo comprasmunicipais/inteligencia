@@ -61,10 +61,12 @@ const COLOR_OPTIONS = [
 ];
 
 const DEFAULT_STAGES = [
-  { title: 'Lead', color: 'bg-gray-400', position: 0, is_default: true },
-  { title: 'Proposta', color: 'bg-blue-500', position: 1, is_default: true },
-  { title: 'Ganho', color: 'bg-green-500', position: 2, is_default: true },
-  { title: 'Perdido', color: 'bg-red-500', position: 3, is_default: true },
+  { title: 'Prospecção', color: 'bg-gray-400', position: 0, is_default: true },
+  { title: 'Qualificação', color: 'bg-yellow-400', position: 1, is_default: true },
+  { title: 'Proposta', color: 'bg-blue-500', position: 2, is_default: true },
+  { title: 'Negociação', color: 'bg-orange-500', position: 3, is_default: true },
+  { title: 'Ganho', color: 'bg-green-500', position: 4, is_default: true },
+  { title: 'Perdido', color: 'bg-red-500', position: 5, is_default: true },
 ];
 
 interface PipelineStage {
@@ -451,13 +453,13 @@ export default function PipelinePage() {
           <div className="flex justify-center py-12">
             <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
           </div>
-        ) : totalPipeline === 0 && searchTerm === '' ? (
+        ) : columns.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <EmptyState
               icon={Timer}
-              title="Seu funil de vendas está vazio"
-              description="Comece adicionando oportunidades e negócios para gerenciar seu pipeline e previsões de faturamento."
-              action={{ label: 'Novo Negócio', onClick: () => setIsAddModalOpen(true) }}
+              title="Nenhuma etapa configurada"
+              description="Configure as etapas do seu funil clicando no ícone de engrenagem."
+              action={{ label: 'Configurar Etapas', onClick: openStagesEditor }}
               className="max-w-md w-full"
             />
           </div>
@@ -484,7 +486,7 @@ export default function PipelinePage() {
                       <div
                         {...provided.droppableProps}
                         ref={provided.innerRef}
-                        className="flex-1 overflow-y-auto pr-2 flex flex-col gap-3 pb-4 min-h-[200px]"
+                        className="flex-1 overflow-y-auto pr-2 flex flex-col gap-3 pb-4 min-h-[200px] bg-white/50 rounded-xl border border-dashed border-gray-200 p-2"
                       >
                         {column.deals.map((deal, index) => (
                           <Draggable key={deal.id} draggableId={deal.id} index={index}>
@@ -547,6 +549,11 @@ export default function PipelinePage() {
                           </Draggable>
                         ))}
                         {provided.placeholder}
+                        {column.deals.length === 0 && (
+                          <div className="flex-1 flex items-center justify-center text-xs text-gray-300 font-bold py-8">
+                            Nenhum negócio
+                          </div>
+                        )}
                       </div>
                     )}
                   </Droppable>
