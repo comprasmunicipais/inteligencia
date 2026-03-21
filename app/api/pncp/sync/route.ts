@@ -14,7 +14,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const COMPANY_ID = 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3';
 const ALERT_SCORE_THRESHOLD = 90;
-const ALERT_EMAIL = 'fernando.damico@damicoed.com.br';
+const ALERT_EMAIL = 'fernando.damico@paineldecompras.com.br';
 
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -121,7 +121,6 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
     return { updated: 0, total: 0, alerts: 0 };
   }
 
-  // Buscar usuário da empresa
   const { data: userProfile } = await supabase
     .from('profiles')
     .select('id')
@@ -155,7 +154,6 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
     if (!error) {
       updated++;
 
-      // Verificar se já existe notificação para esta oportunidade
       if (score >= ALERT_SCORE_THRESHOLD && userId) {
         const { data: existingNotif } = await supabase
           .from('notifications')
@@ -165,7 +163,6 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
           .maybeSingle();
 
         if (!existingNotif) {
-          // Criar notificação no banco
           await supabase.from('notifications').insert({
             company_id: COMPANY_ID,
             user_id: userId,
@@ -183,7 +180,6 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
     }
   }
 
-  // Enviar e-mail consolidado se houver alertas
   if (highScoreOpps.length > 0) {
     const oppsList = highScoreOpps.map(opp => `
       <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
@@ -211,19 +207,15 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
             <h1 style="color:white;margin:0;font-size:20px;">CM Intelligence</h1>
             <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px;">Alerta de Oportunidades com Alta Aderência</p>
           </div>
-
           <p style="color:#374151;font-size:15px;">
             O sistema identificou <strong>${highScoreOpps.length} oportunidade(s)</strong> com score acima de ${ALERT_SCORE_THRESHOLD}% de aderência ao seu perfil estratégico.
           </p>
-
           ${oppsList}
-
           <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;">
             <p style="margin:0;font-size:13px;color:#0369a1;">
               💡 Acesse a plataforma para ver todas as oportunidades e tomar as próximas ações comerciais.
             </p>
           </div>
-
           <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
             CM Intelligence — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
           </p>
@@ -375,7 +367,6 @@ export async function GET(request: Request) {
       }
     }
 
-    // Salvar controle de sincronização
     const { error: syncControlError } = await supabase
       .from('sync_control')
       .upsert({ source: 'PNCP', last_sync: new Date().toISOString() }, { onConflict: 'source' });
@@ -387,7 +378,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Recalcular scores e disparar alertas
     const scoreResult = await recalculateAndNotify();
 
     return NextResponse.json({
