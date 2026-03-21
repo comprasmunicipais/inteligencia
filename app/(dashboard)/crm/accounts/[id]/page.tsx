@@ -1,5 +1,5 @@
 'use client';
-
+ 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -20,6 +20,7 @@ import {
   Loader2,
   Mail,
   Copy,
+  MessageCircle,
 } from 'lucide-react';
 import { cn, formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -49,9 +50,9 @@ import {
   ContractDTO,
   OpportunityDTO
 } from '@/lib/types/dtos';
-import { Region, DealStage, AccountStatus } from '@/lib/types/enums';
+import { Region, DealStage, AccountStatus, ContactStatus } from '@/lib/types/enums';
 import { createClient } from '@supabase/supabase-js';
-
+ 
 type MunicipalityEmailDTO = {
   id: string;
   email: string;
@@ -59,17 +60,17 @@ type MunicipalityEmailDTO = {
   priority_score: number | null;
   is_strategic: boolean | null;
 };
-
+ 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-
+ 
 export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { companyId, user } = useCompany();
-
+ 
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<MunicipalityDTO | null>(null);
   const [contacts, setContacts] = useState<ContactDTO[]>([]);
@@ -80,16 +81,27 @@ export default function AccountDetailPage() {
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
   const [municipalityEmails, setMunicipalityEmails] = useState<MunicipalityEmailDTO[]>([]);
-
+ 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-
+  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [newContact, setNewContact] = useState({
+    name: '',
+    role: '',
+    email: '',
+    phone: '',
+    whatsapp: '',
+    department: '',
+    secretariat: '',
+  });
+ 
   const [editData, setEditData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'opportunities' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
-
+ 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -118,7 +130,7 @@ export default function AccountDetailPage() {
           .eq('municipality_id', params.id as string)
           .order('priority_score', { ascending: false })
       ]);
-
+ 
       setAccount(acc);
       setContacts(conts);
       setTimelineEvents(events);
@@ -127,7 +139,7 @@ export default function AccountDetailPage() {
       setProposals(proposalsData);
       setContracts(contractsData);
       setOpportunities(opportunitiesData);
-
+ 
       if (emailsResult.error) {
         console.error('Error loading municipality emails:', emailsResult.error);
         toast.error('Erro ao carregar e-mails da prefeitura.');
@@ -141,20 +153,20 @@ export default function AccountDetailPage() {
       setLoading(false);
     }
   }, [params.id]);
-
+ 
   useEffect(() => {
     if (params.id) {
       loadData();
     }
   }, [params.id, loadData]);
-
+ 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editData.name) {
       toast.error('Por favor, preencha o nome da prefeitura.');
       return;
     }
-
+ 
     try {
       const updated = await accountService.update(account!.id, editData);
       setAccount(updated);
@@ -164,7 +176,7 @@ export default function AccountDetailPage() {
       toast.error('Erro ao atualizar prefeitura.');
     }
   };
-
+ 
   const handleDelete = async () => {
     try {
       await accountService.delete(account!.id);
@@ -175,16 +187,16 @@ export default function AccountDetailPage() {
       toast.error('Erro ao excluir prefeitura.');
     }
   };
-
+ 
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
-
+ 
     if (!editingEvent.title || !editingEvent.date) {
       toast.error('Preencha o título e a data do evento.');
       return;
     }
-
+ 
     try {
       if (editingEvent.id) {
         const updated = await timelineService.update(editingEvent.id, editingEvent);
@@ -204,11 +216,45 @@ export default function AccountDetailPage() {
       toast.error('Erro ao salvar evento.');
     }
   };
-
+ 
+  const handleAddContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyId || !account) return;
+ 
+    if (!newContact.name || !newContact.email) {
+      toast.error('Por favor, preencha o nome e o e-mail.');
+      return;
+    }
+ 
+    setSavingContact(true);
+    try {
+      const created = await contactService.create({
+        ...newContact,
+        municipality_id: account.id,
+        company_id: companyId,
+        status: ContactStatus.ACTIVE,
+        role: newContact.role || '-',
+        phone: newContact.phone || undefined,
+        whatsapp: newContact.whatsapp || undefined,
+        department: newContact.department || undefined,
+        secretariat: newContact.secretariat || undefined,
+      });
+      setContacts([created, ...contacts]);
+      setIsAddContactModalOpen(false);
+      setNewContact({ name: '', role: '', email: '', phone: '', whatsapp: '', department: '', secretariat: '' });
+      toast.success('Contato adicionado com sucesso!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao adicionar contato: ${message}`);
+    } finally {
+      setSavingContact(false);
+    }
+  };
+ 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+ 
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -216,15 +262,15 @@ export default function AccountDetailPage() {
       'image/jpeg',
       'image/png'
     ];
-
+ 
     if (!allowedTypes.includes(file.type)) {
       toast.error('Tipo de arquivo não permitido. Use PDF, DOCX, XLSX ou imagens.');
       return;
     }
-
+ 
     setUploading(true);
     const toastId = toast.loading('Fazendo upload do documento...');
-
+ 
     try {
       const doc = await documentService.upload(file, account!.id, companyId!, user!.id);
       setDocuments([doc, ...documents]);
@@ -235,7 +281,7 @@ export default function AccountDetailPage() {
       setUploading(false);
     }
   };
-
+ 
   const handleDownloadDoc = async (doc: MunicipalityDocument) => {
     try {
       const data = await documentService.download(doc.file_path);
@@ -250,7 +296,7 @@ export default function AccountDetailPage() {
       toast.error('Erro ao baixar documento.');
     }
   };
-
+ 
   const handleDeleteDoc = async (doc: MunicipalityDocument) => {
     try {
       await documentService.delete(doc.id, doc.file_path);
@@ -260,7 +306,7 @@ export default function AccountDetailPage() {
       toast.error('Erro ao excluir documento.');
     }
   };
-
+ 
   const handleCopyEmail = async (email: string) => {
     try {
       await navigator.clipboard.writeText(email);
@@ -269,9 +315,9 @@ export default function AccountDetailPage() {
       toast.error('Erro ao copiar e-mail.');
     }
   };
-
+ 
   const strategicEmails = municipalityEmails.filter(email => email.is_strategic);
-
+ 
   const regionLabels: Record<string, string> = {
     [Region.NORTH]: 'Norte',
     [Region.NORTHEAST]: 'Nordeste',
@@ -279,7 +325,7 @@ export default function AccountDetailPage() {
     [Region.SOUTHEAST]: 'Sudeste',
     [Region.SOUTH]: 'Sul',
   };
-
+ 
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#f8fafc]">
@@ -287,7 +333,7 @@ export default function AccountDetailPage() {
       </div>
     );
   }
-
+ 
   if (!account) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[#f8fafc] p-8 text-center">
@@ -303,7 +349,7 @@ export default function AccountDetailPage() {
       </div>
     );
   }
-
+ 
   const handleVisitWebsite = () => {
     if (account.website) {
       window.open(account.website.startsWith('http') ? account.website : `https://${account.website}`, '_blank');
@@ -311,7 +357,7 @@ export default function AccountDetailPage() {
       toast.error('Website não cadastrado.');
     }
   };
-
+ 
   return (
     <>
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
@@ -345,7 +391,7 @@ export default function AccountDetailPage() {
           </button>
         </div>
       </div>
-
+ 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 space-y-6">
@@ -364,7 +410,7 @@ export default function AccountDetailPage() {
                   {account.status === AccountStatus.ACTIVE ? 'Cliente' : 'Prospecção'}
                 </span>
               </div>
-
+ 
               <div className="mt-8 space-y-4">
                 <button
                   onClick={handleVisitWebsite}
@@ -374,7 +420,7 @@ export default function AccountDetailPage() {
                 </button>
               </div>
             </div>
-
+ 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
               <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Informações Gerais</h3>
               <div className="space-y-4">
@@ -412,7 +458,7 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             </div>
-
+ 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
               <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Inteligência de Contatos</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -426,7 +472,7 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             </div>
-
+ 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
               <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Inteligência de Licitações</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -443,7 +489,7 @@ export default function AccountDetailPage() {
               </div>
             </div>
           </div>
-
+ 
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="flex border-b border-gray-100 overflow-x-auto">
@@ -520,7 +566,7 @@ export default function AccountDetailPage() {
                   Documentos
                 </button>
               </div>
-
+ 
               <div className="p-8">
                 {activeTab === 'overview' && (
                   <>
@@ -540,7 +586,7 @@ export default function AccountDetailPage() {
                         <span className="text-2xl font-bold text-green-700">{account.installation_year || 'N/A'}</span>
                       </div>
                     </div>
-
+ 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Contatos Estratégicos</span>
@@ -557,16 +603,21 @@ export default function AccountDetailPage() {
                         </p>
                       </div>
                     </div>
-
+ 
                     <h3 className="font-bold text-gray-900 mb-4">Notas e Observações</h3>
                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm text-gray-600 leading-relaxed italic">
                       &quot;Órgão com alto potencial para soluções de Smart City. O prefeito atual tem foco em digitalização de serviços públicos e redução de burocracia. Próxima janela de licitação prevista para o Q1 do próximo ano.&quot;
                     </div>
                   </>
                 )}
-
+ 
                 {activeTab === 'contacts' && (
                   <div className="space-y-4">
+                    {contacts.length === 0 && (
+                      <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                        Nenhum contato cadastrado para esta prefeitura.
+                      </div>
+                    )}
                     {contacts.map(contact => (
                       <div key={contact.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all group">
                         <div className="flex items-center gap-4">
@@ -594,12 +645,15 @@ export default function AccountDetailPage() {
                         </div>
                       </div>
                     ))}
-                    <button className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd] transition-all">
+                    <button
+                      onClick={() => setIsAddContactModalOpen(true)}
+                      className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd] transition-all"
+                    >
                       + Adicionar Novo Contato
                     </button>
                   </div>
                 )}
-
+ 
                 {activeTab === 'emails' && (
                   <div className="space-y-8">
                     <div>
@@ -624,7 +678,6 @@ export default function AccountDetailPage() {
                                 </span>
                               </div>
                             </div>
-
                             <div className="flex items-center gap-2 ml-4">
                               <button
                                 onClick={() => handleCopyEmail(emailRow.email)}
@@ -649,7 +702,7 @@ export default function AccountDetailPage() {
                         )}
                       </div>
                     </div>
-
+ 
                     <div>
                       <h3 className="font-bold text-gray-900 mb-4">Todos os E-mails</h3>
                       <div className="space-y-3">
@@ -674,7 +727,6 @@ export default function AccountDetailPage() {
                                 )}
                               </div>
                             </div>
-
                             <div className="flex items-center gap-2 ml-4">
                               <button
                                 onClick={() => handleCopyEmail(emailRow.email)}
@@ -701,7 +753,7 @@ export default function AccountDetailPage() {
                     </div>
                   </div>
                 )}
-
+ 
                 {activeTab === 'opportunities' && (
                   <div className="space-y-4">
                     {opportunities.length > 0 ? opportunities.map((opportunity) => (
@@ -718,35 +770,31 @@ export default function AccountDetailPage() {
                               {opportunity.organ_name || 'Órgão não informado'}
                             </p>
                           </div>
-
                           <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-50 text-blue-700 whitespace-nowrap">
                             {opportunity.modality || 'Modalidade não informada'}
                           </span>
                         </div>
-
+ 
                         <div className="flex flex-wrap items-center gap-2 mb-3">
                           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
                             {opportunity.situation || 'Situação não informada'}
                           </span>
-
                           {opportunity.internal_status && (
                             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-100 text-green-700">
                               {opportunity.internal_status}
                             </span>
                           )}
                         </div>
-
+ 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-600">
                           <div>
                             <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Publicação</span>
                             <span>{opportunity.publication_date ? formatDate(opportunity.publication_date) : 'N/A'}</span>
                           </div>
-
                           <div>
                             <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Abertura</span>
                             <span>{opportunity.opening_date ? formatDate(opportunity.opening_date) : 'N/A'}</span>
                           </div>
-
                           <div>
                             <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Valor estimado</span>
                             <span>
@@ -756,7 +804,7 @@ export default function AccountDetailPage() {
                             </span>
                           </div>
                         </div>
-
+ 
                         {opportunity.official_url && (
                           <div className="mt-4 flex justify-end">
                             <button
@@ -776,7 +824,7 @@ export default function AccountDetailPage() {
                     )}
                   </div>
                 )}
-
+ 
                 {activeTab === 'deals' && (
                   <div className="space-y-4">
                     {deals.map(deal => (
@@ -807,7 +855,7 @@ export default function AccountDetailPage() {
                     )}
                   </div>
                 )}
-
+ 
                 {activeTab === 'proposals' && (
                   <div className="space-y-4">
                     {proposals.map(proposal => (
@@ -836,7 +884,7 @@ export default function AccountDetailPage() {
                     )}
                   </div>
                 )}
-
+ 
                 {activeTab === 'contracts' && (
                   <div className="space-y-4">
                     {contracts.map(contract => (
@@ -868,7 +916,7 @@ export default function AccountDetailPage() {
                     )}
                   </div>
                 )}
-
+ 
                 {activeTab === 'documents' && (
                   <div className="space-y-4">
                     {documents.map(doc => (
@@ -900,7 +948,7 @@ export default function AccountDetailPage() {
                         </div>
                       </div>
                     ))}
-
+ 
                     <div className="relative">
                       <input
                         type="file"
@@ -933,7 +981,7 @@ export default function AccountDetailPage() {
                 )}
               </div>
             </div>
-
+ 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-8 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <h3 className="font-bold text-gray-900">Linha do Tempo</h3>
@@ -997,7 +1045,107 @@ export default function AccountDetailPage() {
           </div>
         </div>
       </div>
-
+ 
+      {/* Modal: Adicionar Contato */}
+      <Dialog open={isAddContactModalOpen} onOpenChange={setIsAddContactModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Novo Contato</DialogTitle>
+            <DialogDescription>
+              Cadastre um decisor ou influenciador vinculado a <span className="font-bold text-gray-900">{account.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddContact} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Nome Completo</label>
+              <input
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                placeholder="Ex: Ana Souza"
+                value={newContact.name}
+                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Cargo</label>
+              <input
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                placeholder="Ex: Secretária de Educação"
+                value={newContact.role}
+                onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Departamento</label>
+                <input
+                  className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                  placeholder="Ex: Compras"
+                  value={newContact.department}
+                  onChange={(e) => setNewContact({ ...newContact, department: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Secretaria</label>
+                <input
+                  className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                  placeholder="Ex: Educação"
+                  value={newContact.secretariat}
+                  onChange={(e) => setNewContact({ ...newContact, secretariat: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">E-mail</label>
+                <input
+                  type="email"
+                  className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                  placeholder="ana@prefeitura.gov.br"
+                  value={newContact.email}
+                  onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Telefone</label>
+                <input
+                  className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                  placeholder="(00) 00000-0000"
+                  value={newContact.phone}
+                  onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">WhatsApp</label>
+              <input
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                placeholder="5511999999999"
+                value={newContact.whatsapp}
+                onChange={(e) => setNewContact({ ...newContact, whatsapp: e.target.value })}
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddContactModalOpen(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingContact}
+                className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {savingContact && <Loader2 className="size-4 animate-spin" />}
+                Salvar Contato
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+ 
+      {/* Modal: Evento */}
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1069,7 +1217,8 @@ export default function AccountDetailPage() {
           )}
         </DialogContent>
       </Dialog>
-
+ 
+      {/* Modal: Editar Prefeitura */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1193,7 +1342,8 @@ export default function AccountDetailPage() {
           )}
         </DialogContent>
       </Dialog>
-
+ 
+      {/* Modal: Excluir Prefeitura */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
