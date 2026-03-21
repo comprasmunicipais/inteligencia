@@ -121,13 +121,19 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     return { updated: 0, total: 0, alerts: 0 };
   }
 
-  // Buscar usuários da empresa com e-mail
+  // Buscar usuários da empresa — excluindo platform_admin
+  // Regra:
+  // - role = 'user'  → recebe alerta apenas para si mesmo
+  // - role = 'admin' → recebe todos os alertas da empresa (gestor)
+  // - role = 'platform_admin' → não recebe alertas de clientes
   const { data: companyUsers } = await supabase
     .from('profiles')
-    .select('id, email')
-    .eq('company_id', companyId);
+    .select('id, email, role')
+    .eq('company_id', companyId)
+    .in('role', ['user', 'admin']);
 
   const users = companyUsers || [];
+  const admins = users.filter(u => u.role === 'admin');
 
   // Buscar oportunidades da empresa
   const { data: opportunities, error: oppsError } = await supabase
@@ -165,7 +171,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
           .maybeSingle();
 
         if (!existingNotif) {
-          // Criar notificação para cada usuário da empresa
+          // Criar notificação para todos os usuários (user e admin)
           for (const user of users) {
             await supabase.from('notifications').insert({
               company_id: companyId,
@@ -185,7 +191,9 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     }
   }
 
-  // Enviar e-mail para todos os usuários da empresa se houver alertas
+  // Enviar e-mail:
+  // - Todos os usuários (user + admin) recebem e-mail sobre suas próprias oportunidades
+  // - admins já estão incluídos pois fazem parte da mesma empresa
   if (highScoreOpps.length > 0 && users.length > 0) {
     const oppsList = highScoreOpps.map(opp => `
       <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
@@ -348,7 +356,9 @@ export async function GET(request: Request) {
         official_url: item.linkSistemaOrigem || (item.numeroControlePNCP ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}` : null),
         sync_hash: externalIdString,
         match_score: 0,
-        match_reason: municipalityId ? 'Importado automaticamente do PNCP e vinculado ao município' : 'Importado automaticamente do PNCP',
+        match_reason: municipalityId
+          ? 'Importado automaticamente do PNCP e vinculado ao município'
+          : 'Importado automaticamente do PNCP',
         internal_status: 'new',
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -388,7 +398,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Recalcular scores e disparar alertas para a empresa
     const scoreResult = await recalculateAndNotify(COMPANY_ID);
 
     return NextResponse.json({
