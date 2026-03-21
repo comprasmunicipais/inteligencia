@@ -19,11 +19,12 @@ import {
   Trash2,
   Download,
   Package,
-  Plus,
+  FolderOpen,
 } from 'lucide-react';
 import { getCompanyProfile, saveCompanyProfile } from '@/lib/intel/services';
 import { CompanyIntelligenceProfile } from '@/lib/intel/types';
 import { catalogService, CompanyCatalog } from '@/lib/services/catalogs';
+import { companyDocumentService, CompanyDocument, DOCUMENT_CATEGORIES } from '@/lib/services/company-documents';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -56,11 +57,19 @@ export default function IntelProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Catalogs state
+  // Catalogs
   const [catalogs, setCatalogs] = useState<CompanyCatalog[]>([]);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingCatalog, setUploadingCatalog] = useState(false);
   const [productLineName, setProductLineName] = useState('');
+
+  // Company Documents
+  const [documents, setDocuments] = useState<CompanyDocument[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(true);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(DOCUMENT_CATEGORIES[0].id);
+  const [documentDescription, setDocumentDescription] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(DOCUMENT_CATEGORIES[0].id);
 
   useEffect(() => {
     if (!companyId) return;
@@ -69,7 +78,7 @@ export default function IntelProfilePage() {
       try {
         const data = await getCompanyProfile(companyId);
         setProfile(data);
-      } catch (error) {
+      } catch {
         toast.error('Erro ao carregar perfil estratégico.');
       } finally {
         setLoading(false);
@@ -85,7 +94,7 @@ export default function IntelProfilePage() {
       try {
         const data = await catalogService.getByCompany(companyId);
         setCatalogs(data);
-      } catch (error) {
+      } catch {
         toast.error('Erro ao carregar catálogos.');
       } finally {
         setLoadingCatalogs(false);
@@ -94,49 +103,62 @@ export default function IntelProfilePage() {
     loadCatalogs();
   }, [companyId]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const loadDocuments = async () => {
+      setLoadingDocuments(true);
+      try {
+        const data = await companyDocumentService.getByCompany(companyId);
+        setDocuments(data);
+      } catch {
+        toast.error('Erro ao carregar documentos.');
+      } finally {
+        setLoadingDocuments(false);
+      }
+    };
+    loadDocuments();
+  }, [companyId]);
+
   const handleSave = async () => {
     if (!profile || !companyId) return;
     setIsSaving(true);
     try {
       await saveCompanyProfile({ ...profile, company_id: companyId });
       toast.success('Perfil estratégico salvo com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao salvar perfil estratégico.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadCatalog = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !companyId) return;
-
     if (!ALLOWED_TYPES.includes(file.type)) {
       toast.error('Formato não permitido. Use PDF, DOCX, XLSX ou imagens.');
       return;
     }
-
     if (!productLineName.trim()) {
       toast.error('Informe o nome da linha de produto antes de fazer o upload.');
       return;
     }
-
-    setUploading(true);
+    setUploadingCatalog(true);
     const toastId = toast.loading('Fazendo upload do catálogo...');
     try {
       const created = await catalogService.upload(file, companyId, productLineName.trim());
       setCatalogs([created, ...catalogs]);
       setProductLineName('');
       toast.success('Catálogo enviado com sucesso!', { id: toastId });
-    } catch (error) {
+    } catch {
       toast.error('Erro ao enviar catálogo.', { id: toastId });
     } finally {
-      setUploading(false);
+      setUploadingCatalog(false);
       e.target.value = '';
     }
   };
 
-  const handleDownload = async (catalog: CompanyCatalog) => {
+  const handleDownloadCatalog = async (catalog: CompanyCatalog) => {
     try {
       const blob = await catalogService.download(catalog.file_path);
       const url = window.URL.createObjectURL(blob);
@@ -146,19 +168,68 @@ export default function IntelProfilePage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (error) {
+    } catch {
       toast.error('Erro ao baixar catálogo.');
     }
   };
 
-  const handleDelete = async (catalog: CompanyCatalog) => {
+  const handleDeleteCatalog = async (catalog: CompanyCatalog) => {
     if (!confirm(`Excluir "${catalog.file_name}"?`)) return;
     try {
       await catalogService.delete(catalog.id, catalog.file_path);
       setCatalogs(catalogs.filter(c => c.id !== catalog.id));
       toast.success('Catálogo excluído.');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao excluir catálogo.');
+    }
+  };
+
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !companyId) return;
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Formato não permitido. Use PDF, DOCX, XLSX ou imagens.');
+      return;
+    }
+    setUploadingDocument(true);
+    const toastId = toast.loading('Fazendo upload do documento...');
+    try {
+      const created = await companyDocumentService.upload(file, companyId, selectedCategory, documentDescription.trim());
+      setDocuments([created, ...documents]);
+      setDocumentDescription('');
+      setExpandedCategory(selectedCategory);
+      toast.success('Documento enviado com sucesso!', { id: toastId });
+    } catch {
+      toast.error('Erro ao enviar documento.', { id: toastId });
+    } finally {
+      setUploadingDocument(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDownloadDocument = async (doc: CompanyDocument) => {
+    try {
+      const blob = await companyDocumentService.download(doc.file_path);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', doc.file_name);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Erro ao baixar documento.');
+    }
+  };
+
+  const handleDeleteDocument = async (doc: CompanyDocument) => {
+    if (!confirm(`Excluir "${doc.file_name}"?`)) return;
+    try {
+      await companyDocumentService.delete(doc.id, doc.file_path);
+      setDocuments(documents.filter(d => d.id !== doc.id));
+      toast.success('Documento excluído.');
+    } catch {
+      toast.error('Erro ao excluir documento.');
     }
   };
 
@@ -280,11 +351,8 @@ export default function IntelProfilePage() {
                   <Package className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Catálogos de Produtos</h3>
                 </div>
-                <p className="text-xs text-gray-500 -mt-4">
-                  Faça upload dos catálogos por linha de produto. O sistema usará essas informações para aumentar a precisão do score de aderência.
-                </p>
+                <p className="text-xs text-gray-500 -mt-4">Faça upload dos catálogos por linha de produto. O sistema usará essas informações para aumentar a precisão do score de aderência.</p>
 
-                {/* Upload */}
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Catálogo</p>
                   <div className="flex gap-3">
@@ -296,40 +364,20 @@ export default function IntelProfilePage() {
                       onChange={(e) => setProductLineName(e.target.value)}
                     />
                     <div className="relative">
-                      <input
-                        type="file"
-                        id="catalog-upload"
-                        className="hidden"
-                        accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png"
-                        onChange={handleUpload}
-                        disabled={uploading}
-                      />
-                      <label
-                        htmlFor="catalog-upload"
-                        className={cn(
-                          'h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors',
-                          uploading
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]'
-                        )}
-                      >
-                        {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                        {uploading ? 'Enviando...' : 'Upload'}
+                      <input type="file" id="catalog-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadCatalog} disabled={uploadingCatalog} />
+                      <label htmlFor="catalog-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingCatalog ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
+                        {uploadingCatalog ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                        {uploadingCatalog ? 'Enviando...' : 'Upload'}
                       </label>
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
                 </div>
 
-                {/* Lista de catálogos */}
                 {loadingCatalogs ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="size-5 text-[#0f49bd] animate-spin" />
-                  </div>
+                  <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
                 ) : catalogs.length === 0 ? (
-                  <div className="text-center py-6 text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    Nenhum catálogo enviado ainda.
-                  </div>
+                  <div className="text-center py-6 text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Nenhum catálogo enviado ainda.</div>
                 ) : (
                   <div className="space-y-3">
                     {catalogs.map((catalog) => (
@@ -341,38 +389,120 @@ export default function IntelProfilePage() {
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-gray-900 truncate">{catalog.file_name}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              {catalog.product_line && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
-                                  {catalog.product_line}
-                                </span>
-                              )}
-                              <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                {fileTypeLabel(catalog.file_type)}
-                              </span>
-                              <span className="text-[10px] text-gray-400">
-                                {formatFileSize(catalog.file_size)}
-                              </span>
+                              {catalog.product_line && <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">{catalog.product_line}</span>}
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{fileTypeLabel(catalog.file_type)}</span>
+                              <span className="text-[10px] text-gray-400">{formatFileSize(catalog.file_size)}</span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                          <button
-                            onClick={() => handleDownload(catalog)}
-                            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
-                            title="Baixar"
-                          >
-                            <Download className="size-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(catalog)}
-                            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm"
-                            title="Excluir"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
+                          <button onClick={() => handleDownloadCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm" title="Baixar"><Download className="size-4" /></button>
+                          <button onClick={() => handleDeleteCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm" title="Excluir"><Trash2 className="size-4" /></button>
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Documentos da Empresa */}
+              <section className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 mb-2">
+                  <FolderOpen className="size-5 text-[#0f49bd]" />
+                  <h3 className="font-bold">Documentos de Habilitação</h3>
+                </div>
+                <p className="text-xs text-gray-500 -mt-4">Centralize os documentos exigidos em licitações organizados por categoria. Isso facilitará a montagem de propostas no futuro.</p>
+
+                {/* Upload de documento */}
+                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Documento</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <select
+                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                      {DOCUMENT_CATEGORIES.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                      ))}
+                    </select>
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                        placeholder="Descrição opcional (ex: CND Federal — validade 12/2025)"
+                        value={documentDescription}
+                        onChange={(e) => setDocumentDescription(e.target.value)}
+                      />
+                      <div className="relative">
+                        <input type="file" id="doc-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadDocument} disabled={uploadingDocument} />
+                        <label htmlFor="doc-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingDocument ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
+                          {uploadingDocument ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                          {uploadingDocument ? 'Enviando...' : 'Upload'}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
+                </div>
+
+                {/* Lista por categoria */}
+                {loadingDocuments ? (
+                  <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
+                ) : (
+                  <div className="space-y-3">
+                    {DOCUMENT_CATEGORIES.map((cat) => {
+                      const catDocs = documents.filter(d => d.category === cat.id);
+                      const isExpanded = expandedCategory === cat.id;
+                      return (
+                        <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FolderOpen className="size-4 text-[#0f49bd]" />
+                              <div className="text-left">
+                                <p className="text-sm font-bold text-gray-900">{cat.label}</p>
+                                <p className="text-[10px] text-gray-400">{cat.description}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', catDocs.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400')}>
+                                {catDocs.length} {catDocs.length === 1 ? 'arquivo' : 'arquivos'}
+                              </span>
+                              <ChevronRight className={cn('size-4 text-gray-400 transition-transform', isExpanded && 'rotate-90')} />
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="p-3 space-y-2 bg-white">
+                              {catDocs.length === 0 ? (
+                                <p className="text-xs text-gray-400 text-center py-4">Nenhum documento nesta categoria.</p>
+                              ) : catDocs.map((doc) => (
+                                <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <FileText className="size-4 text-gray-400 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold text-gray-900 truncate">{doc.file_name}</p>
+                                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                        {doc.description && <span className="text-[10px] text-gray-500">{doc.description}</span>}
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{fileTypeLabel(doc.file_type)}</span>
+                                        <span className="text-[10px] text-gray-400">{formatFileSize(doc.file_size)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                                    <button onClick={() => handleDownloadDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all" title="Baixar"><Download className="size-3.5" /></button>
+                                    <button onClick={() => handleDeleteDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all" title="Excluir"><Trash2 className="size-3.5" /></button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -410,22 +540,7 @@ export default function IntelProfilePage() {
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estados de Atuação</label>
                     <div className="flex flex-wrap gap-2 pt-2">
                       {states.map(state => (
-                        <button
-                          key={state}
-                          onClick={() => {
-                            const current = profile.target_states || [];
-                            const next = current.includes(state)
-                              ? current.filter(s => s !== state)
-                              : [...current, state];
-                            setProfile({ ...profile, target_states: next });
-                          }}
-                          className={cn(
-                            'px-2 py-1 rounded text-[10px] font-bold border transition-all',
-                            profile.target_states?.includes(state)
-                              ? 'bg-[#0f49bd] border-[#0f49bd] text-white'
-                              : 'bg-white border-gray-200 text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd]'
-                          )}
-                        >
+                        <button key={state} onClick={() => { const current = profile.target_states || []; const next = current.includes(state) ? current.filter(s => s !== state) : [...current, state]; setProfile({ ...profile, target_states: next }); }} className={cn('px-2 py-1 rounded text-[10px] font-bold border transition-all', profile.target_states?.includes(state) ? 'bg-[#0f49bd] border-[#0f49bd] text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-[#0f49bd] hover:text-[#0f49bd]')}>
                           {state}
                         </button>
                       ))}
@@ -447,16 +562,7 @@ export default function IntelProfilePage() {
                 <div className="space-y-2">
                   {modalities.map(mod => (
                     <label key={mod} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={profile.target_modalities?.includes(mod)}
-                        onChange={(e) => {
-                          const current = profile.target_modalities || [];
-                          const next = e.target.checked ? [...current, mod] : current.filter(m => m !== mod);
-                          setProfile({ ...profile, target_modalities: next });
-                        }}
-                        className="size-4 rounded border-gray-300 text-[#0f49bd] focus:ring-[#0f49bd]"
-                      />
+                      <input type="checkbox" checked={profile.target_modalities?.includes(mod)} onChange={(e) => { const current = profile.target_modalities || []; const next = e.target.checked ? [...current, mod] : current.filter(m => m !== mod); setProfile({ ...profile, target_modalities: next }); }} className="size-4 rounded border-gray-300 text-[#0f49bd] focus:ring-[#0f49bd]" />
                       <span className="text-xs font-medium text-gray-700">{mod}</span>
                     </label>
                   ))}
@@ -468,7 +574,7 @@ export default function IntelProfilePage() {
                 <div className="flex items-start gap-3">
                   <Info className="size-5 text-blue-600 shrink-0" />
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Dica da IA:</span> Quanto mais específico for o seu perfil e mais catálogos você enviar, maior será a precisão do score de aderência nas licitações.
+                    <span className="font-bold">Dica da IA:</span> Mantenha seus documentos de habilitação sempre atualizados. Certidões vencidas são a causa mais comum de desclassificação em licitações.
                   </p>
                 </div>
               </div>
