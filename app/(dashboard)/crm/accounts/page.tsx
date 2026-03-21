@@ -9,15 +9,14 @@ import {
   MoreVertical, 
   ExternalLink,
   Building2,
-  MapPin,
-  BadgeCheck,
   X,
   Edit,
   Trash2,
   Eye,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Gavel,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import {
@@ -82,10 +81,10 @@ export default function AccountsPage() {
     min_area: undefined,
     max_area: undefined,
     min_year: undefined,
-    max_year: undefined
+    max_year: undefined,
+    has_opportunities: false,
   });
   
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -117,7 +116,6 @@ export default function AccountsPage() {
       toast.error('Por favor, preencha o nome, cidade e estado.');
       return;
     }
-
     try {
       const created = await accountService.create(newAccount as any);
       setAccounts([created, ...accounts]);
@@ -132,12 +130,10 @@ export default function AccountsPage() {
   const handleEditAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAccount) return;
-    
     if (!editingAccount.name || !editingAccount.state || !editingAccount.city) {
       toast.error('Por favor, preencha o nome, cidade e estado.');
       return;
     }
-
     try {
       const updated = await accountService.update(editingAccount.id, editingAccount);
       setAccounts(accounts.map(acc => acc.id === updated.id ? updated : acc));
@@ -168,7 +164,6 @@ export default function AccountsPage() {
       toast.error('Website não cadastrado.');
       return;
     }
-    
     try {
       const validUrl = url.startsWith('http') ? url : `https://${url}`;
       window.open(validUrl, "_blank", "noopener,noreferrer");
@@ -194,7 +189,8 @@ export default function AccountsPage() {
       min_area: undefined,
       max_area: undefined,
       min_year: undefined,
-      max_year: undefined
+      max_year: undefined,
+      has_opportunities: false,
     });
     setCurrentPage(1);
     toast.info('Filtros limpos.');
@@ -220,6 +216,8 @@ export default function AccountsPage() {
     'Maior que Um Milhão'
   ];
 
+  const hasActiveFilters = filters.has_opportunities || filters.state || filters.region || filters.population_range;
+
   return (
     <>
       <Header 
@@ -244,13 +242,36 @@ export default function AccountsPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* Filtro rápido: com licitações */}
+              <button
+                onClick={() => {
+                  setFilters(prev => ({ ...prev, has_opportunities: !prev.has_opportunities }));
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-colors shadow-sm",
+                  filters.has_opportunities
+                    ? "bg-[#0f49bd] text-white border-[#0f49bd]"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                )}
+              >
+                <Gavel className="size-4" />
+                Com Licitações
+              </button>
+
               <button 
                 onClick={() => setIsFilterModalOpen(true)}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-colors shadow-sm",
+                  hasActiveFilters && !filters.has_opportunities
+                    ? "bg-[#0f49bd] text-white border-[#0f49bd]"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                )}
               >
-                <Filter className="size-4 text-gray-500" />
+                <Filter className="size-4" />
                 Filtrar
               </button>
+
               <button 
                 onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-white hover:bg-[#0a3690] transition-colors shadow-sm font-bold text-sm"
@@ -260,6 +281,20 @@ export default function AccountsPage() {
               </button>
             </div>
           </div>
+
+          {/* Indicador de filtro ativo */}
+          {filters.has_opportunities && (
+            <div className="flex items-center gap-2 text-sm text-[#0f49bd] font-bold">
+              <Gavel className="size-4" />
+              Exibindo apenas prefeituras com licitações abertas vinculadas
+              <button
+                onClick={() => setFilters(prev => ({ ...prev, has_opportunities: false }))}
+                className="ml-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -392,9 +427,7 @@ export default function AccountsPage() {
                 >
                   <ChevronLeft className="size-3" /> Anterior
                 </button>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-bold text-gray-500 px-2">Página {currentPage} de {totalPages || 1}</span>
-                </div>
+                <span className="text-xs font-bold text-gray-500 px-2">Página {currentPage} de {totalPages || 1}</span>
                 <button 
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages || totalPages === 0}
@@ -408,84 +441,45 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* Edit Account Modal */}
+      {/* Modal: Editar Prefeitura */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Prefeitura</DialogTitle>
-            <DialogDescription>
-              Atualize as informações da prefeitura selecionada.
-            </DialogDescription>
+            <DialogDescription>Atualize as informações da prefeitura selecionada.</DialogDescription>
           </DialogHeader>
           {editingAccount && (
             <form onSubmit={handleEditAccount} className="space-y-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="edit-name" className="text-right text-sm font-bold text-gray-700">Município</label>
-                <input
-                  id="edit-name"
-                  className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={editingAccount.name}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, name: e.target.value })}
-                />
+                <label className="text-right text-sm font-bold text-gray-700">Município</label>
+                <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={editingAccount.name} onChange={(e) => setEditingAccount({ ...editingAccount, name: e.target.value })} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="edit-city" className="text-right text-sm font-bold text-gray-700">Cidade</label>
-                <input
-                  id="edit-city"
-                  className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={editingAccount.city}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, city: e.target.value })}
-                />
+                <label className="text-right text-sm font-bold text-gray-700">Cidade</label>
+                <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={editingAccount.city} onChange={(e) => setEditingAccount({ ...editingAccount, city: e.target.value })} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="edit-state" className="text-right text-sm font-bold text-gray-700">Estado (UF)</label>
-                <input
-                  id="edit-state"
-                  className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  maxLength={2}
-                  value={editingAccount.state}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, state: e.target.value.toUpperCase() })}
-                />
+                <label className="text-right text-sm font-bold text-gray-700">Estado (UF)</label>
+                <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" maxLength={2} value={editingAccount.state} onChange={(e) => setEditingAccount({ ...editingAccount, state: e.target.value.toUpperCase() })} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="edit-mayor" className="text-right text-sm font-bold text-gray-700">Prefeito</label>
-                <input
-                  id="edit-mayor"
-                  className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={editingAccount.mayor_name}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, mayor_name: e.target.value })}
-                />
+                <label className="text-right text-sm font-bold text-gray-700">Prefeito</label>
+                <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={editingAccount.mayor_name} onChange={(e) => setEditingAccount({ ...editingAccount, mayor_name: e.target.value })} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="edit-website" className="text-right text-sm font-bold text-gray-700">Website</label>
-                <input
-                  id="edit-website"
-                  className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={editingAccount.website}
-                  onChange={(e) => setEditingAccount({ ...editingAccount, website: e.target.value })}
-                />
+                <label className="text-right text-sm font-bold text-gray-700">Website</label>
+                <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={editingAccount.website} onChange={(e) => setEditingAccount({ ...editingAccount, website: e.target.value })} />
               </div>
               <DialogFooter className="pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-                >
-                  Salvar Alterações
-                </button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
+                <button type="submit" className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">Salvar Alterações</button>
               </DialogFooter>
             </form>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
+      {/* Modal: Excluir */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -495,194 +489,112 @@ export default function AccountsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 pt-4">
-            <button 
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleDeleteAccount}
-              className="flex-1 bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-700 shadow-sm transition-all"
-            >
-              Excluir
-            </button>
+            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">Cancelar</button>
+            <button onClick={handleDeleteAccount} className="flex-1 bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-700 shadow-sm transition-all">Excluir</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Account Modal */}
+      {/* Modal: Adicionar */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Adicionar Nova Prefeitura</DialogTitle>
-            <DialogDescription>
-              Preencha as informações básicas para cadastrar um novo município no sistema.
-            </DialogDescription>
+            <DialogDescription>Preencha as informações básicas para cadastrar um novo município no sistema.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddAccount} className="space-y-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="name" className="text-right text-sm font-bold text-gray-700">Município</label>
-              <input
-                id="name"
-                className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: Prefeitura de São Paulo"
-                value={newAccount.name}
-                onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
-              />
+              <label className="text-right text-sm font-bold text-gray-700">Município</label>
+              <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: Prefeitura de São Paulo" value={newAccount.name} onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="city" className="text-right text-sm font-bold text-gray-700">Cidade</label>
-              <input
-                id="city"
-                className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: São Paulo"
-                value={newAccount.city}
-                onChange={(e) => setNewAccount({ ...newAccount, city: e.target.value })}
-              />
+              <label className="text-right text-sm font-bold text-gray-700">Cidade</label>
+              <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: São Paulo" value={newAccount.city} onChange={(e) => setNewAccount({ ...newAccount, city: e.target.value })} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="state" className="text-right text-sm font-bold text-gray-700">Estado (UF)</label>
-              <input
-                id="state"
-                className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: SP"
-                maxLength={2}
-                value={newAccount.state}
-                onChange={(e) => setNewAccount({ ...newAccount, state: e.target.value.toUpperCase() })}
-              />
+              <label className="text-right text-sm font-bold text-gray-700">Estado (UF)</label>
+              <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: SP" maxLength={2} value={newAccount.state} onChange={(e) => setNewAccount({ ...newAccount, state: e.target.value.toUpperCase() })} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="mayor" className="text-right text-sm font-bold text-gray-700">Prefeito</label>
-              <input
-                id="mayor"
-                className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Nome do prefeito atual"
-                value={newAccount.mayor_name}
-                onChange={(e) => setNewAccount({ ...newAccount, mayor_name: e.target.value })}
-              />
+              <label className="text-right text-sm font-bold text-gray-700">Prefeito</label>
+              <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Nome do prefeito atual" value={newAccount.mayor_name} onChange={(e) => setNewAccount({ ...newAccount, mayor_name: e.target.value })} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="website" className="text-right text-sm font-bold text-gray-700">Website</label>
-              <input
-                id="website"
-                className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="https://..."
-                value={newAccount.website}
-                onChange={(e) => setNewAccount({ ...newAccount, website: e.target.value })}
-              />
+              <label className="text-right text-sm font-bold text-gray-700">Website</label>
+              <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="https://..." value={newAccount.website} onChange={(e) => setNewAccount({ ...newAccount, website: e.target.value })} />
             </div>
             <DialogFooter className="pt-4">
-              <button 
-                type="button" 
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="submit"
-                className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-              >
-                Salvar Prefeitura
-              </button>
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
+              <button type="submit" className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">Salvar Prefeitura</button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Filter Modal */}
+      {/* Modal: Filtros Avançados */}
       <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Filtros Avançados</DialogTitle>
-            <DialogDescription>
-              Refine sua busca por prefeituras utilizando os critérios abaixo.
-            </DialogDescription>
+            <DialogDescription>Refine sua busca por prefeituras utilizando os critérios abaixo.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2">
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:border-[#0f49bd] hover:bg-blue-50/30 transition-all">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[#0f49bd]"
+                  checked={!!filters.has_opportunities}
+                  onChange={(e) => setFilters({ ...filters, has_opportunities: e.target.checked })}
+                />
+                <div>
+                  <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <Gavel className="size-4 text-[#0f49bd]" />
+                    Apenas prefeituras com licitações abertas
+                  </span>
+                  <span className="text-xs text-gray-400">Exibe somente municípios que possuem licitações vinculadas</span>
+                </div>
+              </label>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Estado (UF)</label>
-              <input 
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="Ex: SP"
-                maxLength={2}
-                value={filters.state}
-                onChange={(e) => setFilters({ ...filters, state: e.target.value.toUpperCase() })}
-              />
+              <input className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Ex: SP" maxLength={2} value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value.toUpperCase() })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Região</label>
-              <select 
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.region}
-                onChange={(e) => setFilters({ ...filters, region: e.target.value as Region })}
-              >
+              <select className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.region} onChange={(e) => setFilters({ ...filters, region: e.target.value as Region })}>
                 <option value="">Todas as regiões</option>
                 {regions.map(r => <option key={r} value={r}>{regionLabels[r] || r}</option>)}
               </select>
             </div>
             <div className="col-span-2 space-y-2">
               <label className="text-sm font-bold text-gray-700">Faixa Populacional</label>
-              <select 
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.population_range}
-                onChange={(e) => setFilters({ ...filters, population_range: e.target.value })}
-              >
+              <select className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.population_range} onChange={(e) => setFilters({ ...filters, population_range: e.target.value })}>
                 <option value="">Todas as faixas</option>
                 {populationRanges.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">População Mínima</label>
-              <input 
-                type="number"
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.min_population || ''}
-                onChange={(e) => setFilters({ ...filters, min_population: Number(e.target.value) || undefined })}
-              />
+              <input type="number" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.min_population || ''} onChange={(e) => setFilters({ ...filters, min_population: Number(e.target.value) || undefined })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">População Máxima</label>
-              <input 
-                type="number"
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.max_population || ''}
-                onChange={(e) => setFilters({ ...filters, max_population: Number(e.target.value) || undefined })}
-              />
+              <input type="number" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.max_population || ''} onChange={(e) => setFilters({ ...filters, max_population: Number(e.target.value) || undefined })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Área Mínima (km²)</label>
-              <input 
-                type="number"
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.min_area || ''}
-                onChange={(e) => setFilters({ ...filters, min_area: Number(e.target.value) || undefined })}
-              />
+              <input type="number" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.min_area || ''} onChange={(e) => setFilters({ ...filters, min_area: Number(e.target.value) || undefined })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Ano Instalação Mín.</label>
-              <input 
-                type="number"
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                value={filters.min_year || ''}
-                onChange={(e) => setFilters({ ...filters, min_year: Number(e.target.value) || undefined })}
-              />
+              <input type="number" className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={filters.min_year || ''} onChange={(e) => setFilters({ ...filters, min_year: Number(e.target.value) || undefined })} />
             </div>
           </div>
           <DialogFooter className="flex gap-2">
-            <button 
-              onClick={handleResetFilters}
-              className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg"
-            >
-              Limpar
-            </button>
-            <button 
-              onClick={handleApplyFilters}
-              className="flex-1 bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
-            >
-              Aplicar Filtros
-            </button>
+            <button onClick={handleResetFilters} className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg">Limpar</button>
+            <button onClick={handleApplyFilters} className="flex-1 bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">Aplicar Filtros</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
