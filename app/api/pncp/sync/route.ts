@@ -3,13 +3,18 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 const COMPANY_ID = 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3';
+const ALERT_SCORE_THRESHOLD = 90;
+const ALERT_EMAIL = 'fernando.damico@damicoed.com.br';
 
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -24,25 +29,26 @@ function normalizeText(value: string | null | undefined) {
     .toLowerCase();
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
   let score = 0;
   const reasons: string[] = [];
 
-  // 1. Estado (+25)
   const targetStates: string[] = profile.target_states || [];
   if (targetStates.includes(opportunity.state) || targetStates.includes('Nacional')) {
     score += 25;
     reasons.push('Localização estratégica (Estado alvo).');
   }
 
-  // 2. Modalidade (+20)
   const targetModalities: string[] = profile.target_modalities || [];
   if (targetModalities.some((m: string) => (opportunity.modality || '').toLowerCase().includes(m.toLowerCase()))) {
     score += 20;
     reasons.push('Modalidade de contratação preferencial.');
   }
 
-  // 3. Valor dentro do ticket (+20)
   const value = Number(opportunity.estimated_value || 0);
   const minTicket = Number(profile.min_ticket || 0);
   const maxTicket = Number(profile.max_ticket || 0);
@@ -55,7 +61,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     }
   }
 
-  // 4. Palavras-chave positivas (+20)
   const positiveKeywords: string[] = (profile.positive_keywords || '')
     .split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean);
   const titleDesc = `${opportunity.title || ''} ${opportunity.description || ''}`.toLowerCase();
@@ -65,7 +70,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
   }
 
-  // 5. Palavras-chave negativas (-20)
   const negativeKeywords: string[] = (profile.negative_keywords || '')
     .split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean);
   const foundNegative = negativeKeywords.filter((k: string) => titleDesc.includes(k));
@@ -74,7 +78,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
   }
 
-  // 6. Órgãos prioritários (+15)
   const preferredBuyers: string[] = (profile.preferred_buyers || '')
     .split(',').map((b: string) => b.trim().toLowerCase()).filter(Boolean);
   const organName = (opportunity.organ_name || '').toLowerCase();
@@ -83,7 +86,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push('Órgão comprador classificado como prioritário.');
   }
 
-  // 7. Órgãos excluídos (-30)
   const excludedBuyers: string[] = (profile.excluded_buyers || '')
     .split(',').map((b: string) => b.trim().toLowerCase()).filter(Boolean);
   if (excludedBuyers.some((b: string) => organName.includes(b))) {
@@ -91,7 +93,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push('Órgão comprador na lista de exclusão.');
   }
 
-  // 8. Categorias PNCP (+10)
   const targetCategories: string[] = (profile.target_categories || '')
     .split(',').map((c: string) => c.trim().toLowerCase()).filter(Boolean);
   const foundCategories = targetCategories.filter((c: string) => titleDesc.includes(c));
@@ -108,8 +109,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   return { score: finalScore, reason };
 }
 
-async function recalculateScores(): Promise<{ updated: number; total: number }> {
-  // Buscar perfil da empresa
+async function recalculateAndNotify(): Promise<{ updated: number; total: number; alerts: number }> {
   const { data: profile, error: profileError } = await supabase
     .from('company_profiles')
     .select('*')
@@ -118,30 +118,121 @@ async function recalculateScores(): Promise<{ updated: number; total: number }> 
 
   if (profileError || !profile) {
     console.log('Perfil estratégico não encontrado — score não recalculado.');
-    return { updated: 0, total: 0 };
+    return { updated: 0, total: 0, alerts: 0 };
   }
+
+  // Buscar usuário da empresa
+  const { data: userProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('company_id', COMPANY_ID)
+    .single();
+
+  const userId = userProfile?.id || null;
 
   const { data: opportunities, error: oppsError } = await supabase
     .from('opportunities')
-    .select('id, title, description, organ_name, modality, state, estimated_value')
+    .select('id, title, description, organ_name, modality, state, estimated_value, official_url, opening_date')
     .eq('company_id', COMPANY_ID);
 
   if (oppsError || !opportunities) {
     console.error('Erro ao buscar oportunidades para recálculo:', oppsError);
-    return { updated: 0, total: 0 };
+    return { updated: 0, total: 0, alerts: 0 };
   }
 
   let updated = 0;
+  let alerts = 0;
+  const highScoreOpps: any[] = [];
+
   for (const opp of opportunities) {
     const { score, reason } = calculateScore(opp, profile);
+
     const { error } = await supabase
       .from('opportunities')
       .update({ match_score: score, match_reason: reason, updated_at: new Date().toISOString() })
       .eq('id', opp.id);
-    if (!error) updated++;
+
+    if (!error) {
+      updated++;
+
+      // Verificar se já existe notificação para esta oportunidade
+      if (score >= ALERT_SCORE_THRESHOLD && userId) {
+        const { data: existingNotif } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('opportunity_id', opp.id)
+          .eq('company_id', COMPANY_ID)
+          .maybeSingle();
+
+        if (!existingNotif) {
+          // Criar notificação no banco
+          await supabase.from('notifications').insert({
+            company_id: COMPANY_ID,
+            user_id: userId,
+            type: 'high_match_opportunity',
+            title: `🎯 Oportunidade com ${score}% de aderência detectada`,
+            message: `${opp.title} — ${opp.organ_name}. ${reason}`,
+            opportunity_id: opp.id,
+            read: false,
+          });
+
+          highScoreOpps.push({ ...opp, score, reason });
+          alerts++;
+        }
+      }
+    }
   }
 
-  return { updated, total: opportunities.length };
+  // Enviar e-mail consolidado se houver alertas
+  if (highScoreOpps.length > 0) {
+    const oppsList = highScoreOpps.map(opp => `
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <strong style="color:#111827;font-size:14px;">${opp.title}</strong>
+          <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:12px;padding:2px 8px;border-radius:999px;">${opp.score}% Match</span>
+        </div>
+        <p style="color:#6b7280;font-size:13px;margin:0 0 6px;">${opp.organ_name}</p>
+        <div style="display:flex;gap:16px;margin-bottom:8px;">
+          <span style="font-size:12px;color:#6b7280;">💰 ${opp.estimated_value ? formatCurrency(opp.estimated_value) : 'Valor não informado'}</span>
+          <span style="font-size:12px;color:#6b7280;">📅 Abertura: ${opp.opening_date ? new Date(opp.opening_date).toLocaleDateString('pt-BR') : 'N/A'}</span>
+        </div>
+        <p style="font-size:12px;color:#4b5563;font-style:italic;margin:0 0 8px;">${opp.reason}</p>
+        ${opp.official_url ? `<a href="${opp.official_url}" style="color:#0f49bd;font-size:13px;font-weight:700;">Ver edital →</a>` : ''}
+      </div>
+    `).join('');
+
+    await resend.emails.send({
+      from: 'CM Intelligence <onboarding@resend.dev>',
+      to: ALERT_EMAIL,
+      subject: `🎯 ${highScoreOpps.length} nova(s) oportunidade(s) com alta aderência detectada(s)`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+          <div style="background:#0f49bd;padding:24px;border-radius:12px;margin-bottom:24px;">
+            <h1 style="color:white;margin:0;font-size:20px;">CM Intelligence</h1>
+            <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px;">Alerta de Oportunidades com Alta Aderência</p>
+          </div>
+
+          <p style="color:#374151;font-size:15px;">
+            O sistema identificou <strong>${highScoreOpps.length} oportunidade(s)</strong> com score acima de ${ALERT_SCORE_THRESHOLD}% de aderência ao seu perfil estratégico.
+          </p>
+
+          ${oppsList}
+
+          <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;">
+            <p style="margin:0;font-size:13px;color:#0369a1;">
+              💡 Acesse a plataforma para ver todas as oportunidades e tomar as próximas ações comerciais.
+            </p>
+          </div>
+
+          <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
+            CM Intelligence — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
+          </p>
+        </div>
+      `,
+    });
+  }
+
+  return { updated, total: opportunities.length, alerts };
 }
 
 export async function GET(request: Request) {
@@ -296,8 +387,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Recalcular scores automaticamente após o sync
-    const scoreResult = await recalculateScores();
+    // Recalcular scores e disparar alertas
+    const scoreResult = await recalculateAndNotify();
 
     return NextResponse.json({
       ok: true,
@@ -314,6 +405,7 @@ export async function GET(request: Request) {
       score_recalculo: {
         atualizado: scoreResult.updated,
         total: scoreResult.total,
+        alertas_gerados: scoreResult.alerts,
       },
     });
   } catch (error) {
