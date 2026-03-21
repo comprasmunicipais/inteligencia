@@ -702,6 +702,81 @@ export default function AccountDetailPage() {
                   </div>
                 )}
 
+                {activeTab === 'opportunities' && (
+                  <div className="space-y-4">
+                    {opportunities.length > 0 ? opportunities.map((opportunity) => (
+                      <div
+                        key={opportunity.id}
+                        className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-gray-900 leading-6">
+                              {opportunity.title}
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {opportunity.organ_name || 'Órgão não informado'}
+                            </p>
+                          </div>
+
+                          <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-50 text-blue-700 whitespace-nowrap">
+                            {opportunity.modality || 'Modalidade não informada'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                            {opportunity.situation || 'Situação não informada'}
+                          </span>
+
+                          {opportunity.internal_status && (
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-green-100 text-green-700">
+                              {opportunity.internal_status}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-600">
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Publicação</span>
+                            <span>{opportunity.publication_date ? formatDate(opportunity.publication_date) : 'N/A'}</span>
+                          </div>
+
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Abertura</span>
+                            <span>{opportunity.opening_date ? formatDate(opportunity.opening_date) : 'N/A'}</span>
+                          </div>
+
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Valor estimado</span>
+                            <span>
+                              {opportunity.estimated_value
+                                ? formatCurrency(opportunity.estimated_value)
+                                : 'Não informado'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {opportunity.official_url && (
+                          <div className="mt-4 flex justify-end">
+                            <button
+                              onClick={() => window.open(opportunity.official_url!, '_blank')}
+                              className="inline-flex items-center gap-2 text-xs font-bold text-[#0f49bd] hover:underline"
+                            >
+                              <ExternalLink className="size-3" />
+                              Abrir edital
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )) : (
+                      <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                        Nenhuma licitação encontrada para esta prefeitura.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {activeTab === 'deals' && (
                   <div className="space-y-4">
                     {deals.map(deal => (
