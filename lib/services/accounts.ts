@@ -15,6 +15,7 @@ export interface MunicipalityFilters {
   max_year?: number;
   status?: string;
   searchTerm?: string;
+  has_opportunities?: boolean;
 }
 
 const supabase = createClient();
@@ -24,7 +25,7 @@ export const accountService = {
     let query = supabase
       .from('municipalities')
       .select('*', { count: 'exact' });
-    
+
     if (filters) {
       if (filters.state) query = query.eq('state', filters.state);
       if (filters.region) query = query.eq('region', filters.region);
@@ -36,9 +37,25 @@ export const accountService = {
       if (filters.min_year) query = query.gte('installation_year', filters.min_year);
       if (filters.max_year) query = query.lte('installation_year', filters.max_year);
       if (filters.status) query = query.eq('status', filters.status);
-      
+
       if (filters.searchTerm) {
         query = query.or(`name.ilike.%${filters.searchTerm}%,city.ilike.%${filters.searchTerm}%,mayor_name.ilike.%${filters.searchTerm}%`);
+      }
+
+      if (filters.has_opportunities) {
+        // Filtra apenas municípios que têm ao menos uma oportunidade vinculada
+        const { data: oppMunicipalities } = await supabase
+          .from('opportunities')
+          .select('municipality_id')
+          .not('municipality_id', 'is', null);
+
+        const ids = [...new Set((oppMunicipalities || []).map(o => o.municipality_id))];
+
+        if (ids.length === 0) {
+          return { data: [], count: 0 };
+        }
+
+        query = query.in('id', ids);
       }
     }
 
@@ -48,7 +65,7 @@ export const accountService = {
     const { data, error, count } = await query
       .order('name')
       .range(from, to);
-    
+
     if (error) throw error;
     return {
       data: (data || []).map(mapMunicipalityToDTO),
@@ -62,7 +79,7 @@ export const accountService = {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error) throw error;
     return mapMunicipalityToDTO(data);
   },
@@ -73,7 +90,7 @@ export const accountService = {
       .insert([municipality])
       .select()
       .single();
-    
+
     if (error) throw error;
     return mapMunicipalityToDTO(data);
   },
@@ -85,7 +102,7 @@ export const accountService = {
       .eq('id', id)
       .select()
       .single();
-    
+
     if (error) throw error;
     return mapMunicipalityToDTO(data);
   },
@@ -95,7 +112,7 @@ export const accountService = {
       .from('municipalities')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   },
 
@@ -104,7 +121,7 @@ export const accountService = {
       .from('municipalities')
       .upsert(municipalities, { onConflict: 'city,state' })
       .select();
-    
+
     if (error) throw error;
     return (data || []).map(mapMunicipalityToDTO);
   },
@@ -122,7 +139,7 @@ export const accountService = {
       .insert([log])
       .select()
       .single();
-    
+
     if (error) throw error;
     return data;
   }
