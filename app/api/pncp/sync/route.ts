@@ -14,7 +14,6 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const COMPANY_ID = 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3';
 const ALERT_SCORE_THRESHOLD = 90;
-const ALERT_EMAIL = 'fernando.damico@paineldecompras.com.br';
 
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -109,30 +108,32 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   return { score: finalScore, reason };
 }
 
-async function recalculateAndNotify(): Promise<{ updated: number; total: number; alerts: number }> {
+async function recalculateAndNotify(companyId: string): Promise<{ updated: number; total: number; alerts: number }> {
+  // Buscar perfil estratégico da empresa
   const { data: profile, error: profileError } = await supabase
     .from('company_profiles')
     .select('*')
-    .eq('company_id', COMPANY_ID)
+    .eq('company_id', companyId)
     .single();
 
   if (profileError || !profile) {
-    console.log('Perfil estratégico não encontrado — score não recalculado.');
+    console.log(`Perfil estratégico não encontrado para company_id ${companyId}`);
     return { updated: 0, total: 0, alerts: 0 };
   }
 
-  const { data: userProfile } = await supabase
+  // Buscar usuários da empresa com e-mail
+  const { data: companyUsers } = await supabase
     .from('profiles')
-    .select('id')
-    .eq('company_id', COMPANY_ID)
-    .single();
+    .select('id, email')
+    .eq('company_id', companyId);
 
-  const userId = userProfile?.id || null;
+  const users = companyUsers || [];
 
+  // Buscar oportunidades da empresa
   const { data: opportunities, error: oppsError } = await supabase
     .from('opportunities')
     .select('id, title, description, organ_name, modality, state, estimated_value, official_url, opening_date')
-    .eq('company_id', COMPANY_ID);
+    .eq('company_id', companyId);
 
   if (oppsError || !opportunities) {
     console.error('Erro ao buscar oportunidades para recálculo:', oppsError);
@@ -154,24 +155,28 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
     if (!error) {
       updated++;
 
-      if (score >= ALERT_SCORE_THRESHOLD && userId) {
+      if (score >= ALERT_SCORE_THRESHOLD && users.length > 0) {
+        // Verificar se já existe notificação para esta oportunidade
         const { data: existingNotif } = await supabase
           .from('notifications')
           .select('id')
           .eq('opportunity_id', opp.id)
-          .eq('company_id', COMPANY_ID)
+          .eq('company_id', companyId)
           .maybeSingle();
 
         if (!existingNotif) {
-          await supabase.from('notifications').insert({
-            company_id: COMPANY_ID,
-            user_id: userId,
-            type: 'high_match_opportunity',
-            title: `🎯 Oportunidade com ${score}% de aderência detectada`,
-            message: `${opp.title} — ${opp.organ_name}. ${reason}`,
-            opportunity_id: opp.id,
-            read: false,
-          });
+          // Criar notificação para cada usuário da empresa
+          for (const user of users) {
+            await supabase.from('notifications').insert({
+              company_id: companyId,
+              user_id: user.id,
+              type: 'high_match_opportunity',
+              title: `🎯 Oportunidade com ${score}% de aderência detectada`,
+              message: `${opp.title} — ${opp.organ_name}. ${reason}`,
+              opportunity_id: opp.id,
+              read: false,
+            });
+          }
 
           highScoreOpps.push({ ...opp, score, reason });
           alerts++;
@@ -180,7 +185,8 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
     }
   }
 
-  if (highScoreOpps.length > 0) {
+  // Enviar e-mail para todos os usuários da empresa se houver alertas
+  if (highScoreOpps.length > 0 && users.length > 0) {
     const oppsList = highScoreOpps.map(opp => `
       <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -197,31 +203,35 @@ async function recalculateAndNotify(): Promise<{ updated: number; total: number;
       </div>
     `).join('');
 
-    await resend.emails.send({
-      from: 'CM Intelligence <onboarding@resend.dev>',
-      to: ALERT_EMAIL,
-      subject: `🎯 ${highScoreOpps.length} nova(s) oportunidade(s) com alta aderência detectada(s)`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-          <div style="background:#0f49bd;padding:24px;border-radius:12px;margin-bottom:24px;">
-            <h1 style="color:white;margin:0;font-size:20px;">CM Intelligence</h1>
-            <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px;">Alerta de Oportunidades com Alta Aderência</p>
-          </div>
-          <p style="color:#374151;font-size:15px;">
-            O sistema identificou <strong>${highScoreOpps.length} oportunidade(s)</strong> com score acima de ${ALERT_SCORE_THRESHOLD}% de aderência ao seu perfil estratégico.
-          </p>
-          ${oppsList}
-          <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;">
-            <p style="margin:0;font-size:13px;color:#0369a1;">
-              💡 Acesse a plataforma para ver todas as oportunidades e tomar as próximas ações comerciais.
+    const emailAddresses = users.map(u => u.email).filter(Boolean);
+
+    if (emailAddresses.length > 0) {
+      await resend.emails.send({
+        from: 'CM Intelligence <onboarding@resend.dev>',
+        to: emailAddresses,
+        subject: `🎯 ${highScoreOpps.length} nova(s) oportunidade(s) com alta aderência detectada(s)`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+            <div style="background:#0f49bd;padding:24px;border-radius:12px;margin-bottom:24px;">
+              <h1 style="color:white;margin:0;font-size:20px;">CM Intelligence</h1>
+              <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px;">Alerta de Oportunidades com Alta Aderência</p>
+            </div>
+            <p style="color:#374151;font-size:15px;">
+              O sistema identificou <strong>${highScoreOpps.length} oportunidade(s)</strong> com score acima de ${ALERT_SCORE_THRESHOLD}% de aderência ao seu perfil estratégico.
+            </p>
+            ${oppsList}
+            <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;">
+              <p style="margin:0;font-size:13px;color:#0369a1;">
+                💡 Acesse a plataforma para ver todas as oportunidades e tomar as próximas ações comerciais.
+              </p>
+            </div>
+            <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
+              CM Intelligence — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
             </p>
           </div>
-          <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
-            CM Intelligence — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
-          </p>
-        </div>
-      `,
-    });
+        `,
+      });
+    }
   }
 
   return { updated, total: opportunities.length, alerts };
@@ -378,7 +388,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const scoreResult = await recalculateAndNotify();
+    // Recalcular scores e disparar alertas para a empresa
+    const scoreResult = await recalculateAndNotify(COMPANY_ID);
 
     return NextResponse.json({
       ok: true,
