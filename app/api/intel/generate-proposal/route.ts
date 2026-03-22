@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'company_id e opportunity_id obrigatórios' }, { status: 400 });
     }
 
+    // Buscar perfil consolidado da empresa
     const { data: profile, error: profileError } = await supabase
       .from('company_profiles')
       .select('*')
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Gere o Perfil Consolidado no Perfil Estratégico antes de criar propostas.' }, { status: 400 });
     }
 
+    // Buscar dados da oportunidade
     const { data: opportunity, error: oppError } = await supabase
       .from('opportunities')
       .select('*')
@@ -141,38 +143,23 @@ DATA: [data atual]
       proposalContent = proposalContent.substring(startIndex);
     }
 
-    // Remover qualquer texto após a última linha de assinatura
-    const signaturePatterns = [
-      /_{5,}[\s\S]*$/,
-      /\[Nome do Representante[\s\S]*$/,
-    ];
-    for (const pattern of signaturePatterns) {
-      const match = proposalContent.match(pattern);
-      if (match) {
-        const signatureEnd = proposalContent.indexOf(match[0]) + match[0].length;
-        // Pegar só até o fim da seção de assinatura
-        proposalContent = proposalContent.substring(0, signatureEnd);
-        break;
-      }
-    }
-
-    // Salvar no banco
-    const { data: existingProposal } = await supabase
+    // Salvar na tabela ai_proposals
+    const { data: existingAiProposal } = await supabase
       .from('ai_proposals')
       .select('id')
       .eq('company_id', company_id)
       .eq('opportunity_id', opportunity_id)
       .maybeSingle();
 
-    let savedProposal;
-    if (existingProposal) {
+    let savedAiProposal;
+    if (existingAiProposal) {
       const { data } = await supabase
         .from('ai_proposals')
         .update({ content: proposalContent, updated_at: new Date().toISOString() })
-        .eq('id', existingProposal.id)
+        .eq('id', existingAiProposal.id)
         .select()
         .single();
-      savedProposal = data;
+      savedAiProposal = data;
     } else {
       const { data } = await supabase
         .from('ai_proposals')
@@ -184,12 +171,74 @@ DATA: [data atual]
         })
         .select()
         .single();
-      savedProposal = data;
+      savedAiProposal = data;
+    }
+
+    // Salvar na tabela proposals (CRM) — apenas se não existir ainda para esta oportunidade
+    const { data: existingProposal } = await supabase
+      .from('proposals')
+      .select('id')
+      .eq('company_id', company_id)
+      .eq('opportunity_id', opportunity_id)
+      .maybeSingle();
+
+    let crmProposalId: string | null = existingProposal?.id || null;
+
+    if (!existingProposal) {
+      const { data: crmProposal } = await supabase
+        .from('proposals')
+        .insert({
+          company_id,
+          opportunity_id,
+          title: `Proposta IA — ${opportunity.title.substring(0, 80)}`,
+          municipality_id: opportunity.municipality_id || null,
+          value: opportunity.estimated_value || 0,
+          status: 'draft',
+          department: opportunity.organ_name || null,
+          date: new Date().toISOString(),
+          ai_generated: true,
+          ai_content: proposalContent,
+        })
+        .select('id')
+        .single();
+
+      crmProposalId = crmProposal?.id || null;
+    }
+
+    // Buscar etapa "Proposta" do funil da empresa dinamicamente
+    const { data: proposalStage } = await supabase
+      .from('pipeline_stages')
+      .select('id')
+      .eq('company_id', company_id)
+      .ilike('title', 'proposta')
+      .maybeSingle();
+
+    // Criar deal no funil na etapa Proposta — apenas se não existir
+    if (proposalStage) {
+      const { data: existingDeal } = await supabase
+        .from('deals')
+        .select('id')
+        .eq('company_id', company_id)
+        .eq('opportunity_id', opportunity_id)
+        .maybeSingle();
+
+      if (!existingDeal) {
+        await supabase.from('deals').insert({
+          company_id,
+          opportunity_id,
+          title: `${opportunity.title.substring(0, 80)}`,
+          status: proposalStage.id,
+          value: opportunity.estimated_value || 0,
+          municipality_id: opportunity.municipality_id || null,
+          source: 'ai_proposal',
+        });
+      }
     }
 
     return NextResponse.json({
       ok: true,
-      proposal_id: savedProposal?.id,
+      proposal_id: savedAiProposal?.id,
+      crm_proposal_id: crmProposalId,
       content: proposalContent,
     });
 
