@@ -10,22 +10,23 @@ let companyMatches: CompanyOpportunityMatch[] = [];
 
 /**
  * Incremental Sync Logic
+ * companyId deve ser passado pelo caller — nunca hardcoded
  */
-export async function runIncrementalSync() {
+export async function runIncrementalSync(companyId: string) {
   const job = await pncpSyncService.runSync({ mode: 'production' });
-  await calculateMatchesForCompany('current-company-id');
+  await calculateMatchesForCompany(companyId);
   return job;
 }
 
-export async function runTestSync() {
+export async function runTestSync(companyId: string) {
   const job = await pncpSyncService.runSync({ mode: 'test' });
-  await calculateMatchesForCompany('current-company-id');
+  await calculateMatchesForCompany(companyId);
   return job;
 }
 
-export async function runResilienceTest() {
+export async function runResilienceTest(companyId: string) {
   const job = await pncpSyncService.runSync({ mode: 'resilience' });
-  await calculateMatchesForCompany('current-company-id');
+  await calculateMatchesForCompany(companyId);
   return job;
 }
 
@@ -175,7 +176,7 @@ export function getCompanyMatches(companyId: string) {
   return companyMatches.filter(m => m.company_id === companyId);
 }
 
-export async function addManualOpportunity(opportunity: Opportunity) {
+export async function addManualOpportunity(opportunity: Opportunity, companyId: string) {
   const newOpp = {
     ...opportunity,
     id: opportunity.id || generateId(),
@@ -188,19 +189,6 @@ export async function addManualOpportunity(opportunity: Opportunity) {
   };
 
   pncpSyncService.addManualOpportunity(newOpp);
-  await calculateMatchesForCompany('current-company-id');
+  await calculateMatchesForCompany(companyId);
   return newOpp;
-}
-
-// Initialize
-if (typeof window !== 'undefined') {
-  const initSync = async () => {
-    const opps = pncpSyncService.getOpportunities();
-    if (opps.length === 0) {
-      await pncpSyncService.runSync();
-    } else {
-      await calculateMatchesForCompany('current-company-id');
-    }
-  };
-  initSync();
 }
