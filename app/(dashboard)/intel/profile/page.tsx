@@ -23,6 +23,8 @@ import {
   Sparkles,
   Copy,
   CheckCircle2,
+  Edit,
+  Building,
 } from 'lucide-react';
 import { getCompanyProfile, saveCompanyProfile } from '@/lib/intel/services';
 import { CompanyIntelligenceProfile } from '@/lib/intel/types';
@@ -67,7 +69,18 @@ export default function IntelProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [consolidatedText, setConsolidatedText] = useState('');
+  const [isEditingConsolidated, setIsEditingConsolidated] = useState(false);
+  const [isSavingConsolidated, setIsSavingConsolidated] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Dados estruturais
+  const [structuralData, setStructuralData] = useState({
+    cnpj: '',
+    razao_social: '',
+    nome_fantasia: '',
+    telefone: '',
+    endereco: '',
+  });
 
   // Catalogs
   const [catalogs, setCatalogs] = useState<CompanyCatalog[]>([]);
@@ -91,15 +104,23 @@ export default function IntelProfilePage() {
         const data = await getCompanyProfile(companyId);
         setProfile(data);
 
-        // Carregar texto consolidado existente
         const { data: profileData } = await supabase
           .from('company_profiles')
-          .select('consolidated_text')
+          .select('consolidated_text, cnpj, razao_social, nome_fantasia, telefone, endereco')
           .eq('company_id', companyId)
           .single();
 
         if (profileData?.consolidated_text) {
           setConsolidatedText(profileData.consolidated_text);
+        }
+        if (profileData) {
+          setStructuralData({
+            cnpj: profileData.cnpj || '',
+            razao_social: profileData.razao_social || '',
+            nome_fantasia: profileData.nome_fantasia || '',
+            telefone: profileData.telefone || '',
+            endereco: profileData.endereco || '',
+          });
         }
       } catch {
         toast.error('Erro ao carregar perfil estratégico.');
@@ -147,11 +168,35 @@ export default function IntelProfilePage() {
     setIsSaving(true);
     try {
       await saveCompanyProfile({ ...profile, company_id: companyId });
+
+      // Salvar dados estruturais
+      await supabase
+        .from('company_profiles')
+        .update({ ...structuralData, updated_at: new Date().toISOString() })
+        .eq('company_id', companyId);
+
       toast.success('Perfil estratégico salvo com sucesso!');
     } catch {
       toast.error('Erro ao salvar perfil estratégico.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveConsolidated = async () => {
+    if (!companyId) return;
+    setIsSavingConsolidated(true);
+    try {
+      await supabase
+        .from('company_profiles')
+        .update({ consolidated_text: consolidatedText, updated_at: new Date().toISOString() })
+        .eq('company_id', companyId);
+      setIsEditingConsolidated(false);
+      toast.success('Texto consolidado salvo!');
+    } catch {
+      toast.error('Erro ao salvar texto.');
+    } finally {
+      setIsSavingConsolidated(false);
     }
   };
 
@@ -165,12 +210,10 @@ export default function IntelProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_id: companyId }),
       });
-
       const result = await response.json();
-
       if (!response.ok) throw new Error(result.error || 'Erro ao gerar perfil.');
-
       setConsolidatedText(result.consolidated_text);
+      setIsEditingConsolidated(false);
       toast.success('Perfil consolidado gerado com sucesso!', { id: toastId });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar perfil.', { id: toastId });
@@ -193,27 +236,17 @@ export default function IntelProfilePage() {
   const handleUploadCatalog = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !companyId) return;
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error('Formato não permitido. Use PDF, DOCX, XLSX ou imagens.');
-      return;
-    }
-    if (!productLineName.trim()) {
-      toast.error('Informe o nome da linha de produto antes de fazer o upload.');
-      return;
-    }
+    if (!ALLOWED_TYPES.includes(file.type)) { toast.error('Formato não permitido.'); return; }
+    if (!productLineName.trim()) { toast.error('Informe o nome da linha de produto.'); return; }
     setUploadingCatalog(true);
     const toastId = toast.loading('Fazendo upload do catálogo...');
     try {
       const created = await catalogService.upload(file, companyId, productLineName.trim());
       setCatalogs([created, ...catalogs]);
       setProductLineName('');
-      toast.success('Catálogo enviado com sucesso!', { id: toastId });
-    } catch {
-      toast.error('Erro ao enviar catálogo.', { id: toastId });
-    } finally {
-      setUploadingCatalog(false);
-      e.target.value = '';
-    }
+      toast.success('Catálogo enviado!', { id: toastId });
+    } catch { toast.error('Erro ao enviar catálogo.', { id: toastId }); }
+    finally { setUploadingCatalog(false); e.target.value = ''; }
   };
 
   const handleDownloadCatalog = async (catalog: CompanyCatalog) => {
@@ -221,14 +254,9 @@ export default function IntelProfilePage() {
       const blob = await catalogService.download(catalog.file_path);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', catalog.file_name);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch {
-      toast.error('Erro ao baixar catálogo.');
-    }
+      link.href = url; link.setAttribute('download', catalog.file_name);
+      document.body.appendChild(link); link.click(); link.remove();
+    } catch { toast.error('Erro ao baixar catálogo.'); }
   };
 
   const handleDeleteCatalog = async (catalog: CompanyCatalog) => {
@@ -237,18 +265,13 @@ export default function IntelProfilePage() {
       await catalogService.delete(catalog.id, catalog.file_path);
       setCatalogs(catalogs.filter(c => c.id !== catalog.id));
       toast.success('Catálogo excluído.');
-    } catch {
-      toast.error('Erro ao excluir catálogo.');
-    }
+    } catch { toast.error('Erro ao excluir catálogo.'); }
   };
 
   const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !companyId) return;
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error('Formato não permitido. Use PDF, DOCX, XLSX ou imagens.');
-      return;
-    }
+    if (!ALLOWED_TYPES.includes(file.type)) { toast.error('Formato não permitido.'); return; }
     setUploadingDocument(true);
     const toastId = toast.loading('Fazendo upload do documento...');
     try {
@@ -256,13 +279,9 @@ export default function IntelProfilePage() {
       setDocuments([created, ...documents]);
       setDocumentDescription('');
       setExpandedCategory(selectedCategory);
-      toast.success('Documento enviado com sucesso!', { id: toastId });
-    } catch {
-      toast.error('Erro ao enviar documento.', { id: toastId });
-    } finally {
-      setUploadingDocument(false);
-      e.target.value = '';
-    }
+      toast.success('Documento enviado!', { id: toastId });
+    } catch { toast.error('Erro ao enviar documento.', { id: toastId }); }
+    finally { setUploadingDocument(false); e.target.value = ''; }
   };
 
   const handleDownloadDocument = async (doc: CompanyDocument) => {
@@ -270,14 +289,9 @@ export default function IntelProfilePage() {
       const blob = await companyDocumentService.download(doc.file_path);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', doc.file_name);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch {
-      toast.error('Erro ao baixar documento.');
-    }
+      link.href = url; link.setAttribute('download', doc.file_name);
+      document.body.appendChild(link); link.click(); link.remove();
+    } catch { toast.error('Erro ao baixar documento.'); }
   };
 
   const handleDeleteDocument = async (doc: CompanyDocument) => {
@@ -286,58 +300,38 @@ export default function IntelProfilePage() {
       await companyDocumentService.delete(doc.id, doc.file_path);
       setDocuments(documents.filter(d => d.id !== doc.id));
       toast.success('Documento excluído.');
-    } catch {
-      toast.error('Erro ao excluir documento.');
-    }
+    } catch { toast.error('Erro ao excluir documento.'); }
   };
 
   const states = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO', 'Nacional'];
   const modalities = ['Pregão Eletrônico', 'Dispensa de Licitação', 'Inexigibilidade', 'Concorrência', 'Tomada de Preços', 'Leilão', 'Diálogo Competitivo'];
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-[#f8fafc]">
-        <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
-      </div>
-    );
+    return <div className="flex-1 flex items-center justify-center bg-[#f8fafc]"><Loader2 className="size-8 text-[#0f49bd] animate-spin" /></div>;
   }
-
   if (!profile) return null;
 
   return (
     <>
-      <Header
-        title="Perfil Estratégico"
-        subtitle="Configure as diretrizes de inteligência para que a IA identifique as melhores oportunidades para o seu negócio."
-      />
+      <Header title="Perfil Estratégico" subtitle="Configure as diretrizes de inteligência para que a IA identifique as melhores oportunidades para o seu negócio." />
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-5xl mx-auto space-y-8">
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#0f49bd]/10 rounded-lg">
-                <Target className="size-6 text-[#0f49bd]" />
-              </div>
+              <div className="p-2 bg-[#0f49bd]/10 rounded-lg"><Target className="size-6 text-[#0f49bd]" /></div>
               <div>
                 <h2 className="text-xl font-black text-gray-900">Configuração de Match</h2>
                 <p className="text-sm text-gray-500 font-medium">Defina seus alvos comerciais e restrições.</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={handleGenerateConsolidated}
-                disabled={isGenerating}
-                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all shadow-md disabled:opacity-50"
-              >
+              <button onClick={handleGenerateConsolidated} disabled={isGenerating} className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all shadow-md disabled:opacity-50">
                 {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 {isGenerating ? 'Gerando...' : 'Gerar Perfil Consolidado'}
               </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50"
-              >
+              <button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50">
                 {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Salvar Perfil
               </button>
@@ -354,25 +348,37 @@ export default function IntelProfilePage() {
                   <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full uppercase">Gerado por IA</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCopyConsolidated}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors"
-                  >
+                  <button onClick={handleCopyConsolidated} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors">
                     {copied ? <CheckCircle2 className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
                     {copied ? 'Copiado!' : 'Copiar'}
                   </button>
-                  <button
-                    onClick={handleGenerateConsolidated}
-                    disabled={isGenerating}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50"
-                  >
+                  {!isEditingConsolidated ? (
+                    <button onClick={() => setIsEditingConsolidated(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors">
+                      <Edit className="size-3.5" /> Editar
+                    </button>
+                  ) : (
+                    <button onClick={handleSaveConsolidated} disabled={isSavingConsolidated} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50">
+                      {isSavingConsolidated ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                      Salvar
+                    </button>
+                  )}
+                  <button onClick={handleGenerateConsolidated} disabled={isGenerating} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50">
                     <RefreshCw className={cn('size-3.5', isGenerating && 'animate-spin')} />
                     Regenerar
                   </button>
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 border border-purple-100">
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{consolidatedText}</p>
+                {isEditingConsolidated ? (
+                  <textarea
+                    className="w-full text-sm text-gray-700 leading-relaxed outline-none resize-none min-h-[200px] bg-transparent"
+                    value={consolidatedText}
+                    onChange={(e) => setConsolidatedText(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{consolidatedText}</p>
+                )}
               </div>
               <p className="text-[10px] text-purple-500 font-medium">
                 Este texto é usado pela IA para gerar propostas comerciais personalizadas para cada licitação.
@@ -384,6 +390,39 @@ export default function IntelProfilePage() {
 
             {/* Coluna esquerda */}
             <div className="md:col-span-2 space-y-8">
+
+              {/* Dados Estruturais */}
+              <section className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 text-gray-900 mb-2">
+                  <Building className="size-5 text-[#0f49bd]" />
+                  <h3 className="font-bold">Dados Estruturais da Empresa</h3>
+                </div>
+                <p className="text-xs text-gray-500 -mt-4">Informações jurídicas e de contato usadas na geração de propostas.</p>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">CNPJ</label>
+                      <input type="text" value={structuralData.cnpj} onChange={(e) => setStructuralData({ ...structuralData, cnpj: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="00.000.000/0000-00" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Telefone</label>
+                      <input type="text" value={structuralData.telefone} onChange={(e) => setStructuralData({ ...structuralData, telefone: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="(00) 00000-0000" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Razão Social</label>
+                    <input type="text" value={structuralData.razao_social} onChange={(e) => setStructuralData({ ...structuralData, razao_social: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Razão Social conforme CNPJ" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nome Fantasia</label>
+                    <input type="text" value={structuralData.nome_fantasia} onChange={(e) => setStructuralData({ ...structuralData, nome_fantasia: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Nome Fantasia da empresa" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Endereço Completo</label>
+                    <input type="text" value={structuralData.endereco} onChange={(e) => setStructuralData({ ...structuralData, endereco: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0f49bd]/20 outline-none font-medium text-gray-900" placeholder="Rua, número, bairro, cidade - UF, CEP" />
+                  </div>
+                </div>
+              </section>
 
               {/* Identidade Comercial */}
               <section className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
@@ -455,12 +494,11 @@ export default function IntelProfilePage() {
                   <Package className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Catálogos de Produtos</h3>
                 </div>
-                <p className="text-xs text-gray-500 -mt-4">Faça upload dos catálogos por linha de produto. O sistema usará essas informações para aumentar a precisão do score de aderência.</p>
-
+                <p className="text-xs text-gray-500 -mt-4">Faça upload dos catálogos por linha de produto.</p>
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Catálogo</p>
                   <div className="flex gap-3">
-                    <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Nome da linha de produto (ex: Software de Gestão)" value={productLineName} onChange={(e) => setProductLineName(e.target.value)} />
+                    <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Nome da linha de produto" value={productLineName} onChange={(e) => setProductLineName(e.target.value)} />
                     <div className="relative">
                       <input type="file" id="catalog-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadCatalog} disabled={uploadingCatalog} />
                       <label htmlFor="catalog-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingCatalog ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
@@ -471,7 +509,6 @@ export default function IntelProfilePage() {
                   </div>
                   <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
                 </div>
-
                 {loadingCatalogs ? (
                   <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
                 ) : catalogs.length === 0 ? (
@@ -479,19 +516,19 @@ export default function IntelProfilePage() {
                 ) : (
                   <div className="space-y-3">
                     {catalogs.map((catalog) => (
-                      <div key={catalog.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all">
+                      <div key={catalog.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="p-2 bg-white rounded-lg border border-gray-200 flex-shrink-0"><FileText className="size-4 text-gray-400" /></div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-gray-900 truncate">{catalog.file_name}</p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <div className="flex items-center gap-2 mt-0.5">
                               {catalog.product_line && <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">{catalog.product_line}</span>}
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{fileTypeLabel(catalog.file_type)}</span>
                               <span className="text-[10px] text-gray-400">{formatFileSize(catalog.file_size)}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        <div className="flex items-center gap-2 ml-4">
                           <button onClick={() => handleDownloadCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"><Download className="size-4" /></button>
                           <button onClick={() => handleDeleteCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm"><Trash2 className="size-4" /></button>
                         </div>
@@ -508,7 +545,6 @@ export default function IntelProfilePage() {
                   <h3 className="font-bold">Documentos de Habilitação</h3>
                 </div>
                 <p className="text-xs text-gray-500 -mt-4">Centralize os documentos exigidos em licitações organizados por categoria.</p>
-
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Documento</p>
                   <div className="grid grid-cols-1 gap-3">
@@ -528,7 +564,6 @@ export default function IntelProfilePage() {
                   </div>
                   <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
                 </div>
-
                 {loadingDocuments ? (
                   <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
                 ) : (
@@ -563,14 +598,14 @@ export default function IntelProfilePage() {
                                     <FileText className="size-4 text-gray-400 flex-shrink-0" />
                                     <div className="min-w-0">
                                       <p className="text-sm font-bold text-gray-900 truncate">{doc.file_name}</p>
-                                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                      <div className="flex items-center gap-2 mt-0.5">
                                         {doc.description && <span className="text-[10px] text-gray-500">{doc.description}</span>}
                                         <span className="text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{fileTypeLabel(doc.file_type)}</span>
                                         <span className="text-[10px] text-gray-400">{formatFileSize(doc.file_size)}</span>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                                  <div className="flex items-center gap-2 ml-4">
                                     <button onClick={() => handleDownloadDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all"><Download className="size-3.5" /></button>
                                     <button onClick={() => handleDeleteDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all"><Trash2 className="size-3.5" /></button>
                                   </div>
@@ -588,8 +623,6 @@ export default function IntelProfilePage() {
 
             {/* Coluna direita */}
             <div className="space-y-8">
-
-              {/* Capacidade Financeira */}
               <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
                 <div className="flex items-center gap-2 text-gray-900 mb-2">
                   <DollarSign className="size-5 text-[#0f49bd]" />
@@ -607,7 +640,6 @@ export default function IntelProfilePage() {
                 </div>
               </section>
 
-              {/* Alcance Geográfico */}
               <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
                 <div className="flex items-center gap-2 text-gray-900 mb-2">
                   <MapPin className="size-5 text-[#0f49bd]" />
@@ -631,7 +663,6 @@ export default function IntelProfilePage() {
                 </div>
               </section>
 
-              {/* Modalidades */}
               <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
                 <div className="flex items-center gap-2 text-gray-900 mb-2">
                   <ChevronRight className="size-5 text-[#0f49bd]" />
@@ -647,12 +678,11 @@ export default function IntelProfilePage() {
                 </div>
               </section>
 
-              {/* Dica IA */}
               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
                 <div className="flex items-start gap-3">
                   <Info className="size-5 text-blue-600 shrink-0" />
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Dica:</span> Salve o perfil antes de gerar o texto consolidado para garantir que a IA use as informações mais atualizadas.
+                    <span className="font-bold">Dica:</span> Preencha os dados estruturais e salve antes de gerar o perfil consolidado para que o CNPJ e razão social apareçam no texto.
                   </p>
                 </div>
               </div>
