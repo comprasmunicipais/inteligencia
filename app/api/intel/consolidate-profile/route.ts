@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 Sua tarefa é transformar os dados estruturados de uma empresa em um texto institucional estratégico, claro, objetivo e persuasivo, que represente essa empresa em processos licitatórios.
 
 Com base nas informações abaixo, gere um texto consolidado que contenha:
-1. Apresentação da empresa
+1. Apresentação da empresa (incluindo razão social e CNPJ quando disponíveis)
 2. Segmento de atuação e especialidades
 3. Tipos de soluções oferecidas
 4. Capacidade operacional e financeira
@@ -90,8 +90,16 @@ Regras:
 - Texto fluido, em parágrafos (sem bullet points)
 - Máximo de 3 a 4 parágrafos
 - Escreva em português do Brasil
+- Inclua CNPJ e Razão Social na apresentação quando disponíveis
 
 DADOS DA EMPRESA:
+
+[DADOS ESTRUTURAIS]
+Razão Social: ${profile.razao_social || 'Não informado'}
+Nome Fantasia: ${profile.nome_fantasia || profile.company_name || 'Não informado'}
+CNPJ: ${profile.cnpj || 'Não informado'}
+Telefone: ${profile.telefone || 'Não informado'}
+Endereço: ${profile.endereco || 'Não informado'}
 
 [IDENTIDADE COMERCIAL]
 Nome: ${profile.company_name || 'Não informado'}
