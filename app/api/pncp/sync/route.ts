@@ -12,7 +12,6 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const COMPANY_ID = 'a14d818e-ea64-4e3f-b1e5-d28dae7bfbc3';
 const ALERT_SCORE_THRESHOLD = 90;
 
 function formatDateToPNCP(date: Date) {
@@ -109,7 +108,6 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
 }
 
 async function recalculateAndNotify(companyId: string): Promise<{ updated: number; total: number; alerts: number }> {
-  // Buscar perfil estratégico da empresa
   const { data: profile, error: profileError } = await supabase
     .from('company_profiles')
     .select('*')
@@ -121,11 +119,6 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     return { updated: 0, total: 0, alerts: 0 };
   }
 
-  // Buscar usuários da empresa — excluindo platform_admin
-  // Regra:
-  // - role = 'user'  → recebe alerta apenas para si mesmo
-  // - role = 'admin' → recebe todos os alertas da empresa (gestor)
-  // - role = 'platform_admin' → não recebe alertas de clientes
   const { data: companyUsers } = await supabase
     .from('profiles')
     .select('id, email, role')
@@ -133,9 +126,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     .in('role', ['user', 'admin']);
 
   const users = companyUsers || [];
-  const admins = users.filter(u => u.role === 'admin');
 
-  // Buscar oportunidades da empresa
   const { data: opportunities, error: oppsError } = await supabase
     .from('opportunities')
     .select('id, title, description, organ_name, modality, state, estimated_value, official_url, opening_date')
@@ -162,7 +153,6 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
       updated++;
 
       if (score >= ALERT_SCORE_THRESHOLD && users.length > 0) {
-        // Verificar se já existe notificação para esta oportunidade
         const { data: existingNotif } = await supabase
           .from('notifications')
           .select('id')
@@ -171,7 +161,6 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
           .maybeSingle();
 
         if (!existingNotif) {
-          // Criar notificação para todos os usuários (user e admin)
           for (const user of users) {
             await supabase.from('notifications').insert({
               company_id: companyId,
@@ -183,7 +172,6 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
               read: false,
             });
           }
-
           highScoreOpps.push({ ...opp, score, reason });
           alerts++;
         }
@@ -191,9 +179,6 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     }
   }
 
-  // Enviar e-mail:
-  // - Todos os usuários (user + admin) recebem e-mail sobre suas próprias oportunidades
-  // - admins já estão incluídos pois fazem parte da mesma empresa
   if (highScoreOpps.length > 0 && users.length > 0) {
     const oppsList = highScoreOpps.map(opp => `
       <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
@@ -211,7 +196,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
       </div>
     `).join('');
 
-    const emailAddresses = users.map(u => u.email).filter(Boolean);
+    const emailAddresses = users.map((u: any) => u.email).filter(Boolean);
 
     if (emailAddresses.length > 0) {
       await resend.emails.send({
@@ -245,6 +230,94 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
   return { updated, total: opportunities.length, alerts };
 }
 
+async function syncOpportunitiesForCompany(
+  companyId: string,
+  items: any[],
+  municipalityCache: Map<string, any[]>
+): Promise<{ inserted: number; updated: number; errors: any[] }> {
+  let inserted = 0;
+  let updated = 0;
+  const errors: any[] = [];
+
+  for (const item of items) {
+    const externalId =
+      item.numeroControlePNCP ||
+      `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
+
+    const externalIdString = String(externalId);
+    const city = item.unidadeOrgao?.municipioNome || null;
+    const state = item.unidadeOrgao?.ufSigla || null;
+
+    let municipalityId: string | null = null;
+
+    if (city && state) {
+      // Usar cache para evitar múltiplas queries ao banco
+      const cacheKey = state;
+      if (!municipalityCache.has(cacheKey)) {
+        const { data: municipalities } = await supabase
+          .from('municipalities')
+          .select('id, city, state')
+          .eq('state', state);
+        municipalityCache.set(cacheKey, municipalities || []);
+      }
+
+      const municipalities = municipalityCache.get(cacheKey) || [];
+      const normalizedCity = normalizeText(city);
+      const matchedMunicipality = municipalities.find(
+        (m: any) => normalizeText(m.city) === normalizedCity
+      );
+      municipalityId = matchedMunicipality?.id ?? null;
+    }
+
+    // Verificar se já existe para esta empresa especificamente
+    const { data: existingRecord } = await supabase
+      .from('opportunities')
+      .select('id')
+      .eq('external_id', `${externalIdString}-${companyId}`)
+      .maybeSingle();
+
+    const oportunidade = {
+      company_id: companyId,
+      external_id: `${externalIdString}-${companyId}`,
+      source: 'PNCP',
+      title: item.objetoCompra || 'Objeto não informado',
+      description: item.objetoCompra || null,
+      organ_name: item.orgaoEntidade?.razaoSocial || 'Órgão não informado',
+      city,
+      state,
+      municipality_name: city && state ? `${city} (${state})` : null,
+      municipality_id: municipalityId,
+      modality: item.modalidadeNome || 'Pregão Eletrônico',
+      situation: item.situacaoCompraNome || 'Publicada',
+      publication_date: item.dataPublicacaoPncp || null,
+      opening_date: item.dataAberturaProposta || null,
+      estimated_value: item.valorTotalEstimado || null,
+      official_url: item.linkSistemaOrigem || (item.numeroControlePNCP ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}` : null),
+      sync_hash: externalIdString,
+      match_score: 0,
+      match_reason: municipalityId
+        ? 'Importado automaticamente do PNCP e vinculado ao município'
+        : 'Importado automaticamente do PNCP',
+      internal_status: 'new',
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('opportunities')
+      .upsert(oportunidade, { onConflict: 'external_id' });
+
+    if (error) {
+      errors.push({ external_id: externalIdString, message: error.message, details: error.details, hint: error.hint });
+    } else {
+      if (existingRecord) updated++;
+      else inserted++;
+    }
+  }
+
+  return { inserted, updated, errors };
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const token = requestUrl.searchParams.get('token');
@@ -254,18 +327,22 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { data: lastSyncData, error: lastSyncError } = await supabase
+    // Buscar todas as empresas ativas na plataforma
+    const { data: companies, error: companiesError } = await supabase
+      .from('companies')
+      .select('id, name')
+      .eq('status', 'active');
+
+    if (companiesError || !companies || companies.length === 0) {
+      return NextResponse.json({ ok: false, error: 'Nenhuma empresa ativa encontrada.' }, { status: 400 });
+    }
+
+    // Controle de sincronização
+    const { data: lastSyncData } = await supabase
       .from('sync_control')
       .select('last_sync')
       .eq('source', 'PNCP')
       .maybeSingle();
-
-    if (lastSyncError) {
-      return NextResponse.json(
-        { ok: false, error: 'Erro ao consultar controle de sincronização', detail: lastSyncError.message },
-        { status: 500 }
-      );
-    }
 
     const now = new Date();
     const defaultStart = new Date();
@@ -297,127 +374,74 @@ export async function GET(request: Request) {
         error: 'Erro ao buscar PNCP',
         status: response.status,
         detail: errorText,
-        url: pncpUrl,
       });
     }
 
     const json = await response.json();
     const items = json?.data || [];
 
-    let inserted = 0;
-    let updated = 0;
-    const errors: Array<{ external_id: string; message: string; details: string | null; hint: string | null }> = [];
+    // Cache de municípios para evitar queries repetidas
+    const municipalityCache = new Map<string, any[]>();
 
-    for (const item of items) {
-      const externalId =
-        item.numeroControlePNCP ||
-        `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
+    // Resultados por empresa
+    const companyResults: any[] = [];
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalAlerts = 0;
 
-      const externalIdString = String(externalId);
-      const city = item.unidadeOrgao?.municipioNome || null;
-      const state = item.unidadeOrgao?.ufSigla || null;
-
-      let municipalityId: string | null = null;
-
-      if (city && state) {
-        const { data: municipalities, error: municipalitySearchError } = await supabase
-          .from('municipalities')
-          .select('id, city, state')
-          .eq('state', state);
-
-        if (municipalitySearchError) {
-          errors.push({ external_id: externalIdString, message: municipalitySearchError.message, details: municipalitySearchError.details, hint: municipalitySearchError.hint });
-          continue;
-        }
-
-        const normalizedCity = normalizeText(city);
-        const matchedMunicipality = (municipalities || []).find(
-          (m) => normalizeText(m.city) === normalizedCity && normalizeText(m.state) === normalizeText(state)
+    // Processar cada empresa
+    for (const company of companies) {
+      try {
+        const { inserted, updated, errors } = await syncOpportunitiesForCompany(
+          company.id,
+          items,
+          municipalityCache
         );
-        municipalityId = matchedMunicipality?.id ?? null;
-      }
 
-      const oportunidade = {
-        company_id: COMPANY_ID,
-        external_id: externalIdString,
-        source: 'PNCP',
-        title: item.objetoCompra || 'Objeto não informado',
-        description: item.objetoCompra || null,
-        organ_name: item.orgaoEntidade?.razaoSocial || 'Órgão não informado',
-        city,
-        state,
-        municipality_name: city && state ? `${city} (${state})` : null,
-        municipality_id: municipalityId,
-        modality: item.modalidadeNome || 'Pregão Eletrônico',
-        situation: item.situacaoCompraNome || 'Publicada',
-        publication_date: item.dataPublicacaoPncp || null,
-        opening_date: item.dataAberturaProposta || null,
-        estimated_value: item.valorTotalEstimado || null,
-        official_url: item.linkSistemaOrigem || (item.numeroControlePNCP ? `https://pncp.gov.br/app/editais/${item.numeroControlePNCP}` : null),
-        sync_hash: externalIdString,
-        match_score: 0,
-        match_reason: municipalityId
-          ? 'Importado automaticamente do PNCP e vinculado ao município'
-          : 'Importado automaticamente do PNCP',
-        internal_status: 'new',
-        last_synced_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+        const scoreResult = await recalculateAndNotify(company.id);
 
-      const { data: existingRecord, error: existingError } = await supabase
-        .from('opportunities')
-        .select('id')
-        .eq('external_id', externalIdString)
-        .maybeSingle();
+        totalInserted += inserted;
+        totalUpdated += updated;
+        totalAlerts += scoreResult.alerts;
 
-      if (existingError) {
-        errors.push({ external_id: externalIdString, message: existingError.message, details: existingError.details, hint: existingError.hint });
-        continue;
-      }
-
-      const { error } = await supabase
-        .from('opportunities')
-        .upsert(oportunidade, { onConflict: 'external_id' });
-
-      if (error) {
-        errors.push({ external_id: externalIdString, message: error.message, details: error.details, hint: error.hint });
-      } else {
-        if (existingRecord) updated++;
-        else inserted++;
+        companyResults.push({
+          company_id: company.id,
+          company_name: company.name,
+          inseridos: inserted,
+          atualizados: updated,
+          erros: errors.length,
+          alertas: scoreResult.alerts,
+        });
+      } catch (err) {
+        console.error(`Erro ao processar empresa ${company.id}:`, err);
+        companyResults.push({
+          company_id: company.id,
+          company_name: company.name,
+          erro: err instanceof Error ? err.message : 'Erro desconhecido',
+        });
       }
     }
 
-    const { error: syncControlError } = await supabase
+    // Salvar controle de sincronização
+    await supabase
       .from('sync_control')
-      .upsert({ source: 'PNCP', last_sync: new Date().toISOString() }, { onConflict: 'source' });
-
-    if (syncControlError) {
-      return NextResponse.json(
-        { ok: false, error: 'Erro ao salvar controle de sincronização', detail: syncControlError.message },
-        { status: 500 }
-      );
-    }
-
-    const scoreResult = await recalculateAndNotify(COMPANY_ID);
+      .upsert({ source: 'PNCP', last_sync: now.toISOString() }, { onConflict: 'source' });
 
     return NextResponse.json({
       ok: true,
       total_recebidos: items.length,
-      inseridos: inserted,
-      atualizados: updated,
-      total_erros: errors.length,
-      primeiro_erro: errors[0] || null,
-      sincronizado_em: new Date().toISOString(),
+      total_empresas: companies.length,
+      total_inseridos: totalInserted,
+      total_atualizados: totalUpdated,
+      total_alertas: totalAlerts,
+      sincronizado_em: now.toISOString(),
       janela_consultada: {
         data_inicial: formatDateToPNCP(dataInicialDate),
         data_final: formatDateToPNCP(dataFinalDate),
       },
-      score_recalculo: {
-        atualizado: scoreResult.updated,
-        total: scoreResult.total,
-        alertas_gerados: scoreResult.alerts,
-      },
+      por_empresa: companyResults,
     });
+
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
