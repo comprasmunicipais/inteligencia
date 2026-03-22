@@ -20,6 +20,9 @@ import {
   Download,
   Package,
   FolderOpen,
+  Sparkles,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import { getCompanyProfile, saveCompanyProfile } from '@/lib/intel/services';
 import { CompanyIntelligenceProfile } from '@/lib/intel/types';
@@ -28,6 +31,12 @@ import { companyDocumentService, CompanyDocument, DOCUMENT_CATEGORIES } from '@/
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -56,6 +65,9 @@ export default function IntelProfilePage() {
   const [profile, setProfile] = useState<CompanyIntelligenceProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [consolidatedText, setConsolidatedText] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // Catalogs
   const [catalogs, setCatalogs] = useState<CompanyCatalog[]>([]);
@@ -78,6 +90,17 @@ export default function IntelProfilePage() {
       try {
         const data = await getCompanyProfile(companyId);
         setProfile(data);
+
+        // Carregar texto consolidado existente
+        const { data: profileData } = await supabase
+          .from('company_profiles')
+          .select('consolidated_text')
+          .eq('company_id', companyId)
+          .single();
+
+        if (profileData?.consolidated_text) {
+          setConsolidatedText(profileData.consolidated_text);
+        }
       } catch {
         toast.error('Erro ao carregar perfil estratégico.');
       } finally {
@@ -129,6 +152,41 @@ export default function IntelProfilePage() {
       toast.error('Erro ao salvar perfil estratégico.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleGenerateConsolidated = async () => {
+    if (!companyId) return;
+    setIsGenerating(true);
+    const toastId = toast.loading('Gerando perfil consolidado com IA...');
+    try {
+      const response = await fetch('/api/intel/consolidate-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: companyId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Erro ao gerar perfil.');
+
+      setConsolidatedText(result.consolidated_text);
+      toast.success('Perfil consolidado gerado com sucesso!', { id: toastId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar perfil.', { id: toastId });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopyConsolidated = async () => {
+    try {
+      await navigator.clipboard.writeText(consolidatedText);
+      setCopied(true);
+      toast.success('Texto copiado!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Erro ao copiar texto.');
     }
   };
 
@@ -266,15 +324,61 @@ export default function IntelProfilePage() {
                 <p className="text-sm text-gray-500 font-medium">Defina seus alvos comerciais e restrições.</p>
               </div>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50"
-            >
-              {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Salvar Perfil
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleGenerateConsolidated}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all shadow-md disabled:opacity-50"
+              >
+                {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {isGenerating ? 'Gerando...' : 'Gerar Perfil Consolidado'}
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50"
+              >
+                {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Salvar Perfil
+              </button>
+            </div>
           </div>
+
+          {/* Texto Consolidado */}
+          {consolidatedText && (
+            <section className="bg-gradient-to-br from-purple-50 to-blue-50 p-8 rounded-2xl border border-purple-100 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-5 text-purple-600" />
+                  <h3 className="font-bold text-gray-900">Perfil Comercial Consolidado</h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full uppercase">Gerado por IA</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyConsolidated}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors"
+                  >
+                    {copied ? <CheckCircle2 className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                    {copied ? 'Copiado!' : 'Copiar'}
+                  </button>
+                  <button
+                    onClick={handleGenerateConsolidated}
+                    disabled={isGenerating}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn('size-3.5', isGenerating && 'animate-spin')} />
+                    Regenerar
+                  </button>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-purple-100">
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{consolidatedText}</p>
+              </div>
+              <p className="text-[10px] text-purple-500 font-medium">
+                Este texto é usado pela IA para gerar propostas comerciais personalizadas para cada licitação.
+              </p>
+            </section>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
@@ -356,13 +460,7 @@ export default function IntelProfilePage() {
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Catálogo</p>
                   <div className="flex gap-3">
-                    <input
-                      type="text"
-                      className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                      placeholder="Nome da linha de produto (ex: Software de Gestão)"
-                      value={productLineName}
-                      onChange={(e) => setProductLineName(e.target.value)}
-                    />
+                    <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Nome da linha de produto (ex: Software de Gestão)" value={productLineName} onChange={(e) => setProductLineName(e.target.value)} />
                     <div className="relative">
                       <input type="file" id="catalog-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadCatalog} disabled={uploadingCatalog} />
                       <label htmlFor="catalog-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingCatalog ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
@@ -383,9 +481,7 @@ export default function IntelProfilePage() {
                     {catalogs.map((catalog) => (
                       <div key={catalog.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="p-2 bg-white rounded-lg border border-gray-200 flex-shrink-0">
-                            <FileText className="size-4 text-gray-400" />
-                          </div>
+                          <div className="p-2 bg-white rounded-lg border border-gray-200 flex-shrink-0"><FileText className="size-4 text-gray-400" /></div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-gray-900 truncate">{catalog.file_name}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -396,8 +492,8 @@ export default function IntelProfilePage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                          <button onClick={() => handleDownloadCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm" title="Baixar"><Download className="size-4" /></button>
-                          <button onClick={() => handleDeleteCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm" title="Excluir"><Trash2 className="size-4" /></button>
+                          <button onClick={() => handleDownloadCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"><Download className="size-4" /></button>
+                          <button onClick={() => handleDeleteCatalog(catalog)} className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all shadow-sm"><Trash2 className="size-4" /></button>
                         </div>
                       </div>
                     ))}
@@ -405,35 +501,22 @@ export default function IntelProfilePage() {
                 )}
               </section>
 
-              {/* Documentos da Empresa */}
+              {/* Documentos de Habilitação */}
               <section className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-6">
                 <div className="flex items-center gap-2 text-gray-900 mb-2">
                   <FolderOpen className="size-5 text-[#0f49bd]" />
                   <h3 className="font-bold">Documentos de Habilitação</h3>
                 </div>
-                <p className="text-xs text-gray-500 -mt-4">Centralize os documentos exigidos em licitações organizados por categoria. Isso facilitará a montagem de propostas no futuro.</p>
+                <p className="text-xs text-gray-500 -mt-4">Centralize os documentos exigidos em licitações organizados por categoria.</p>
 
-                {/* Upload de documento */}
                 <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Documento</p>
                   <div className="grid grid-cols-1 gap-3">
-                    <select
-                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                    >
-                      {DOCUMENT_CATEGORIES.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.label}</option>
-                      ))}
+                    <select className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+                      {DOCUMENT_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
                     </select>
                     <div className="flex gap-3">
-                      <input
-                        type="text"
-                        className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                        placeholder="Descrição opcional (ex: CND Federal — validade 12/2025)"
-                        value={documentDescription}
-                        onChange={(e) => setDocumentDescription(e.target.value)}
-                      />
+                      <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Descrição opcional (ex: CND Federal — validade 12/2025)" value={documentDescription} onChange={(e) => setDocumentDescription(e.target.value)} />
                       <div className="relative">
                         <input type="file" id="doc-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadDocument} disabled={uploadingDocument} />
                         <label htmlFor="doc-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingDocument ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
@@ -446,7 +529,6 @@ export default function IntelProfilePage() {
                   <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
                 </div>
 
-                {/* Lista por categoria */}
                 {loadingDocuments ? (
                   <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
                 ) : (
@@ -456,10 +538,7 @@ export default function IntelProfilePage() {
                       const isExpanded = expandedCategory === cat.id;
                       return (
                         <div key={cat.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                          <button
-                            onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                          >
+                          <button onClick={() => setExpandedCategory(isExpanded ? null : cat.id)} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors">
                             <div className="flex items-center gap-3">
                               <FolderOpen className="size-4 text-[#0f49bd]" />
                               <div className="text-left">
@@ -474,7 +553,6 @@ export default function IntelProfilePage() {
                               <ChevronRight className={cn('size-4 text-gray-400 transition-transform', isExpanded && 'rotate-90')} />
                             </div>
                           </button>
-
                           {isExpanded && (
                             <div className="p-3 space-y-2 bg-white">
                               {catDocs.length === 0 ? (
@@ -493,8 +571,8 @@ export default function IntelProfilePage() {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                                    <button onClick={() => handleDownloadDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all" title="Baixar"><Download className="size-3.5" /></button>
-                                    <button onClick={() => handleDeleteDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all" title="Excluir"><Trash2 className="size-3.5" /></button>
+                                    <button onClick={() => handleDownloadDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all"><Download className="size-3.5" /></button>
+                                    <button onClick={() => handleDeleteDocument(doc)} className="p-1.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-red-600 hover:border-red-600 transition-all"><Trash2 className="size-3.5" /></button>
                                   </div>
                                 </div>
                               ))}
@@ -574,7 +652,7 @@ export default function IntelProfilePage() {
                 <div className="flex items-start gap-3">
                   <Info className="size-5 text-blue-600 shrink-0" />
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    <span className="font-bold">Dica da IA:</span> Mantenha seus documentos de habilitação sempre atualizados. Certidões vencidas são a causa mais comum de desclassificação em licitações.
+                    <span className="font-bold">Dica:</span> Salve o perfil antes de gerar o texto consolidado para garantir que a IA use as informações mais atualizadas.
                   </p>
                 </div>
               </div>
