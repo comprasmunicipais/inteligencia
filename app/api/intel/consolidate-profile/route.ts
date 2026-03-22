@@ -3,14 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenAI } from '@google/genai';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY! });
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -126,12 +123,34 @@ ${documentsText}
 
 Gere o texto final consolidado da empresa agora:`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: prompt,
-    });
+    // Chamar Gemini via REST API diretamente — evita problemas de versão do SDK
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
 
-    const consolidatedText = response.text ?? '';
+    if (!geminiResponse.ok) {
+      const errorData = await geminiResponse.json();
+      console.error('GEMINI API ERROR:', errorData);
+      throw new Error(errorData?.error?.message || 'Erro ao chamar Gemini API');
+    }
+
+    const geminiData = await geminiResponse.json();
+    const consolidatedText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+    if (!consolidatedText) {
+      throw new Error('Gemini não retornou texto.');
+    }
 
     const { error: updateError } = await supabase
       .from('company_profiles')
