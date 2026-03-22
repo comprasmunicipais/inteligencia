@@ -25,7 +25,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'company_id obrigatório' }, { status: 400 });
     }
 
-    // Buscar perfil da empresa
     const { data: profile, error: profileError } = await supabase
       .from('company_profiles')
       .select('*')
@@ -36,24 +35,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Perfil estratégico não encontrado.' }, { status: 404 });
     }
 
-    // Buscar catálogos da empresa
     const { data: catalogs } = await supabase
       .from('company_catalogs')
       .select('file_name, product_line')
       .eq('company_id', company_id);
 
-    // Buscar documentos de habilitação
     const { data: documents } = await supabase
       .from('company_documents')
       .select('file_name, category, description')
       .eq('company_id', company_id);
 
-    // Montar texto dos catálogos
     const catalogsText = catalogs && catalogs.length > 0
       ? catalogs.map(c => `- ${c.product_line || 'Linha não informada'}: ${c.file_name}`).join('\n')
       : 'Nenhum catálogo cadastrado.';
 
-    // Montar texto dos documentos por categoria
     const docCategories: Record<string, string[]> = {};
     (documents || []).forEach(doc => {
       if (!docCategories[doc.category]) docCategories[doc.category] = [];
@@ -131,15 +126,13 @@ ${documentsText}
 
 Gere o texto final consolidado da empresa agora:`;
 
-    // Chamar Gemini com o pacote @google/genai
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       contents: prompt,
     });
 
     const consolidatedText = response.text ?? '';
 
-    // Salvar no banco
     const { error: updateError } = await supabase
       .from('company_profiles')
       .update({
