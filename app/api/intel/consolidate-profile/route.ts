@@ -3,14 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY! });
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -74,10 +74,8 @@ export async function POST(request: Request) {
         ).join('\n')
       : 'Nenhum documento cadastrado.';
 
-    // Montar estados
     const statesText = (profile.target_states || []).join(', ') || 'Não informado';
 
-    // Prompt consolidador
     const prompt = `Você é um especialista em vendas B2G e redação de propostas para licitações públicas brasileiras.
 
 Sua tarefa é transformar os dados estruturados de uma empresa em um texto institucional estratégico, claro, objetivo e persuasivo, que represente essa empresa em processos licitatórios.
@@ -133,10 +131,13 @@ ${documentsText}
 
 Gere o texto final consolidado da empresa agora:`;
 
-    // Chamar Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(prompt);
-    const consolidatedText = result.response.text();
+    // Chamar Gemini com o pacote @google/genai
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: prompt,
+    });
+
+    const consolidatedText = response.text ?? '';
 
     // Salvar no banco
     const { error: updateError } = await supabase
