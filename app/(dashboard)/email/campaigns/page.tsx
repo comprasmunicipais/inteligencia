@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 import { Mail, Plus, Search, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCompany } from '@/components/providers/CompanyProvider';
 
 type CampaignStatus = 'Rascunho' | 'Ativa';
 
@@ -24,21 +25,15 @@ type Campaign = {
   updated_at: string;
 };
 
-type ProfileRow = {
-  company_id: string;
-};
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 export default function EmailCampaignsPage() {
+  const supabase = createClient();
+  const { companyId } = useCompany();
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [companyId, setCompanyId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -86,41 +81,8 @@ export default function EmailCampaignsPage() {
     }
   };
 
-  const loadCurrentCompany = async () => {
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
-      if (!user) {
-        toast.error('Usuário não autenticado.');
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      setCompanyId((profile as ProfileRow).company_id);
-    } catch (error) {
-      console.error('Erro ao carregar empresa do usuário:', error);
-      toast.error('Erro ao identificar a empresa do usuário.');
-    }
-  };
-
   useEffect(() => {
-    const initializePage = async () => {
-      await loadCurrentCompany();
-      await loadCampaigns();
-    };
-
-    initializePage();
+    loadCampaigns();
   }, []);
 
   const handleCreateCampaign = async () => {
@@ -138,24 +100,22 @@ export default function EmailCampaignsPage() {
     }
 
     if (!companyId) {
-      toast.error('Empresa não identificada para salvar a campanha.');
+      toast.error('Empresa não identificada.');
       return;
     }
 
     try {
       setIsSaving(true);
 
-      const payload = {
-        company_id: companyId,
-        name,
-        objective: formData.objective,
-        status: formData.status,
-        description: description || null,
-      };
-
       const { data, error } = await supabase
         .from('email_campaigns')
-        .insert(payload)
+        .insert({
+          company_id: companyId,
+          name,
+          objective: formData.objective,
+          status: formData.status,
+          description: description || null,
+        })
         .select('*')
         .single();
 
@@ -174,23 +134,17 @@ export default function EmailCampaignsPage() {
 
   const filteredCampaigns = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-
     if (!term) return campaigns;
-
-    return campaigns.filter((campaign) => {
-      return (
-        campaign.name.toLowerCase().includes(term) ||
-        campaign.objective.toLowerCase().includes(term) ||
-        campaign.status.toLowerCase().includes(term) ||
-        (campaign.description ?? '').toLowerCase().includes(term)
-      );
-    });
+    return campaigns.filter((campaign) =>
+      campaign.name.toLowerCase().includes(term) ||
+      campaign.objective.toLowerCase().includes(term) ||
+      campaign.status.toLowerCase().includes(term) ||
+      (campaign.description ?? '').toLowerCase().includes(term)
+    );
   }, [campaigns, searchTerm]);
 
-  const activeCampaignsCount = campaigns.filter((campaign) => campaign.status === 'Ativa').length;
-  const draftCampaignsCount = campaigns.filter((campaign) => campaign.status === 'Rascunho').length;
-  const sentCampaignsCount = 0;
-  const responseRate = '0%';
+  const activeCampaignsCount = campaigns.filter((c) => c.status === 'Ativa').length;
+  const draftCampaignsCount = campaigns.filter((c) => c.status === 'Rascunho').length;
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
@@ -204,31 +158,20 @@ export default function EmailCampaignsPage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Campanhas Ativas
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Campanhas Ativas</p>
             <p className="mt-3 text-2xl font-bold text-slate-900">{activeCampaignsCount}</p>
           </div>
-
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Rascunhos
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Rascunhos</p>
             <p className="mt-3 text-2xl font-bold text-slate-900">{draftCampaignsCount}</p>
           </div>
-
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Enviadas
-            </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">{sentCampaignsCount}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Enviadas</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
           </div>
-
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Taxa de Resposta
-            </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">{responseRate}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Taxa de Resposta</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">0%</p>
           </div>
         </div>
 
@@ -245,7 +188,6 @@ export default function EmailCampaignsPage() {
                   className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
               </div>
-
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -254,7 +196,6 @@ export default function EmailCampaignsPage() {
                 Filtrar
               </button>
             </div>
-
             <button
               type="button"
               onClick={handleOpenCreateModal}
@@ -274,15 +215,9 @@ export default function EmailCampaignsPage() {
               <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
                 <Mail className="size-8 text-[#0f49bd]" />
               </div>
-
-              <h2 className="mt-4 text-lg font-semibold text-slate-900">
-                Nenhuma campanha cadastrada
-              </h2>
-
+              <h2 className="mt-4 text-lg font-semibold text-slate-900">Nenhuma campanha cadastrada</h2>
               <p className="mt-2 max-w-xl text-sm text-slate-600">
-                Este é o ponto inicial do módulo de Disparos de E-mail. No próximo passo,
-                vamos transformar esta tela em uma listagem real de campanhas com criação,
-                filtros e status.
+                Clique em Nova Campanha para começar.
               </p>
             </div>
           ) : (
@@ -290,43 +225,27 @@ export default function EmailCampaignsPage() {
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Campanha
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Objetivo
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Descrição
-                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Campanha</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Objetivo</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Descrição</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredCampaigns.map((campaign) => (
                     <tr key={campaign.id} className="border-b border-slate-100">
-                      <td className="px-4 py-4 text-sm font-medium text-slate-900">
-                        {campaign.name}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        {campaign.objective}
-                      </td>
+                      <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
                       <td className="px-4 py-4 text-sm">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                            campaign.status === 'Ativa'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                          campaign.status === 'Ativa'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>
                           {campaign.status}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-600">
-                        {campaign.description || '-'}
-                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-600">{campaign.description || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -342,11 +261,8 @@ export default function EmailCampaignsPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Nova Campanha</h2>
-                <p className="text-sm text-slate-500">
-                  Preencha os dados iniciais da campanha.
-                </p>
+                <p className="text-sm text-slate-500">Preencha os dados iniciais da campanha.</p>
               </div>
-
               <button
                 type="button"
                 onClick={handleCloseCreateModal}
@@ -358,29 +274,21 @@ export default function EmailCampaignsPage() {
 
             <div className="grid grid-cols-1 gap-4 px-6 py-6 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Nome da campanha
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Nome da campanha</label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Ex.: Apresentação institucional para secretarias de obras"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Objetivo
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Objetivo</label>
                 <select
                   value={formData.objective}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, objective: e.target.value }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, objective: e.target.value }))}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 >
                   <option value="">Selecionar</option>
@@ -392,17 +300,10 @@ export default function EmailCampaignsPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Status inicial
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Status inicial</label>
                 <select
                   value={formData.status}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      status: e.target.value as CampaignStatus,
-                    }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as CampaignStatus }))}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 >
                   <option value="Rascunho">Rascunho</option>
@@ -411,15 +312,11 @@ export default function EmailCampaignsPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Descrição
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Descrição</label>
                 <textarea
                   rows={4}
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, description: e.target.value }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Descreva brevemente o propósito desta campanha"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
@@ -434,7 +331,6 @@ export default function EmailCampaignsPage() {
               >
                 Cancelar
               </button>
-
               <button
                 type="button"
                 onClick={handleCreateCampaign}
