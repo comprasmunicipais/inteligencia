@@ -22,7 +22,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'company_id e opportunity_id obrigatórios' }, { status: 400 });
     }
 
-    // Buscar perfil consolidado da empresa
     const { data: profile, error: profileError } = await supabase
       .from('company_profiles')
       .select('*')
@@ -37,7 +36,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Gere o Perfil Consolidado no Perfil Estratégico antes de criar propostas.' }, { status: 400 });
     }
 
-    // Buscar dados da oportunidade
     const { data: opportunity, error: oppError } = await supabase
       .from('opportunities')
       .select('*')
@@ -137,11 +135,14 @@ DATA: [data atual]
       throw new Error('Gemini não retornou conteúdo.');
     }
 
-    // Garantir que o conteúdo começa com PROPOSTA COMERCIAL
+    // Garantir que começa em PROPOSTA COMERCIAL
     const startIndex = proposalContent.indexOf('PROPOSTA COMERCIAL');
     if (startIndex > 0) {
       proposalContent = proposalContent.substring(startIndex);
     }
+
+    // Título limpo — apenas o título da oportunidade
+    const proposalTitle = opportunity.title.substring(0, 100);
 
     // Salvar na tabela ai_proposals
     const { data: existingAiProposal } = await supabase
@@ -174,7 +175,7 @@ DATA: [data atual]
       savedAiProposal = data;
     }
 
-    // Salvar na tabela proposals (CRM) — apenas se não existir ainda para esta oportunidade
+    // Salvar na tabela proposals (CRM)
     const { data: existingProposal } = await supabase
       .from('proposals')
       .select('id')
@@ -185,12 +186,12 @@ DATA: [data atual]
     let crmProposalId: string | null = existingProposal?.id || null;
 
     if (!existingProposal) {
-      const { data: crmProposal } = await supabase
+      const { data: crmProposal, error: crmError } = await supabase
         .from('proposals')
         .insert({
           company_id,
           opportunity_id,
-          title: `Proposta IA — ${opportunity.title.substring(0, 80)}`,
+          title: proposalTitle,
           municipality_id: opportunity.municipality_id || null,
           value: opportunity.estimated_value || 0,
           status: 'draft',
@@ -202,18 +203,26 @@ DATA: [data atual]
         .select('id')
         .single();
 
-      crmProposalId = crmProposal?.id || null;
+      if (crmError) {
+        console.error('ERRO ao salvar em proposals:', crmError);
+      } else {
+        crmProposalId = crmProposal?.id || null;
+      }
     }
 
-    // Buscar etapa "Proposta" do funil da empresa dinamicamente
-    const { data: proposalStage } = await supabase
+    // Buscar etapa "Proposta" do funil dinamicamente
+    const { data: proposalStage, error: stageError } = await supabase
       .from('pipeline_stages')
-      .select('id')
+      .select('id, title')
       .eq('company_id', company_id)
       .ilike('title', 'proposta')
       .maybeSingle();
 
-    // Criar deal no funil na etapa Proposta — apenas se não existir
+    if (stageError) {
+      console.error('ERRO ao buscar etapa Proposta:', stageError);
+    }
+
+    // Criar deal no funil
     if (proposalStage) {
       const { data: existingDeal } = await supabase
         .from('deals')
@@ -223,16 +232,24 @@ DATA: [data atual]
         .maybeSingle();
 
       if (!existingDeal) {
-        await supabase.from('deals').insert({
-          company_id,
-          opportunity_id,
-          title: `${opportunity.title.substring(0, 80)}`,
-          status: proposalStage.id,
-          value: opportunity.estimated_value || 0,
-          municipality_id: opportunity.municipality_id || null,
-          source: 'ai_proposal',
-        });
+        const { error: dealError } = await supabase
+          .from('deals')
+          .insert({
+            company_id,
+            opportunity_id,
+            title: proposalTitle,
+            status: proposalStage.id,
+            estimated_value: opportunity.estimated_value || 0,
+            municipality_id: opportunity.municipality_id || null,
+            source: 'ai_proposal',
+          });
+
+        if (dealError) {
+          console.error('ERRO ao criar deal no funil:', dealError);
+        }
       }
+    } else {
+      console.warn(`Etapa "Proposta" não encontrada para company_id ${company_id}`);
     }
 
     return NextResponse.json({
