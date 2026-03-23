@@ -1,10 +1,102 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Mail, Plus, Search, Filter, X } from 'lucide-react';
+
+type CampaignStatus = 'Rascunho' | 'Ativa';
+
+type CampaignObjective =
+  | 'Prospecção'
+  | 'Relacionamento'
+  | 'Apresentação comercial'
+  | 'Follow-up';
+
+type Campaign = {
+  id: string;
+  name: string;
+  objective: CampaignObjective;
+  status: CampaignStatus;
+  description: string;
+  createdAt: string;
+};
 
 export default function EmailCampaignsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    objective: '',
+    status: 'Rascunho' as CampaignStatus,
+    description: '',
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      objective: '',
+      status: 'Rascunho',
+      description: '',
+    });
+  };
+
+  const handleOpenCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false);
+    resetForm();
+  };
+
+  const handleCreateCampaign = () => {
+    const name = formData.name.trim();
+    const description = formData.description.trim();
+
+    if (!name) {
+      alert('Preencha o nome da campanha.');
+      return;
+    }
+
+    if (!formData.objective) {
+      alert('Selecione o objetivo da campanha.');
+      return;
+    }
+
+    const newCampaign: Campaign = {
+      id: crypto.randomUUID(),
+      name,
+      objective: formData.objective as CampaignObjective,
+      status: formData.status,
+      description,
+      createdAt: new Date().toISOString(),
+    };
+
+    setCampaigns((prev) => [newCampaign, ...prev]);
+    handleCloseCreateModal();
+  };
+
+  const filteredCampaigns = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    if (!term) return campaigns;
+
+    return campaigns.filter((campaign) => {
+      return (
+        campaign.name.toLowerCase().includes(term) ||
+        campaign.objective.toLowerCase().includes(term) ||
+        campaign.status.toLowerCase().includes(term) ||
+        campaign.description.toLowerCase().includes(term)
+      );
+    });
+  }, [campaigns, searchTerm]);
+
+  const activeCampaignsCount = campaigns.filter((campaign) => campaign.status === 'Ativa').length;
+  const draftCampaignsCount = campaigns.filter((campaign) => campaign.status === 'Rascunho').length;
+  const sentCampaignsCount = 0;
+  const responseRate = '0%';
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
@@ -21,28 +113,28 @@ export default function EmailCampaignsPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Campanhas Ativas
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">{activeCampaignsCount}</p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Rascunhos
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">{draftCampaignsCount}</p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Enviadas
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">{sentCampaignsCount}</p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Taxa de Resposta
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">0%</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">{responseRate}</p>
           </div>
         </div>
 
@@ -54,6 +146,8 @@ export default function EmailCampaignsPage() {
                 <input
                   type="text"
                   placeholder="Buscar campanhas"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
               </div>
@@ -69,7 +163,7 @@ export default function EmailCampaignsPage() {
 
             <button
               type="button"
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
             >
               <Plus className="size-4" />
@@ -77,21 +171,70 @@ export default function EmailCampaignsPage() {
             </button>
           </div>
 
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
-              <Mail className="size-8 text-[#0f49bd]" />
+          {filteredCampaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
+                <Mail className="size-8 text-[#0f49bd]" />
+              </div>
+
+              <h2 className="mt-4 text-lg font-semibold text-slate-900">
+                Nenhuma campanha cadastrada
+              </h2>
+
+              <p className="mt-2 max-w-xl text-sm text-slate-600">
+                Este é o ponto inicial do módulo de Disparos de E-mail. No próximo passo,
+                vamos transformar esta tela em uma listagem real de campanhas com criação,
+                filtros e status.
+              </p>
             </div>
-
-            <h2 className="mt-4 text-lg font-semibold text-slate-900">
-              Nenhuma campanha cadastrada
-            </h2>
-
-            <p className="mt-2 max-w-xl text-sm text-slate-600">
-              Este é o ponto inicial do módulo de Disparos de E-mail. No próximo passo,
-              vamos transformar esta tela em uma listagem real de campanhas com criação,
-              filtros e status.
-            </p>
-          </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Campanha
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Objetivo
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Descrição
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCampaigns.map((campaign) => (
+                    <tr key={campaign.id} className="border-b border-slate-100">
+                      <td className="px-4 py-4 text-sm font-medium text-slate-900">
+                        {campaign.name}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-700">
+                        {campaign.objective}
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                            campaign.status === 'Ativa'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {campaign.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-600">
+                        {campaign.description || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
@@ -108,7 +251,7 @@ export default function EmailCampaignsPage() {
 
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={handleCloseCreateModal}
                 className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="size-5" />
@@ -122,6 +265,10 @@ export default function EmailCampaignsPage() {
                 </label>
                 <input
                   type="text"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   placeholder="Ex.: Apresentação institucional para secretarias de obras"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
@@ -131,12 +278,18 @@ export default function EmailCampaignsPage() {
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Objetivo
                 </label>
-                <select className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]">
-                  <option>Selecionar</option>
-                  <option>Prospecção</option>
-                  <option>Relacionamento</option>
-                  <option>Apresentação comercial</option>
-                  <option>Follow-up</option>
+                <select
+                  value={formData.objective}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, objective: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
+                >
+                  <option value="">Selecionar</option>
+                  <option value="Prospecção">Prospecção</option>
+                  <option value="Relacionamento">Relacionamento</option>
+                  <option value="Apresentação comercial">Apresentação comercial</option>
+                  <option value="Follow-up">Follow-up</option>
                 </select>
               </div>
 
@@ -144,9 +297,18 @@ export default function EmailCampaignsPage() {
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Status inicial
                 </label>
-                <select className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]">
-                  <option>Rascunho</option>
-                  <option>Ativa</option>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      status: e.target.value as CampaignStatus,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
+                >
+                  <option value="Rascunho">Rascunho</option>
+                  <option value="Ativa">Ativa</option>
                 </select>
               </div>
 
@@ -156,6 +318,10 @@ export default function EmailCampaignsPage() {
                 </label>
                 <textarea
                   rows={4}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  }
                   placeholder="Descreva brevemente o propósito desta campanha"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
@@ -165,7 +331,7 @@ export default function EmailCampaignsPage() {
             <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={handleCloseCreateModal}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancelar
@@ -173,7 +339,7 @@ export default function EmailCampaignsPage() {
 
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={handleCreateCampaign}
                 className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
               >
                 Criar Campanha
