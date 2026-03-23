@@ -71,15 +71,6 @@ const DEPARTMENT_RULES = [
   },
 ];
 
-function normalizeText(value: string | null | undefined) {
-  return (value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9@._-]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
 function getDepartmentTerms(department: string | null) {
   if (!department) return [];
 
@@ -94,6 +85,7 @@ export async function GET(request: NextRequest) {
 
     const state = searchParams.get('state') || '';
     const municipalityId = searchParams.get('municipalityId') || '';
+    const populationRange = searchParams.get('populationRange') || '';
     const department = searchParams.get('department') || '';
     const strategic = searchParams.get('strategic') || 'all';
     const minScoreRaw = searchParams.get('minScore') || '';
@@ -108,10 +100,8 @@ export async function GET(request: NextRequest) {
 
     let municipalityIds: string[] | null = null;
 
-    if (state || municipalityId) {
-      let municipalityQuery = supabase
-        .from('municipalities')
-        .select('id');
+    if (state || municipalityId || populationRange) {
+      let municipalityQuery = supabase.from('municipalities').select('id');
 
       if (state) {
         municipalityQuery = municipalityQuery.eq('state', state);
@@ -121,13 +111,14 @@ export async function GET(request: NextRequest) {
         municipalityQuery = municipalityQuery.eq('id', municipalityId);
       }
 
+      if (populationRange) {
+        municipalityQuery = municipalityQuery.eq('population_range', populationRange);
+      }
+
       const { data: municipalityData, error: municipalityError } = await municipalityQuery;
 
       if (municipalityError) {
-        return NextResponse.json(
-          { error: municipalityError.message },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: municipalityError.message }, { status: 500 });
       }
 
       municipalityIds = (municipalityData || []).map((item) => item.id);
@@ -146,9 +137,7 @@ export async function GET(request: NextRequest) {
       .from('municipality_emails')
       .select('id', { count: 'exact', head: true });
 
-    let baseDataQuery = supabase
-      .from('municipality_emails')
-      .select(`
+    let baseDataQuery = supabase.from('municipality_emails').select(`
         id,
         municipality_id,
         email,
@@ -160,7 +149,8 @@ export async function GET(request: NextRequest) {
           id,
           name,
           city,
-          state
+          state,
+          population_range
         )
       `);
 
@@ -207,10 +197,7 @@ export async function GET(request: NextRequest) {
     const { count, error: countError } = await baseCountQuery;
 
     if (countError) {
-      return NextResponse.json(
-        { error: countError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: countError.message }, { status: 500 });
     }
 
     const { data, error: dataError } = await baseDataQuery
@@ -219,10 +206,7 @@ export async function GET(request: NextRequest) {
       .range(from, to);
 
     if (dataError) {
-      return NextResponse.json(
-        { error: dataError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: dataError.message }, { status: 500 });
     }
 
     const items = (data || []).map((item: any) => ({
