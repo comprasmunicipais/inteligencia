@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Mail, Plus, Search, Filter, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 type CampaignStatus = 'Rascunho' | 'Ativa';
 
@@ -16,14 +18,22 @@ type Campaign = {
   name: string;
   objective: CampaignObjective;
   status: CampaignStatus;
-  description: string;
-  createdAt: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
 };
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function EmailCampaignsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,6 +51,32 @@ export default function EmailCampaignsPage() {
     });
   };
 
+  const loadCampaigns = async () => {
+    try {
+      setIsLoading(true);
+
+      const { data, error } = await supabase
+        .from('email_campaigns')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setCampaigns((data ?? []) as Campaign[]);
+    } catch (error) {
+      console.error('Erro ao carregar campanhas:', error);
+      toast.error('Erro ao carregar campanhas.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
   const handleOpenCreateModal = () => {
     resetForm();
     setIsCreateModalOpen(true);
@@ -51,31 +87,52 @@ export default function EmailCampaignsPage() {
     resetForm();
   };
 
-  const handleCreateCampaign = () => {
+  const handleCreateCampaign = async () => {
     const name = formData.name.trim();
     const description = formData.description.trim();
 
     if (!name) {
-      alert('Preencha o nome da campanha.');
+      toast.error('Preencha o nome da campanha.');
       return;
     }
 
     if (!formData.objective) {
-      alert('Selecione o objetivo da campanha.');
+      toast.error('Selecione o objetivo da campanha.');
       return;
     }
 
-    const newCampaign: Campaign = {
-      id: crypto.randomUUID(),
-      name,
-      objective: formData.objective as CampaignObjective,
-      status: formData.status,
-      description,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      setIsSaving(true);
 
-    setCampaigns((prev) => [newCampaign, ...prev]);
-    handleCloseCreateModal();
+      const payload = {
+        name,
+        objective: formData.objective,
+        status: formData.status,
+        description: description || null,
+      };
+
+      const { data, error } = await supabase
+        .from('email_campaigns')
+        .insert(payload)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setCampaigns((prev) => [data as Campaign, ...prev]);
+      }
+
+      toast.success('Campanha criada com sucesso.');
+      handleCloseCreateModal();
+    } catch (error) {
+      console.error('Erro ao criar campanha:', error);
+      toast.error('Erro ao criar campanha.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filteredCampaigns = useMemo(() => {
@@ -88,7 +145,7 @@ export default function EmailCampaignsPage() {
         campaign.name.toLowerCase().includes(term) ||
         campaign.objective.toLowerCase().includes(term) ||
         campaign.status.toLowerCase().includes(term) ||
-        campaign.description.toLowerCase().includes(term)
+        (campaign.description ?? '').toLowerCase().includes(term)
       );
     });
   }, [campaigns, searchTerm]);
@@ -171,7 +228,11 @@ export default function EmailCampaignsPage() {
             </button>
           </div>
 
-          {filteredCampaigns.length === 0 ? (
+          {isLoading ? (
+            <div className="px-6 py-16 text-center text-sm text-slate-500">
+              Carregando campanhas...
+            </div>
+          ) : filteredCampaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
               <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
                 <Mail className="size-8 text-[#0f49bd]" />
@@ -340,9 +401,10 @@ export default function EmailCampaignsPage() {
               <button
                 type="button"
                 onClick={handleCreateCampaign}
-                className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
+                disabled={isSaving}
+                className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Criar Campanha
+                {isSaving ? 'Salvando...' : 'Criar Campanha'}
               </button>
             </div>
           </div>
