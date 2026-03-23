@@ -11,6 +11,22 @@ type MunicipalityOption = {
   label: string;
 };
 
+type MunicipalityRelation =
+  | {
+      id: string;
+      name: string | null;
+      city: string | null;
+      state: string | null;
+      population_range?: string | null;
+    }
+  | {
+      id: string;
+      name: string | null;
+      city: string | null;
+      state: string | null;
+      population_range?: string | null;
+    }[];
+
 type AudiencePreviewItem = {
   id: string;
   municipality_id: string;
@@ -19,20 +35,7 @@ type AudiencePreviewItem = {
   priority_score: number | null;
   is_strategic: boolean | null;
   source: string | null;
-  municipalities:
-    | {
-        id: string;
-        name: string | null;
-        city: string | null;
-        state: string | null;
-      }
-    | {
-        id: string;
-        name: string | null;
-        city: string | null;
-        state: string | null;
-      }[]
-    | null;
+  municipalities: MunicipalityRelation | null;
 };
 
 type AudiencePreviewResponse = {
@@ -45,12 +48,52 @@ type AudiencePreviewResponse = {
 
 const supabase = createClient();
 
+const BRAZILIAN_STATES = [
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+];
+
 const DEPARTMENT_OPTIONS = [
   'Saúde',
   'Educação',
   'Compras / Licitação',
   'Administração',
   'Financeiro',
+];
+
+const POPULATION_RANGE_OPTIONS = [
+  'ATE 10.000',
+  '10.001 A 15.000',
+  '15.001 A 30.000',
+  '30.001 A 50.000',
+  '50.001 A 100.000',
+  '100.001 A 500.000',
+  'ACIMA DE 500.000',
 ];
 
 const PAGE_SIZE = 50;
@@ -60,9 +103,10 @@ function getMunicipalityData(
 ): {
   city: string | null;
   state: string | null;
+  populationRange: string | null;
 } {
   if (!municipalities) {
-    return { city: null, state: null };
+    return { city: null, state: null, populationRange: null };
   }
 
   if (Array.isArray(municipalities)) {
@@ -70,12 +114,14 @@ function getMunicipalityData(
     return {
       city: first?.city ?? null,
       state: first?.state ?? null,
+      populationRange: first?.population_range ?? null,
     };
   }
 
   return {
     city: municipalities.city ?? null,
     state: municipalities.state ?? null,
+    populationRange: municipalities.population_range ?? null,
   };
 }
 
@@ -86,11 +132,11 @@ export default function EmailAudiencesPage() {
   const [items, setItems] = useState<AudiencePreviewItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
 
-  const [states, setStates] = useState<string[]>([]);
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
 
   const [selectedState, setSelectedState] = useState('');
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
+  const [selectedPopulationRange, setSelectedPopulationRange] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [strategicFilter, setStrategicFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [minScore, setMinScore] = useState('');
@@ -118,16 +164,7 @@ export default function EmailAudiencesPage() {
         label: `${item.city || 'Sem cidade'} - ${item.state || ''}`,
       }));
 
-      const uniqueStates = Array.from(
-        new Set(
-          municipalityOptions
-            .map((item) => item.state)
-            .filter((state) => state && state.trim() !== '')
-        )
-      ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-
       setMunicipalities(municipalityOptions);
-      setStates(uniqueStates);
     } catch (error) {
       console.error('Erro ao carregar filtros de audiências:', error);
     } finally {
@@ -147,6 +184,10 @@ export default function EmailAudiencesPage() {
 
       if (selectedMunicipalityId) {
         params.set('municipalityId', selectedMunicipalityId);
+      }
+
+      if (selectedPopulationRange) {
+        params.set('populationRange', selectedPopulationRange);
       }
 
       if (selectedDepartment) {
@@ -196,7 +237,16 @@ export default function EmailAudiencesPage() {
 
   useEffect(() => {
     loadAudiencePreview();
-  }, [page, selectedState, selectedMunicipalityId, selectedDepartment, strategicFilter, minScore, emailSearch]);
+  }, [
+    page,
+    selectedState,
+    selectedMunicipalityId,
+    selectedPopulationRange,
+    selectedDepartment,
+    strategicFilter,
+    minScore,
+    emailSearch,
+  ]);
 
   useEffect(() => {
     setSelectedMunicipalityId('');
@@ -216,6 +266,7 @@ export default function EmailAudiencesPage() {
   function clearFilters() {
     setSelectedState('');
     setSelectedMunicipalityId('');
+    setSelectedPopulationRange('');
     setSelectedDepartment('');
     setStrategicFilter('all');
     setMinScore('');
@@ -230,6 +281,11 @@ export default function EmailAudiencesPage() {
 
   function handleMunicipalityChange(value: string) {
     setSelectedMunicipalityId(value);
+    setPage(1);
+  }
+
+  function handlePopulationRangeChange(value: string) {
+    setSelectedPopulationRange(value);
     setPage(1);
   }
 
@@ -277,7 +333,7 @@ export default function EmailAudiencesPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-2">
               <label htmlFor="state" className="text-sm font-medium text-slate-700">
                 Estado
@@ -290,7 +346,7 @@ export default function EmailAudiencesPage() {
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               >
                 <option value="">Todos os estados</option>
-                {states.map((state) => (
+                {BRAZILIAN_STATES.map((state) => (
                   <option key={state} value={state}>
                     {state}
                   </option>
@@ -313,6 +369,25 @@ export default function EmailAudiencesPage() {
                 {filteredMunicipalities.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="population-range" className="text-sm font-medium text-slate-700">
+                Faixa populacional
+              </label>
+              <select
+                id="population-range"
+                value={selectedPopulationRange}
+                onChange={(e) => handlePopulationRangeChange(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todas as faixas</option>
+                {POPULATION_RANGE_OPTIONS.map((range) => (
+                  <option key={range} value={range}>
+                    {range}
                   </option>
                 ))}
               </select>
@@ -368,7 +443,7 @@ export default function EmailAudiencesPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 xl:col-span-2">
               <label htmlFor="email-search" className="text-sm font-medium text-slate-700">
                 Buscar no e-mail
               </label>
@@ -442,6 +517,9 @@ export default function EmailAudiencesPage() {
                           UF
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          Faixa Populacional
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                           Departamento
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -466,6 +544,9 @@ export default function EmailAudiencesPage() {
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-700">
                               {municipality.state || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {municipality.populationRange || '—'}
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-700">
                               {item.department_label || '—'}
