@@ -1,8 +1,11 @@
 'use client';
 
-import { Mail, Plus, Search, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { Mail, Plus, Search, Filter, X } from 'lucide-react';
 
 export default function EmailCampaignsPage() {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
       <div className="flex flex-col gap-6">
@@ -66,6 +69,7 @@ export default function EmailCampaignsPage() {
 
             <button
               type="button"
+              onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
             >
               <Plus className="size-4" />
@@ -90,6 +94,94 @@ export default function EmailCampaignsPage() {
           </div>
         </div>
       </div>
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Nova Campanha</h2>
+                <p className="text-sm text-slate-500">
+                  Preencha os dados iniciais da campanha.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 px-6 py-6 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Nome da campanha
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex.: Apresentação institucional para secretarias de obras"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Objetivo
+                </label>
+                <select className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]">
+                  <option>Selecionar</option>
+                  <option>Prospecção</option>
+                  <option>Relacionamento</option>
+                  <option>Apresentação comercial</option>
+                  <option>Follow-up</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Status inicial
+                </label>
+                <select className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]">
+                  <option>Rascunho</option>
+                  <option>Ativa</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Descrição
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Descreva brevemente o propósito desta campanha"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
+              >
+                Criar Campanha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
