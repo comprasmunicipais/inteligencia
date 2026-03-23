@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Search, Users } from 'lucide-react';
+import { ArrowRight, RefreshCw, Search, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 type MunicipalityOption = {
@@ -11,35 +11,36 @@ type MunicipalityOption = {
   label: string;
 };
 
-type MunicipalityRelation =
-  | {
-      id: string;
-      name: string | null;
-      city: string | null;
-      state: string | null;
-      population_range?: string | null;
-    }
-  | {
-      id: string;
-      name: string | null;
-      city: string | null;
-      state: string | null;
-      population_range?: string | null;
-    }[];
-
-type AudiencePreviewItem = {
-  id: string;
-  municipality_id: string;
-  email: string;
-  department_label: string | null;
-  priority_score: number | null;
-  is_strategic: boolean | null;
-  source: string | null;
-  municipalities: MunicipalityRelation | null;
+type MunicipalityPopulationRangeRow = {
+  population_range: string | null;
 };
 
 type AudiencePreviewResponse = {
-  items: AudiencePreviewItem[];
+  items: Array<{
+    id: string;
+    municipality_id: string;
+    email: string;
+    department_label: string | null;
+    priority_score: number | null;
+    is_strategic: boolean | null;
+    source: string | null;
+    municipalities:
+      | {
+          id: string;
+          name: string | null;
+          city: string | null;
+          state: string | null;
+          population_range?: string | null;
+        }
+      | {
+          id: string;
+          name: string | null;
+          city: string | null;
+          state: string | null;
+          population_range?: string | null;
+        }[]
+      | null;
+  }>;
   total: number;
   page: number;
   pageSize: number;
@@ -49,8 +50,33 @@ type AudiencePreviewResponse = {
 const supabase = createClient();
 
 const BRAZILIAN_STATES = [
-  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
-  'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
 ];
 
 const DEPARTMENT_OPTIONS = [
@@ -61,49 +87,49 @@ const DEPARTMENT_OPTIONS = [
   'Financeiro',
 ];
 
-const POPULATION_RANGE_OPTIONS = [
-  'Menor que 15.000',
-  'Entre 15.001 e 30.000',
-  'Entre 30.001 e 50.000',
-  'Entre 50.001 e 100.000',
-  'Entre 100.001 e 200.000',
-  'Entre 200.001 e 300.000',
-  'Entre 300.001 e 500.000',
-  'Entre 500.001 e 1.000.000',
-  'Maior que Um Milhão',
-];
-
 const PAGE_SIZE = 50;
 
-function getMunicipalityData(municipalities: AudiencePreviewItem['municipalities']) {
-  if (!municipalities) {
-    return { city: null, state: null, populationRange: null };
-  }
+function orderPopulationRanges(ranges: string[]) {
+  const preferredOrder = [
+    'Menor que 15.000',
+    'Entre 15.001 e 30.000',
+    'Entre 30.001 e 50.000',
+    'Entre 50.001 e 100.000',
+    'Entre 100.001 e 200.000',
+    'Entre 200.001 e 300.000',
+    'Entre 300.001 e 500.000',
+    'Entre 500.001 e 1.000.000',
+    'Maior que Um Milhão',
+  ];
 
-  if (Array.isArray(municipalities)) {
-    const first = municipalities[0];
-    return {
-      city: first?.city ?? null,
-      state: first?.state ?? null,
-      populationRange: first?.population_range ?? null,
-    };
-  }
+  return [...ranges].sort((a, b) => {
+    const indexA = preferredOrder.indexOf(a);
+    const indexB = preferredOrder.indexOf(b);
 
-  return {
-    city: municipalities.city ?? null,
-    state: municipalities.state ?? null,
-    populationRange: municipalities.population_range ?? null,
-  };
+    if (indexA === -1 && indexB === -1) {
+      return a.localeCompare(b, 'pt-BR');
+    }
+
+    if (indexA === -1) {
+      return 1;
+    }
+
+    if (indexB === -1) {
+      return -1;
+    }
+
+    return indexA - indexB;
+  });
 }
 
 export default function EmailAudiencesPage() {
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
 
-  const [items, setItems] = useState<AudiencePreviewItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
 
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
+  const [populationRanges, setPopulationRanges] = useState<string[]>([]);
 
   const [selectedState, setSelectedState] = useState('');
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
@@ -112,30 +138,53 @@ export default function EmailAudiencesPage() {
   const [strategicFilter, setStrategicFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [minScore, setMinScore] = useState('');
   const [emailSearch, setEmailSearch] = useState('');
-  const [page, setPage] = useState(1);
 
   async function loadFilterOptions() {
     try {
       setLoadingFilters(true);
 
-      const { data, error } = await supabase
-        .from('municipalities')
-        .select('id, city, state')
-        .order('state')
-        .order('city');
+      const [
+        { data: municipalityData, error: municipalityError },
+        { data: populationData, error: populationError },
+      ] = await Promise.all([
+        supabase
+          .from('municipalities')
+          .select('id, city, state')
+          .order('state', { ascending: true })
+          .order('city', { ascending: true }),
+        supabase
+          .from('municipalities')
+          .select('population_range')
+          .not('population_range', 'is', null),
+      ]);
 
-      if (error) throw error;
+      if (municipalityError) {
+        throw municipalityError;
+      }
 
-      const municipalityOptions: MunicipalityOption[] = (data || []).map((item) => ({
+      if (populationError) {
+        throw populationError;
+      }
+
+      const municipalityOptions: MunicipalityOption[] = (municipalityData || []).map((item) => ({
         id: item.id,
         city: item.city || '',
         state: item.state || '',
-        label: `${item.city} - ${item.state}`,
+        label: `${item.city || 'Sem cidade'} - ${item.state || ''}`,
       }));
 
+      const uniquePopulationRanges = Array.from(
+        new Set(
+          ((populationData as MunicipalityPopulationRangeRow[]) || [])
+            .map((item) => item.population_range)
+            .filter((value): value is string => Boolean(value && value.trim() !== ''))
+        )
+      );
+
       setMunicipalities(municipalityOptions);
+      setPopulationRanges(orderPopulationRanges(uniquePopulationRanges));
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao carregar filtros de audiências:', error);
     } finally {
       setLoadingFilters(false);
     }
@@ -147,24 +196,52 @@ export default function EmailAudiencesPage() {
 
       const params = new URLSearchParams();
 
-      if (selectedState) params.set('state', selectedState);
-      if (selectedMunicipalityId) params.set('municipalityId', selectedMunicipalityId);
-      if (selectedPopulationRange) params.set('populationRange', selectedPopulationRange);
-      if (selectedDepartment) params.set('department', selectedDepartment);
-      if (strategicFilter) params.set('strategic', strategicFilter);
-      if (minScore) params.set('minScore', minScore);
-      if (emailSearch) params.set('emailSearch', emailSearch);
+      if (selectedState) {
+        params.set('state', selectedState);
+      }
 
-      params.set('page', String(page));
+      if (selectedMunicipalityId) {
+        params.set('municipalityId', selectedMunicipalityId);
+      }
+
+      if (selectedPopulationRange) {
+        params.set('populationRange', selectedPopulationRange);
+      }
+
+      if (selectedDepartment) {
+        params.set('department', selectedDepartment);
+      }
+
+      if (strategicFilter) {
+        params.set('strategic', strategicFilter);
+      }
+
+      if (minScore.trim() !== '') {
+        params.set('minScore', minScore.trim());
+      }
+
+      if (emailSearch.trim() !== '') {
+        params.set('emailSearch', emailSearch.trim());
+      }
+
+      params.set('page', '1');
       params.set('pageSize', String(PAGE_SIZE));
 
-      const res = await fetch(`/api/email/audiences/preview?${params.toString()}`);
-      const data: AudiencePreviewResponse = await res.json();
+      const response = await fetch(`/api/email/audiences/preview?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
 
-      setItems(data.items || []);
-      setTotalCount(data.total || 0);
+      const result: AudiencePreviewResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar prévia da audiência.');
+      }
+
+      setTotalCount(result.total || 0);
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao carregar preview da audiência:', error);
+      setTotalCount(0);
     } finally {
       setLoadingResults(false);
     }
@@ -177,7 +254,6 @@ export default function EmailAudiencesPage() {
   useEffect(() => {
     loadAudiencePreview();
   }, [
-    page,
     selectedState,
     selectedMunicipalityId,
     selectedPopulationRange,
@@ -187,72 +263,239 @@ export default function EmailAudiencesPage() {
     emailSearch,
   ]);
 
+  useEffect(() => {
+    setSelectedMunicipalityId('');
+  }, [selectedState]);
+
   const filteredMunicipalities = useMemo(() => {
-    if (!selectedState) return municipalities;
-    return municipalities.filter((m) => m.state === selectedState);
+    if (!selectedState) {
+      return municipalities;
+    }
+
+    return municipalities.filter((item) => item.state === selectedState);
   }, [municipalities, selectedState]);
 
-  const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
+  function clearFilters() {
+    setSelectedState('');
+    setSelectedMunicipalityId('');
+    setSelectedPopulationRange('');
+    setSelectedDepartment('');
+    setStrategicFilter('all');
+    setMinScore('');
+    setEmailSearch('');
+  }
+
+  function handleAdvanceStep() {
+    window.location.href = '/email/campaigns';
+  }
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
-      <h1 className="text-2xl font-bold mb-4">Audiências</h1>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold text-[#0f172a]">Audiências</h1>
+          <p className="text-sm text-slate-600">
+            Defina os filtros da audiência e visualize o volume disponível para a campanha.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Filtros da audiência</h2>
+              <p className="text-sm text-slate-600">
+                Use os filtros abaixo para segmentar a base de e-mails antes de seguir para a campanha.
+              </p>
+            </div>
 
-        <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
-          <option value="">Estado</option>
-          {BRAZILIAN_STATES.map((s) => <option key={s}>{s}</option>)}
-        </select>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              <RefreshCw className="size-4" />
+              Limpar filtros
+            </button>
+          </div>
 
-        <select value={selectedMunicipalityId} onChange={(e) => setSelectedMunicipalityId(e.target.value)}>
-          <option value="">Município</option>
-          {filteredMunicipalities.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-        </select>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="state" className="text-sm font-medium text-slate-700">
+                Estado
+              </label>
+              <select
+                id="state"
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os estados</option>
+                {BRAZILIAN_STATES.map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <select value={selectedPopulationRange} onChange={(e) => setSelectedPopulationRange(e.target.value)}>
-          <option value="">Faixa Populacional</option>
-          {POPULATION_RANGE_OPTIONS.map((p) => <option key={p}>{p}</option>)}
-        </select>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="municipality" className="text-sm font-medium text-slate-700">
+                Município
+              </label>
+              <select
+                id="municipality"
+                value={selectedMunicipalityId}
+                onChange={(e) => setSelectedMunicipalityId(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os municípios</option>
+                {filteredMunicipalities.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <select value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)}>
-          <option value="">Departamento</option>
-          {DEPARTMENT_OPTIONS.map((d) => <option key={d}>{d}</option>)}
-        </select>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="population-range" className="text-sm font-medium text-slate-700">
+                Faixa populacional
+              </label>
+              <select
+                id="population-range"
+                value={selectedPopulationRange}
+                onChange={(e) => setSelectedPopulationRange(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todas as faixas</option>
+                {populationRanges.map((range) => (
+                  <option key={range} value={range}>
+                    {range}
+                  </option>
+                ))}
+              </select>
+            </div>
 
+            <div className="flex flex-col gap-2">
+              <label htmlFor="department" className="text-sm font-medium text-slate-700">
+                Departamento
+              </label>
+              <select
+                id="department"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os departamentos</option>
+                {DEPARTMENT_OPTIONS.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="strategic" className="text-sm font-medium text-slate-700">
+                Estratégico
+              </label>
+              <select
+                id="strategic"
+                value={strategicFilter}
+                onChange={(e) => setStrategicFilter(e.target.value as 'all' | 'yes' | 'no')}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="all">Todos</option>
+                <option value="yes">Somente estratégicos</option>
+                <option value="no">Somente não estratégicos</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="score" className="text-sm font-medium text-slate-700">
+                Score mínimo
+              </label>
+              <input
+                id="score"
+                type="number"
+                min="0"
+                value={minScore}
+                onChange={(e) => setMinScore(e.target.value)}
+                placeholder="Ex.: 20"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 xl:col-span-2">
+              <label htmlFor="email-search" className="text-sm font-medium text-slate-700">
+                Buscar no e-mail
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="email-search"
+                  type="text"
+                  value={emailSearch}
+                  onChange={(e) => setEmailSearch(e.target.value)}
+                  placeholder="Ex.: saude, adm, compras"
+                  className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex size-14 items-center justify-center rounded-full bg-blue-50">
+                <Users className="size-7 text-[#0f49bd]" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">Resumo da audiência</h2>
+                <p className="text-sm text-slate-600">
+                  Esta etapa mostra quantos e-mails estão disponíveis com os filtros selecionados.
+                </p>
+
+                <div className="mt-2">
+                  {loadingResults ? (
+                    <div className="text-sm font-medium text-slate-600">
+                      Calculando volume da audiência...
+                    </div>
+                  ) : (
+                    <div className="text-3xl font-bold text-[#0f172a]">
+                      {totalCount.toLocaleString('pt-BR')}
+                    </div>
+                  )}
+                  <div className="text-sm text-slate-600">
+                    e-mails disponíveis para esta segmentação
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex w-full flex-col gap-3 lg:w-auto">
+              <button
+                type="button"
+                onClick={handleAdvanceStep}
+                disabled={loadingResults || totalCount === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Avançar para a próxima etapa
+                <ArrowRight className="size-4" />
+              </button>
+
+              <p className="text-center text-xs text-slate-500 lg:text-right">
+                O próximo passo será conectar esta audiência ao fluxo de criação da campanha.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div className="mb-4">
-        {loadingResults ? 'Carregando...' : `${totalCount} resultados`}
-      </div>
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Cidade</th>
-            <th>UF</th>
-            <th>Faixa</th>
-            <th>Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const m = getMunicipalityData(item.municipalities);
-            return (
-              <tr key={item.id}>
-                <td>{item.email}</td>
-                <td>{m.city}</td>
-                <td>{m.state}</td>
-                <td>{m.populationRange}</td>
-                <td>{item.priority_score}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }
