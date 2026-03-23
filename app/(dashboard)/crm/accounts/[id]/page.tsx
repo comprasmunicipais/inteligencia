@@ -21,6 +21,8 @@ import {
   Mail,
   Copy,
   MessageCircle,
+  Save,
+  X,
 } from 'lucide-react';
 import { cn, formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -81,6 +83,14 @@ export default function AccountDetailPage() {
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
   const [municipalityEmails, setMunicipalityEmails] = useState<MunicipalityEmailDTO[]>([]);
+
+  // States do modal de proposta
+  const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
+  const [proposalOpp, setProposalOpp] = useState<OpportunityDTO | null>(null);
+  const [proposalContent, setProposalContent] = useState('');
+  const [proposalId, setProposalId] = useState<string | null>(null);
+  const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+  const [isSavingProposal, setIsSavingProposal] = useState(false);
  
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -159,6 +169,77 @@ export default function AccountDetailPage() {
       loadData();
     }
   }, [params.id, loadData]);
+
+  // Gerar proposta via IA
+  const handleGenerateProposal = async (opp: OpportunityDTO) => {
+    if (!companyId) return;
+    setProposalOpp(opp);
+    setProposalContent('');
+    setProposalId(null);
+    setIsProposalModalOpen(true);
+    setIsGeneratingProposal(true);
+
+    const toastId = toast.loading('Gerando proposta com IA...');
+    try {
+      const response = await fetch('/api/intel/generate-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: companyId, opportunity_id: opp.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setProposalContent(result.content);
+      setProposalId(result.proposal_id);
+      toast.success('Proposta gerada com sucesso!', { id: toastId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar proposta.', { id: toastId });
+      setIsProposalModalOpen(false);
+    } finally {
+      setIsGeneratingProposal(false);
+    }
+  };
+
+  // Salvar proposta editada
+  const handleSaveProposal = async () => {
+    if (!proposalId || !companyId) return;
+    setIsSavingProposal(true);
+    try {
+      await supabase
+        .from('ai_proposals')
+        .update({ content: proposalContent, updated_at: new Date().toISOString() })
+        .eq('id', proposalId);
+      toast.success('Proposta salva com sucesso!');
+    } catch {
+      toast.error('Erro ao salvar proposta.');
+    } finally {
+      setIsSavingProposal(false);
+    }
+  };
+
+  // Download PDF da proposta
+  const handleDownloadPDF = async () => {
+    if (!proposalContent || !proposalOpp) return;
+    try {
+      const response = await fetch('/api/intel/generate-proposal-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: proposalContent,
+          title: `Proposta — ${proposalOpp.organ_name}`,
+        }),
+      });
+      const html = await response.text();
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 500);
+      }
+    } catch {
+      toast.error('Erro ao gerar PDF.');
+    }
+  };
  
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -753,7 +834,7 @@ export default function AccountDetailPage() {
                     </div>
                   </div>
                 )}
- 
+
                 {activeTab === 'opportunities' && (
                   <div className="space-y-4">
                     {opportunities.length > 0 ? opportunities.map((opportunity) => (
@@ -774,7 +855,7 @@ export default function AccountDetailPage() {
                             {opportunity.modality || 'Modalidade não informada'}
                           </span>
                         </div>
- 
+
                         <div className="flex flex-wrap items-center gap-2 mb-3">
                           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
                             {opportunity.situation || 'Situação não informada'}
@@ -785,8 +866,8 @@ export default function AccountDetailPage() {
                             </span>
                           )}
                         </div>
- 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-600">
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-600 mb-4">
                           <div>
                             <span className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Publicação</span>
                             <span>{opportunity.publication_date ? formatDate(opportunity.publication_date) : 'N/A'}</span>
@@ -804,18 +885,26 @@ export default function AccountDetailPage() {
                             </span>
                           </div>
                         </div>
- 
-                        {opportunity.official_url && (
-                          <div className="mt-4 flex justify-end">
+
+                        {/* Botões de ação */}
+                        <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
+                          <button
+                            onClick={() => handleGenerateProposal(opportunity)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-all text-xs font-bold"
+                          >
+                            <FileText className="size-3.5" />
+                            Gerar Proposta
+                          </button>
+                          {opportunity.official_url && (
                             <button
                               onClick={() => window.open(opportunity.official_url!, '_blank')}
-                              className="inline-flex items-center gap-2 text-xs font-bold text-[#0f49bd] hover:underline"
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all text-xs font-bold"
                             >
-                              <ExternalLink className="size-3" />
+                              <ExternalLink className="size-3.5" />
                               Abrir edital
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     )) : (
                       <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
@@ -1045,6 +1134,68 @@ export default function AccountDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal: Gerar Proposta */}
+      <Dialog open={isProposalModalOpen} onOpenChange={setIsProposalModalOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="size-5 text-purple-600" />
+              Proposta Comercial Gerada por IA
+            </DialogTitle>
+            <DialogDescription>
+              {proposalOpp?.organ_name} — {proposalOpp?.title?.substring(0, 80)}...
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            {isGeneratingProposal ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4">
+                <Loader2 className="size-10 text-purple-600 animate-spin" />
+                <p className="text-sm text-gray-500 font-medium">Analisando o edital e gerando a proposta...</p>
+                <p className="text-xs text-gray-400">Isso pode levar alguns segundos</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">Edite o texto abaixo se necessário antes de salvar ou baixar.</p>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full uppercase">Gerado por IA</span>
+                </div>
+                <textarea
+                  className="w-full min-h-[400px] p-4 text-sm text-gray-700 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 resize-none leading-relaxed font-mono"
+                  value={proposalContent}
+                  onChange={(e) => setProposalContent(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => setIsProposalModalOpen(false)}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Fechar
+            </button>
+            <button
+              onClick={handleSaveProposal}
+              disabled={isSavingProposal || isGeneratingProposal || !proposalContent}
+              className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+            >
+              {isSavingProposal ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Salvar
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingProposal || !proposalContent}
+              className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 transition-all disabled:opacity-50 shadow-sm"
+            >
+              <Download className="size-4" />
+              Baixar PDF
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
  
       {/* Modal: Adicionar Contato */}
       <Dialog open={isAddContactModalOpen} onOpenChange={setIsAddContactModalOpen}>
