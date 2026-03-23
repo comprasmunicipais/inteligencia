@@ -17,12 +17,12 @@ import {
   HelpCircle,
   LogOut,
   BarChart3,
-  Bell,
   Target,
   RefreshCw,
   ShieldCheck,
   Terminal,
-  History
+  History,
+  Mail
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -44,6 +44,9 @@ const sidebarItems = [
     { name: 'Análise de Mercado', href: '/intel/market-analysis', icon: BarChart3 },
     { name: 'Perfil Estratégico', href: '/intel/profile', icon: Target },
     { name: 'Relatórios', href: '/intel/reports', icon: FileText },
+  ]},
+  { group: 'DISPAROS DE E-MAIL', items: [
+    { name: 'Campanhas', href: '/email/campaigns', icon: Mail },
   ]},
   { group: 'SISTEMA', items: [
     { name: 'Configurações', href: '/settings', icon: Settings },
