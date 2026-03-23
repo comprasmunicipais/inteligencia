@@ -24,8 +24,10 @@ import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { runTestSync, triggerNewTestOpportunity, resetSyncTest, triggerUpdateTestOpportunities, runResilienceTest } from '@/lib/intel/services';
+import { useCompany } from '@/components/providers/CompanyProvider';
 
 export default function PNCPAdminSyncPage() {
+  const { companyId } = useCompany();
   const [jobs, setJobs] = useState<SyncJob[]>([]);
   const [errors, setErrors] = useState<SyncError[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -60,7 +62,6 @@ export default function PNCPAdminSyncPage() {
   const handleManualSync = async () => {
     setIsSyncing(true);
     toast.info('Iniciando sincronização incremental com PNCP...');
-    
     try {
       await pncpSyncService.runSync({ mode: 'production' });
       loadData();
@@ -73,10 +74,11 @@ export default function PNCPAdminSyncPage() {
   };
 
   const handleTestSync = async () => {
+    if (!companyId) { toast.error('Empresa não identificada.'); return; }
     setIsTesting(true);
     toast.info('Executando sincronização de teste...');
     try {
-      await runTestSync();
+      await runTestSync(companyId);
       loadData();
       toast.success('Sync de teste concluído!');
     } catch (error) {
@@ -87,10 +89,11 @@ export default function PNCPAdminSyncPage() {
   };
 
   const handleResilienceTest = async () => {
+    if (!companyId) { toast.error('Empresa não identificada.'); return; }
     setIsResilienceTesting(true);
     toast.info('Executando teste de resiliência...');
     try {
-      await runResilienceTest();
+      await runResilienceTest(companyId);
       loadData();
       toast.success('Teste de resiliência concluído!');
     } catch (error) {
@@ -126,7 +129,6 @@ export default function PNCPAdminSyncPage() {
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-6xl mx-auto space-y-8">
           
-          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center gap-3 mb-4">
@@ -185,7 +187,6 @@ export default function PNCPAdminSyncPage() {
             </div>
           </div>
 
-          {/* Test & Resilience Mode Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 space-y-6">
               <div className="flex items-center gap-3">
@@ -269,7 +270,6 @@ export default function PNCPAdminSyncPage() {
             </div>
           </div>
 
-          {/* Jobs History */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -351,7 +351,6 @@ export default function PNCPAdminSyncPage() {
             </div>
           </div>
 
-          {/* Technical Info */}
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
             <div className="flex items-start gap-4">
               <div className="p-2 bg-white rounded-lg border border-blue-100">
@@ -371,7 +370,6 @@ export default function PNCPAdminSyncPage() {
         </div>
       </div>
 
-      {/* Error Modal */}
       {showErrorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
@@ -383,10 +381,7 @@ export default function PNCPAdminSyncPage() {
                   <p className="text-xs text-purple-700 font-medium">Erros de parsing e normalização detectados durante a sincronização.</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowErrorModal(false)}
-                className="p-2 hover:bg-white rounded-full transition-colors"
-              >
+              <button onClick={() => setShowErrorModal(false)} className="p-2 hover:bg-white rounded-full transition-colors">
                 <XCircle className="size-6 text-gray-400" />
               </button>
             </div>
@@ -420,10 +415,7 @@ export default function PNCPAdminSyncPage() {
             </div>
             
             <div className="px-8 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-              <button 
-                onClick={() => setShowErrorModal(false)}
-                className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all"
-              >
+              <button onClick={() => setShowErrorModal(false)} className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all">
                 Fechar
               </button>
             </div>
