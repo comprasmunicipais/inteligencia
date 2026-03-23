@@ -25,3 +25,8 @@ export default function EmailAudiencesPage() {
     </div>
   );
 }
+```
+
+E substitua o arquivo de Templates:
+```
+inteligencia/app/(dashboard)/email/templates/page.tsx
