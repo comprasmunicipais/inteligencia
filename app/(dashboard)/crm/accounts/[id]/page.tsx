@@ -1,6 +1,6 @@
 'use client';
  
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Plus,
@@ -169,6 +169,47 @@ export default function AccountDetailPage() {
       loadData();
     }
   }, [params.id, loadData]);
+
+  const unifiedEmails = useMemo(() => {
+    const normalizedMap = new Map<string, MunicipalityEmailDTO>();
+
+    for (const emailRow of municipalityEmails) {
+      const normalizedEmail = emailRow.email?.trim().toLowerCase();
+      if (!normalizedEmail) continue;
+
+      if (!normalizedMap.has(normalizedEmail)) {
+        normalizedMap.set(normalizedEmail, {
+          ...emailRow,
+          email: emailRow.email.trim(),
+        });
+      }
+    }
+
+    const fallbackEmail = account?.email?.trim();
+    if (fallbackEmail) {
+      const normalizedFallbackEmail = fallbackEmail.toLowerCase();
+
+      if (!normalizedMap.has(normalizedFallbackEmail)) {
+        normalizedMap.set(normalizedFallbackEmail, {
+          id: `account-email-${account?.id || 'fallback'}`,
+          email: fallbackEmail,
+          department_label: 'Cadastro principal',
+          priority_score: 0,
+          is_strategic: false,
+        });
+      }
+    }
+
+    return Array.from(normalizedMap.values()).sort((a, b) => {
+      const scoreA = a.priority_score ?? 0;
+      const scoreB = b.priority_score ?? 0;
+      return scoreB - scoreA;
+    });
+  }, [municipalityEmails, account]);
+
+  const strategicEmails = useMemo(() => {
+    return unifiedEmails.filter(email => email.is_strategic);
+  }, [unifiedEmails]);
 
   // Gerar proposta via IA
   const handleGenerateProposal = async (opp: OpportunityDTO) => {
@@ -397,8 +438,6 @@ export default function AccountDetailPage() {
     }
   };
  
-  const strategicEmails = municipalityEmails.filter(email => email.is_strategic);
- 
   const regionLabels: Record<string, string> = {
     [Region.NORTH]: 'Norte',
     [Region.NORTHEAST]: 'Nordeste',
@@ -545,7 +584,7 @@ export default function AccountDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
                   <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block mb-1">Total de e-mails</span>
-                  <span className="text-2xl font-bold text-[#0f49bd]">{municipalityEmails.length}</span>
+                  <span className="text-2xl font-bold text-[#0f49bd]">{unifiedEmails.length}</span>
                 </div>
                 <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
                   <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider block mb-1">Estratégicos</span>
@@ -599,7 +638,7 @@ export default function AccountDetailPage() {
                     activeTab === 'emails' ? "text-[#0f49bd] border-b-2 border-[#0f49bd]" : "text-gray-500 hover:text-gray-700"
                   )}
                 >
-                  E-mails ({municipalityEmails.length})
+                  E-mails ({unifiedEmails.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('opportunities')}
@@ -787,7 +826,7 @@ export default function AccountDetailPage() {
                     <div>
                       <h3 className="font-bold text-gray-900 mb-4">Todos os E-mails</h3>
                       <div className="space-y-3">
-                        {municipalityEmails.length > 0 ? municipalityEmails.map((emailRow) => (
+                        {unifiedEmails.length > 0 ? unifiedEmails.map((emailRow) => (
                           <div
                             key={emailRow.id}
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100"
@@ -886,7 +925,6 @@ export default function AccountDetailPage() {
                           </div>
                         </div>
 
-                        {/* Botões de ação */}
                         <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
                           <button
                             onClick={() => handleGenerateProposal(opportunity)}
@@ -1135,7 +1173,6 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
-      {/* Modal: Gerar Proposta */}
       <Dialog open={isProposalModalOpen} onOpenChange={setIsProposalModalOpen}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -1197,7 +1234,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
  
-      {/* Modal: Adicionar Contato */}
       <Dialog open={isAddContactModalOpen} onOpenChange={setIsAddContactModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1296,7 +1332,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
  
-      {/* Modal: Evento */}
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1369,7 +1404,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
  
-      {/* Modal: Editar Prefeitura */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1494,7 +1528,6 @@ export default function AccountDetailPage() {
         </DialogContent>
       </Dialog>
  
-      {/* Modal: Excluir Prefeitura */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
