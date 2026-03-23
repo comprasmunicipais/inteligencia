@@ -12,11 +12,14 @@ export default function EmailTemplatesPage() {
             Crie e gerencie modelos de e-mail para suas campanhas.
           </p>
         </div>
+
         <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
           <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
             <Layout className="size-8 text-[#0f49bd]" />
           </div>
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">Nenhum template cadastrado</h2>
+          <h2 className="mt-4 text-lg font-semibold text-slate-900">
+            Nenhum template cadastrado
+          </h2>
           <p className="mt-2 max-w-xl text-sm text-slate-600">
             Em breve você poderá criar templates manualmente ou com auxílio de IA.
           </p>
