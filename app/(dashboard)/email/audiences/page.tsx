@@ -1,23 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, RefreshCw, Search, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Search, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-
-type MunicipalityEmailRow = {
-  id: string;
-  email: string;
-  department_label: string | null;
-  priority_score: number | null;
-  is_strategic: boolean | null;
-  source: string | null;
-  municipalities: {
-    id: string;
-    name: string | null;
-    city: string | null;
-    state: string | null;
-  } | null;
-};
 
 type MunicipalityOption = {
   id: string;
@@ -26,144 +11,79 @@ type MunicipalityOption = {
   label: string;
 };
 
-type DepartmentKey =
-  | 'saude'
-  | 'educacao'
-  | 'compras_licitacao'
-  | 'administracao'
-  | 'financeiro';
-
-type DepartmentOption = {
-  key: DepartmentKey;
-  label: string;
-  terms: string[];
+type AudiencePreviewItem = {
+  id: string;
+  municipality_id: string;
+  email: string;
+  department_label: string | null;
+  priority_score: number | null;
+  is_strategic: boolean | null;
+  source: string | null;
+  municipalities:
+    | {
+        id: string;
+        name: string | null;
+        city: string | null;
+        state: string | null;
+      }
+    | {
+        id: string;
+        name: string | null;
+        city: string | null;
+        state: string | null;
+      }[]
+    | null;
 };
 
-type AudienceEmailRow = MunicipalityEmailRow & {
-  inferred_department: string | null;
+type AudiencePreviewResponse = {
+  items: AudiencePreviewItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  error?: string;
 };
 
 const supabase = createClient();
 
-const DEPARTMENT_OPTIONS: DepartmentOption[] = [
-  {
-    key: 'saude',
-    label: 'Saúde',
-    terms: [
-      'saude',
-      'secsaude',
-      'sms',
-      'ubs',
-      'secretariadesaude',
-      'hospital',
-      'semus',
-      'semsa',
-      'sus',
-      'vigilancia',
-    ],
-  },
-  {
-    key: 'educacao',
-    label: 'Educação',
-    terms: [
-      'educacao',
-      'escola',
-      'creche',
-      'semed',
-      'sme',
-      'seceducacao',
-      'secretariadeeducacao',
-      'ensino',
-    ],
-  },
-  {
-    key: 'compras_licitacao',
-    label: 'Compras / Licitação',
-    terms: [
-      'compras',
-      'licitacao',
-      'licitacoes',
-      'contratos',
-      'cpl',
-      'pregao',
-      'pregoeiro',
-      'cotacao',
-    ],
-  },
-  {
-    key: 'administracao',
-    label: 'Administração',
-    terms: [
-      'administracao',
-      'gabinete',
-      'rh',
-      'semad',
-      'juridico',
-      'dp',
-      'pessoal',
-      'recursoshumanos',
-    ],
-  },
-  {
-    key: 'financeiro',
-    label: 'Financeiro',
-    terms: [
-      'sefin',
-      'financas',
-      'fazenda',
-      'financeiro',
-      'arrecadacao',
-      'tributos',
-      'contabilidade',
-      'tesouraria',
-    ],
-  },
+const DEPARTMENT_OPTIONS = [
+  'Saúde',
+  'Educação',
+  'Compras / Licitação',
+  'Administração',
+  'Financeiro',
 ];
 
-function normalizeText(value: string | null | undefined) {
-  return (value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9@._-]/g, '')
-    .toLowerCase()
-    .trim();
-}
+const PAGE_SIZE = 50;
 
-function inferDepartment(email: string, departmentLabel: string | null) {
-  const normalizedEmail = normalizeText(email);
-  const normalizedDepartmentLabel = normalizeText(departmentLabel);
-
-  for (const department of DEPARTMENT_OPTIONS) {
-    const matchedInLabel = department.terms.some((term) =>
-      normalizedDepartmentLabel.includes(normalizeText(term))
-    );
-
-    if (matchedInLabel) {
-      return department.label;
-    }
-
-    const matchedInEmail = department.terms.some((term) =>
-      normalizedEmail.includes(normalizeText(term))
-    );
-
-    if (matchedInEmail) {
-      return department.label;
-    }
+function getMunicipalityData(
+  municipalities: AudiencePreviewItem['municipalities']
+): {
+  city: string | null;
+  state: string | null;
+} {
+  if (!municipalities) {
+    return { city: null, state: null };
   }
 
-  if (departmentLabel && departmentLabel.trim() !== '') {
-    return departmentLabel.trim();
+  if (Array.isArray(municipalities)) {
+    const first = municipalities[0];
+    return {
+      city: first?.city ?? null,
+      state: first?.state ?? null,
+    };
   }
 
-  return null;
+  return {
+    city: municipalities.city ?? null,
+    state: municipalities.state ?? null,
+  };
 }
 
 export default function EmailAudiencesPage() {
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
 
-  const [emails, setEmails] = useState<AudienceEmailRow[]>([]);
-  const [rawEmails, setRawEmails] = useState<MunicipalityEmailRow[]>([]);
+  const [items, setItems] = useState<AudiencePreviewItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
 
   const [states, setStates] = useState<string[]>([]);
@@ -175,6 +95,7 @@ export default function EmailAudiencesPage() {
   const [strategicFilter, setStrategicFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [minScore, setMinScore] = useState('');
   const [emailSearch, setEmailSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   async function loadFilterOptions() {
     try {
@@ -218,115 +139,51 @@ export default function EmailAudiencesPage() {
     try {
       setLoadingResults(true);
 
-      let municipalityIds: string[] | null = null;
+      const params = new URLSearchParams();
 
-      if (selectedState || selectedMunicipalityId) {
-        let municipalityQuery = supabase.from('municipalities').select('id');
-
-        if (selectedState) {
-          municipalityQuery = municipalityQuery.eq('state', selectedState);
-        }
-
-        if (selectedMunicipalityId) {
-          municipalityQuery = municipalityQuery.eq('id', selectedMunicipalityId);
-        }
-
-        const { data: municipalityData, error: municipalityError } = await municipalityQuery;
-
-        if (municipalityError) {
-          throw municipalityError;
-        }
-
-        municipalityIds = (municipalityData || []).map((item) => item.id);
-
-        if (municipalityIds.length === 0) {
-          setRawEmails([]);
-          setEmails([]);
-          setTotalCount(0);
-          return;
-        }
+      if (selectedState) {
+        params.set('state', selectedState);
       }
 
-      let countQuery = supabase
-        .from('municipality_emails')
-        .select('id', { count: 'exact', head: true });
-
-      let dataQuery = supabase
-        .from('municipality_emails')
-        .select(`
-          id,
-          email,
-          department_label,
-          priority_score,
-          is_strategic,
-          source,
-          municipalities:municipality_id (
-            id,
-            name,
-            city,
-            state
-          )
-        `)
-        .limit(500)
-        .order('priority_score', { ascending: false, nullsFirst: false })
-        .order('email', { ascending: true });
-
-      if (municipalityIds) {
-        countQuery = countQuery.in('municipality_id', municipalityIds);
-        dataQuery = dataQuery.in('municipality_id', municipalityIds);
+      if (selectedMunicipalityId) {
+        params.set('municipalityId', selectedMunicipalityId);
       }
 
-      if (strategicFilter === 'yes') {
-        countQuery = countQuery.eq('is_strategic', true);
-        dataQuery = dataQuery.eq('is_strategic', true);
+      if (selectedDepartment) {
+        params.set('department', selectedDepartment);
       }
 
-      if (strategicFilter === 'no') {
-        countQuery = countQuery.eq('is_strategic', false);
-        dataQuery = dataQuery.eq('is_strategic', false);
+      if (strategicFilter) {
+        params.set('strategic', strategicFilter);
       }
 
-      if (minScore.trim() !== '' && !Number.isNaN(Number(minScore))) {
-        countQuery = countQuery.gte('priority_score', Number(minScore));
-        dataQuery = dataQuery.gte('priority_score', Number(minScore));
+      if (minScore.trim() !== '') {
+        params.set('minScore', minScore.trim());
       }
 
       if (emailSearch.trim() !== '') {
-        countQuery = countQuery.ilike('email', `%${emailSearch.trim()}%`);
-        dataQuery = dataQuery.ilike('email', `%${emailSearch.trim()}%`);
+        params.set('emailSearch', emailSearch.trim());
       }
 
-      const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
-        countQuery,
-        dataQuery,
-      ]);
+      params.set('page', String(page));
+      params.set('pageSize', String(PAGE_SIZE));
 
-      if (countError) {
-        throw countError;
+      const response = await fetch(`/api/email/audiences/preview?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      const result: AudiencePreviewResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar prévia da audiência.');
       }
 
-      if (dataError) {
-        throw dataError;
-      }
-
-      const fetchedRows = ((data as MunicipalityEmailRow[]) || []).map((item) => ({
-        ...item,
-        inferred_department: inferDepartment(item.email, item.department_label),
-      }));
-
-      setRawEmails((data as MunicipalityEmailRow[]) || []);
-
-      const filteredRows =
-        selectedDepartment.trim() === ''
-          ? fetchedRows
-          : fetchedRows.filter((item) => item.inferred_department === selectedDepartment);
-
-      setEmails(filteredRows);
-      setTotalCount(selectedDepartment.trim() === '' ? count || 0 : filteredRows.length);
+      setItems(result.items || []);
+      setTotalCount(result.total || 0);
     } catch (error) {
       console.error('Erro ao carregar preview da audiência:', error);
-      setRawEmails([]);
-      setEmails([]);
+      setItems([]);
       setTotalCount(0);
     } finally {
       setLoadingResults(false);
@@ -339,10 +196,11 @@ export default function EmailAudiencesPage() {
 
   useEffect(() => {
     loadAudiencePreview();
-  }, [selectedState, selectedMunicipalityId, selectedDepartment, strategicFilter, minScore, emailSearch]);
+  }, [page, selectedState, selectedMunicipalityId, selectedDepartment, strategicFilter, minScore, emailSearch]);
 
   useEffect(() => {
     setSelectedMunicipalityId('');
+    setPage(1);
   }, [selectedState]);
 
   const filteredMunicipalities = useMemo(() => {
@@ -353,19 +211,7 @@ export default function EmailAudiencesPage() {
     return municipalities.filter((item) => item.state === selectedState);
   }, [municipalities, selectedState]);
 
-  const availableDepartments = useMemo(() => {
-    const values = new Set<string>();
-
-    for (const item of rawEmails) {
-      const inferredDepartment = inferDepartment(item.email, item.department_label);
-
-      if (inferredDepartment && inferredDepartment.trim() !== '') {
-        values.add(inferredDepartment);
-      }
-    }
-
-    return Array.from(values).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [rawEmails]);
+  const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
 
   function clearFilters() {
     setSelectedState('');
@@ -374,6 +220,32 @@ export default function EmailAudiencesPage() {
     setStrategicFilter('all');
     setMinScore('');
     setEmailSearch('');
+    setPage(1);
+  }
+
+  function handleDepartmentChange(value: string) {
+    setSelectedDepartment(value);
+    setPage(1);
+  }
+
+  function handleMunicipalityChange(value: string) {
+    setSelectedMunicipalityId(value);
+    setPage(1);
+  }
+
+  function handleStrategicChange(value: 'all' | 'yes' | 'no') {
+    setStrategicFilter(value);
+    setPage(1);
+  }
+
+  function handleMinScoreChange(value: string) {
+    setMinScore(value);
+    setPage(1);
+  }
+
+  function handleEmailSearchChange(value: string) {
+    setEmailSearch(value);
+    setPage(1);
   }
 
   return (
@@ -391,7 +263,7 @@ export default function EmailAudiencesPage() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Filtros da audiência</h2>
               <p className="text-sm text-slate-600">
-                Use os filtros abaixo para visualizar os e-mails que compõem a audiência.
+                Use os filtros abaixo para segmentar toda a base de e-mails.
               </p>
             </div>
 
@@ -433,7 +305,7 @@ export default function EmailAudiencesPage() {
               <select
                 id="municipality"
                 value={selectedMunicipalityId}
-                onChange={(e) => setSelectedMunicipalityId(e.target.value)}
+                onChange={(e) => handleMunicipalityChange(e.target.value)}
                 disabled={loadingFilters}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               >
@@ -453,11 +325,11 @@ export default function EmailAudiencesPage() {
               <select
                 id="department"
                 value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
+                onChange={(e) => handleDepartmentChange(e.target.value)}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               >
                 <option value="">Todos os departamentos</option>
-                {availableDepartments.map((department) => (
+                {DEPARTMENT_OPTIONS.map((department) => (
                   <option key={department} value={department}>
                     {department}
                   </option>
@@ -472,7 +344,7 @@ export default function EmailAudiencesPage() {
               <select
                 id="strategic"
                 value={strategicFilter}
-                onChange={(e) => setStrategicFilter(e.target.value as 'all' | 'yes' | 'no')}
+                onChange={(e) => handleStrategicChange(e.target.value as 'all' | 'yes' | 'no')}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               >
                 <option value="all">Todos</option>
@@ -490,7 +362,7 @@ export default function EmailAudiencesPage() {
                 type="number"
                 min="0"
                 value={minScore}
-                onChange={(e) => setMinScore(e.target.value)}
+                onChange={(e) => handleMinScoreChange(e.target.value)}
                 placeholder="Ex.: 20"
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               />
@@ -506,7 +378,7 @@ export default function EmailAudiencesPage() {
                   id="email-search"
                   type="text"
                   value={emailSearch}
-                  onChange={(e) => setEmailSearch(e.target.value)}
+                  onChange={(e) => handleEmailSearchChange(e.target.value)}
                   placeholder="Ex.: saude, adm, compras"
                   className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
                 />
@@ -524,7 +396,7 @@ export default function EmailAudiencesPage() {
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Prévia da audiência</h2>
                 <p className="text-sm text-slate-600">
-                  Mostrando os primeiros 500 registros da seleção atual.
+                  Exibindo resultados paginados da base completa.
                 </p>
               </div>
             </div>
@@ -541,7 +413,7 @@ export default function EmailAudiencesPage() {
                 Carregando prévia da audiência...
               </div>
             </div>
-          ) : emails.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-6 text-center">
               <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
                 <Users className="size-8 text-[#0f49bd]" />
@@ -554,58 +426,92 @@ export default function EmailAudiencesPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        E-mail
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Município
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        UF
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Departamento
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Score
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Estratégico
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
-                    {emails.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                          {item.email}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.municipalities?.city || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.municipalities?.state || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.inferred_department || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.priority_score ?? 0}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.is_strategic ? 'Sim' : 'Não'}
-                        </td>
+            <>
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          E-mail
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          Município
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          UF
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          Departamento
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          Score
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          Estratégico
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                      {items.map((item) => {
+                        const municipality = getMunicipalityData(item.municipalities);
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                              {item.email}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {municipality.city || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {municipality.state || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {item.department_label || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {item.priority_score ?? 0}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700">
+                              {item.is_strategic ? 'Sim' : 'Não'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <div className="text-sm text-slate-600">
+                  Página {page} de {totalPages}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                    disabled={page <= 1}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Anterior
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => Math.min(current + 1, totalPages))}
+                    disabled={page >= totalPages}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Próxima
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
