@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   Terminal,
   History,
-  Mail
+  Mail,
+  UsersRound,
+  LayoutTemplate,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -47,6 +49,9 @@ const sidebarItems = [
   ]},
   { group: 'DISPAROS DE E-MAIL', items: [
     { name: 'Campanhas', href: '/email/campaigns', icon: Mail },
+    { name: 'Audiências', href: '/email/audiences', icon: UsersRound },
+    { name: 'Templates', href: '/email/templates', icon: LayoutTemplate },
+    { name: 'Histórico', href: '/email/history', icon: History },
   ]},
   { group: 'SISTEMA', items: [
     { name: 'Configurações', href: '/settings', icon: Settings },
