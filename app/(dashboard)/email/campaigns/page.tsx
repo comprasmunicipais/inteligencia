@@ -15,6 +15,7 @@ type CampaignObjective =
 
 type Campaign = {
   id: string;
+  company_id: string;
   name: string;
   objective: CampaignObjective;
   status: CampaignStatus;
@@ -23,9 +24,12 @@ type Campaign = {
   updated_at: string;
 };
 
+type ProfileRow = {
+  company_id: string;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function EmailCampaignsPage() {
@@ -34,6 +38,7 @@ export default function EmailCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -51,6 +56,16 @@ export default function EmailCampaignsPage() {
     });
   };
 
+  const handleOpenCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false);
+    resetForm();
+  };
+
   const loadCampaigns = async () => {
     try {
       setIsLoading(true);
@@ -60,9 +75,7 @@ export default function EmailCampaignsPage() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setCampaigns((data ?? []) as Campaign[]);
     } catch (error) {
@@ -73,19 +86,42 @@ export default function EmailCampaignsPage() {
     }
   };
 
+  const loadCurrentCompany = async () => {
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) {
+        toast.error('Usuário não autenticado.');
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      setCompanyId((profile as ProfileRow).company_id);
+    } catch (error) {
+      console.error('Erro ao carregar empresa do usuário:', error);
+      toast.error('Erro ao identificar a empresa do usuário.');
+    }
+  };
+
   useEffect(() => {
-    loadCampaigns();
+    const initializePage = async () => {
+      await loadCurrentCompany();
+      await loadCampaigns();
+    };
+
+    initializePage();
   }, []);
-
-  const handleOpenCreateModal = () => {
-    resetForm();
-    setIsCreateModalOpen(true);
-  };
-
-  const handleCloseCreateModal = () => {
-    setIsCreateModalOpen(false);
-    resetForm();
-  };
 
   const handleCreateCampaign = async () => {
     const name = formData.name.trim();
@@ -101,10 +137,16 @@ export default function EmailCampaignsPage() {
       return;
     }
 
+    if (!companyId) {
+      toast.error('Empresa não identificada para salvar a campanha.');
+      return;
+    }
+
     try {
       setIsSaving(true);
 
       const payload = {
+        company_id: companyId,
         name,
         objective: formData.objective,
         status: formData.status,
@@ -117,14 +159,9 @@ export default function EmailCampaignsPage() {
         .select('*')
         .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      if (data) {
-        setCampaigns((prev) => [data as Campaign, ...prev]);
-      }
-
+      setCampaigns((prev) => [data as Campaign, ...prev]);
       toast.success('Campanha criada com sucesso.');
       handleCloseCreateModal();
     } catch (error) {
