@@ -1,61 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createAdminClient } from '@/lib/supabase/server';
-import crypto from 'crypto';
-
-function decrypt(text: string) {
-  const key = process.env.ENCRYPTION_KEY as string;
-
-  if (!key) {
-    throw new Error('ENCRYPTION_KEY não definida');
-  }
-
-  const [ivHex, encrypted] = text.split(':');
-
-  const iv = Buffer.from(ivHex, 'hex');
-  const encryptedText = Buffer.from(encrypted, 'hex');
-
-  const decipher = crypto.createDecipheriv(
-    'aes-256-cbc',
-    Buffer.from(key, 'hex'),
-    iv
-  );
-
-  const decrypted = Buffer.concat([
-    decipher.update(encryptedText),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString();
-}
+import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 export async function POST(req: NextRequest) {
+  const supabase = await createAdminClient();
+  let accountId: string | null = null;
+
   try {
-    const { accountId } = await req.json();
+    const body = await req.json();
+    accountId = body.accountId;
 
     if (!accountId) {
       return NextResponse.json(
-        { error: 'accountId é obrigatório' },
+        { error: 'accountId é obrigatório.' },
         { status: 400 }
       );
     }
 
-    const supabase = await createAdminClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    const { data: account, error } = await supabase
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Usuário não autenticado.' },
+        { status: 401 }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.company_id) {
+      return NextResponse.json(
+        { error: 'Não foi possível identificar a empresa do usuário.' },
+        { status: 403 }
+      );
+    }
+
+    const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
       .select('*')
       .eq('id', accountId)
+      .eq('company_id', profile.company_id)
       .single();
 
-    if (error || !account) {
+    if (accountError || !account) {
       return NextResponse.json(
-        { error: 'Conta não encontrada' },
+        { error: 'Conta de envio não encontrada.' },
         { status: 404 }
       );
     }
 
-    const password = decrypt(account.smtp_password_encrypted);
+    const smtpPassword = decryptEmailSettingSecret(
+      account.smtp_password_encrypted
+    );
 
     const transporter = nodemailer.createTransport({
       host: account.smtp_host,
@@ -63,45 +67,47 @@ export async function POST(req: NextRequest) {
       secure: account.smtp_secure,
       auth: {
         user: account.smtp_username,
-        pass: password,
+        pass: smtpPassword,
       },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     });
 
-    // Testa conexão SMTP
     await transporter.verify();
 
-    // Atualiza status no banco
     await supabase
       .from('email_sending_accounts')
       .update({
         last_tested_at: new Date().toISOString(),
         last_test_status: 'success',
         last_test_error: null,
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', accountId);
+      .eq('id', accountId)
+      .eq('company_id', profile.company_id);
 
     return NextResponse.json({
       success: true,
-      message: 'Conexão SMTP validada com sucesso',
+      message: 'Conexão SMTP validada com sucesso.',
     });
-  } catch (err: any) {
-    const supabase = await createAdminClient();
-
-    if (err?.accountId) {
+  } catch (error: any) {
+    if (accountId) {
       await supabase
         .from('email_sending_accounts')
         .update({
           last_tested_at: new Date().toISOString(),
           last_test_status: 'error',
-          last_test_error: err.message,
+          last_test_error: error?.message || 'Falha ao testar SMTP.',
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', err.accountId);
+        .eq('id', accountId);
     }
 
     return NextResponse.json(
       {
-        error: 'Falha ao testar SMTP',
-        details: err.message,
+        error: 'Falha ao testar SMTP.',
+        details: error?.message || 'Erro interno ao validar conexão SMTP.',
       },
       { status: 500 }
     );
