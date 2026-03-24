@@ -1,115 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
-import { createAdminClient } from '@/lib/supabase/server';
-import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
+import { NextRequest, NextResponse } from 'next/server'
+import nodemailer from 'nodemailer'
+import { createAdminClient } from '@/lib/supabase/server'
+import crypto from 'crypto'
 
-export async function POST(req: NextRequest) {
-  const supabase = await createAdminClient();
-  let accountId: string | null = null;
-
+// ============================
+// GET - listar contas
+// ============================
+export async function GET() {
   try {
-    const body = await req.json();
-    accountId = body.accountId;
-
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'accountId é obrigatório.' },
-        { status: 400 }
-      );
-    }
+    const supabase = createAdminClient()
 
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      return NextResponse.json(
-        { error: 'Usuário não autenticado.' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('company_id')
       .eq('id', user.id)
-      .single();
+      .single()
 
-    if (profileError || !profile?.company_id) {
-      return NextResponse.json(
-        { error: 'Não foi possível identificar a empresa do usuário.' },
-        { status: 403 }
-      );
+    if (!profile?.company_id) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 400 })
     }
 
-    const { data: account, error: accountError } = await supabase
+    const { data, error } = await supabase
       .from('email_sending_accounts')
       .select('*')
-      .eq('id', accountId)
       .eq('company_id', profile.company_id)
-      .single();
+      .order('created_at', { ascending: false })
 
-    if (accountError || !account) {
-      return NextResponse.json(
-        { error: 'Conta de envio não encontrada.' },
-        { status: 404 }
-      );
+    if (error) {
+      throw error
     }
 
-    const smtpPassword = decryptEmailSettingSecret(
-      account.smtp_password_encrypted
-    );
+    return NextResponse.json({ data })
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
 
-    const transporter = nodemailer.createTransport({
-      host: account.smtp_host,
-      port: account.smtp_port,
-      secure: account.smtp_secure,
-      auth: {
-        user: account.smtp_username,
-        pass: smtpPassword,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-    });
+// ============================
+// POST - criar/atualizar conta
+// ============================
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
 
-    await transporter.verify();
+    const supabase = createAdminClient()
 
-    await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.company_id) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 400 })
+    }
+
+    const encryptionKey = process.env.SMTP_ENCRYPTION_KEY!
+
+    const iv = crypto.randomBytes(16)
+    const cipher = crypto.createCipheriv(
+      'aes-256-gcm',
+      Buffer.from(encryptionKey, 'hex'),
+      iv
+    )
+
+    let encrypted = cipher.update(body.smtp_password, 'utf8', 'hex')
+    encrypted += cipher.final('hex')
+    const tag = cipher.getAuthTag().toString('hex')
+
+    const encryptedPassword = `${iv.toString('hex')}:${encrypted}:${tag}`
+
+    const { error } = await supabase
       .from('email_sending_accounts')
-      .update({
-        last_tested_at: new Date().toISOString(),
-        last_test_status: 'success',
-        last_test_error: null,
-        updated_at: new Date().toISOString(),
+      .insert({
+        company_id: profile.company_id,
+        name: body.name,
+        sender_name: body.sender_name,
+        sender_email: body.sender_email,
+        reply_to_email: body.reply_to_email,
+        smtp_host: body.smtp_host,
+        smtp_port: body.smtp_port,
+        smtp_secure: body.smtp_secure,
+        smtp_username: body.smtp_username,
+        smtp_password_encrypted: encryptedPassword,
       })
-      .eq('id', accountId)
-      .eq('company_id', profile.company_id);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Conexão SMTP validada com sucesso.',
-    });
-  } catch (error: any) {
-    if (accountId) {
-      await supabase
-        .from('email_sending_accounts')
-        .update({
-          last_tested_at: new Date().toISOString(),
-          last_test_status: 'error',
-          last_test_error: error?.message || 'Falha ao testar SMTP.',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', accountId);
+    if (error) {
+      throw error
     }
 
-    return NextResponse.json(
-      {
-        error: 'Falha ao testar SMTP.',
-        details: error?.message || 'Erro interno ao validar conexão SMTP.',
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
