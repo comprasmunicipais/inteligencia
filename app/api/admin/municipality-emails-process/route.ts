@@ -17,44 +17,15 @@ export async function POST() {
       );
     }
 
-    const insertSql = `
-      insert into municipality_emails (
-        municipality_id,
-        email,
-        city_source,
-        state_source,
-        source,
-        created_at,
-        updated_at
-      )
-      select
-        m.id as municipality_id,
-        lower(trim(i.email)) as email,
-        i.cidade,
-        i.uf,
-        'import_prefeituras',
-        now(),
-        now()
-      from public.municipality_emails_import i
-      join public.municipalities m
-        on unaccent(replace(lower(trim(i.cidade)), '-', ' '))
-         = unaccent(replace(lower(trim(m.city)), '-', ' '))
-       and upper(trim(i.uf)) = upper(trim(m.state))
-      where i.email is not null
-        and trim(i.email) <> ''
-      on conflict (email) do nothing;
-    `;
+    const { error: processError } = await supabase.rpc(
+      'process_municipality_emails_import'
+    );
 
-    const { error: rpcError } = await supabase.rpc('exec_sql', {
-      sql: insertSql,
-    });
-
-    if (rpcError) {
+    if (processError) {
       return NextResponse.json(
         {
-          error:
-            'Erro ao processar vínculo dos e-mails. Verifique se a função exec_sql existe no banco.',
-          details: rpcError.message,
+          error: 'Erro ao processar vínculo dos e-mails importados.',
+          details: processError.message,
         },
         { status: 500 }
       );
