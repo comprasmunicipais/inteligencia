@@ -56,6 +56,7 @@ const sidebarItems = [
     items: [
       { name: 'Campanhas', href: '/email/campaigns', icon: Mail },
       { name: 'Audiências', href: '/email/audiences', icon: Users },
+      { name: 'Contas de envio', href: '/email/accounts', icon: Settings },
       { name: 'Templates', href: '/email/templates', icon: Layout },
       { name: 'Histórico', href: '/email/history', icon: History },
     ],
