@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { encryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 type SendingAccountPayload = {
@@ -21,9 +22,34 @@ function normalizeEmail(value?: string | null) {
   return value ? value.trim().toLowerCase() : null;
 }
 
+async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Em Route Handler, às vezes o set não é necessário aqui.
+          }
+        },
+      },
+    }
+  );
+}
+
 export async function GET() {
   try {
-    const supabase = await createAdminClient();
+    const supabase = await createSupabaseServerClient();
 
     const {
       data: { user },
@@ -79,7 +105,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createAdminClient();
+    const supabase = await createSupabaseServerClient();
     const body = (await req.json()) as SendingAccountPayload;
 
     const {
