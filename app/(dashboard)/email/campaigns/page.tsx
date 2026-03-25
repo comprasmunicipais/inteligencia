@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Mail, Plus, Search, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,6 +28,7 @@ type Campaign = {
 
 export default function EmailCampaignsPage() {
   const supabase = createClient();
+  const router = useRouter();
   const { companyId } = useCompany();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -121,9 +123,11 @@ export default function EmailCampaignsPage() {
 
       if (error) throw error;
 
-      setCampaigns((prev) => [data as Campaign, ...prev]);
-      toast.success('Campanha criada com sucesso.');
+      const created = data as Campaign;
+      setCampaigns((prev) => [created, ...prev]);
+      toast.success('Campanha criada. Configure o e-mail.');
       handleCloseCreateModal();
+      router.push(`/email/campaigns/${created.id}`);
     } catch (error) {
       console.error('Erro ao criar campanha:', error);
       toast.error('Erro ao criar campanha.');
@@ -233,7 +237,11 @@ export default function EmailCampaignsPage() {
                 </thead>
                 <tbody>
                   {filteredCampaigns.map((campaign) => (
-                    <tr key={campaign.id} className="border-b border-slate-100">
+                    <tr
+                      key={campaign.id}
+                      onClick={() => router.push(`/email/campaigns/${campaign.id}`)}
+                      className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                    >
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
                       <td className="px-4 py-4 text-sm">

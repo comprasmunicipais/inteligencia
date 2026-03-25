@@ -11,17 +11,14 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-
   if (typeof error === 'string') {
     return error;
   }
-
   return 'Falha ao testar conexão SMTP.';
 }
 
 function sanitizeSmtpError(error: unknown): string {
   const message = getErrorMessage(error);
-
   return message
     .replace(/pass(wo)?rd\s*[:=]\s*[^\s]+/gi, 'password=[redacted]')
     .replace(/user(name)?\s*[:=]\s*[^\s]+/gi, 'username=[redacted]')
@@ -73,20 +70,9 @@ export async function POST(req: NextRequest) {
 
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
-      .select(`
-        id,
-        company_id,
-        name,
-        sender_name,
-        sender_email,
-        reply_to_email,
-        smtp_host,
-        smtp_port,
-        smtp_secure,
-        smtp_username,
-        smtp_password_encrypted,
-        is_active
-      `)
+      .select(
+        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted, is_active'
+      )
       .eq('id', accountId)
       .eq('company_id', companyId)
       .single();
@@ -112,9 +98,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const smtpPassword = decryptEmailSettingSecret(
-      account.smtp_password_encrypted
-    );
+    const smtpPassword = decryptEmailSettingSecret(account.smtp_password_encrypted);
 
     const transporter = nodemailer.createTransport({
       host: account.smtp_host,
@@ -150,9 +134,7 @@ export async function POST(req: NextRequest) {
 
     if (updateSuccessError) {
       return NextResponse.json(
-        {
-          error: `Conexão SMTP validada, mas falhou ao atualizar status no banco: ${updateSuccessError.message}`,
-        },
+        { error: `Conexão validada, mas falhou ao atualizar status: ${updateSuccessError.message}` },
         { status: 500 }
       );
     }
@@ -183,11 +165,6 @@ export async function POST(req: NextRequest) {
         .eq('company_id', companyId);
     }
 
-    return NextResponse.json(
-      {
-        error: sanitizedError,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: sanitizedError }, { status: 500 });
   }
 }

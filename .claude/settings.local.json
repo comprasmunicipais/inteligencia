@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(grep:*)",
+      "Bash(find C:/Projetos/inteligencia/inteligencia -type f \\\\\\(-name *email* -o -name *mail* -o -name *smtp* -o -name *campaign* \\\\\\) ! -path */node_modules/*)"
+    ]
+  }
+}
