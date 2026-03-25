@@ -108,3 +108,35 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+  try {
+    const auth = await getAuthorizedContext();
+
+    if (!auth.authorized) {
+      return auth.response!;
+    }
+
+    const { id } = await context.params;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da fonte é obrigatório.' }, { status: 400 });
+    }
+
+    const { error } = await auth.supabase
+      .from('opportunity_sources')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, id });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message || 'Erro ao excluir fonte.' },
+      { status: 500 }
+    );
+  }
+}
