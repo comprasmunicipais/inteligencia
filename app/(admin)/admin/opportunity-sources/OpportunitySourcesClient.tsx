@@ -95,6 +95,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
   const [sources, setSources] = useState<OpportunitySource[]>(initialSources);
   const [query, setQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState<OpportunitySource | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -122,19 +123,39 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
     });
   }, [query, sources]);
 
-  function openCreateModal() {
-    setFormError(null);
+  function resetForm() {
     setForm({
       url: '',
       source_type: 'licitacao_portal',
       notes: '',
     });
+    setFormError(null);
+  }
+
+  function openCreateModal() {
+    setVerifyMessage(null);
+    setEditingSource(null);
+    resetForm();
     setIsCreateOpen(true);
   }
 
-  function closeCreateModal() {
+  function openEditModal(source: OpportunitySource) {
+    setVerifyMessage(null);
+    setFormError(null);
+    setEditingSource(source);
+    setForm({
+      url: source.url,
+      source_type: source.source_type,
+      notes: source.notes ?? '',
+    });
+    setIsCreateOpen(false);
+  }
+
+  function closeModal() {
     if (isSubmitting) return;
     setIsCreateOpen(false);
+    setEditingSource(null);
+    resetForm();
   }
 
   async function handleCreateSource(e: React.FormEvent<HTMLFormElement>) {
@@ -169,14 +190,57 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
       }
 
       setSources((current) => [result.data, ...current]);
-      setIsCreateOpen(false);
-      setForm({
-        url: '',
-        source_type: 'licitacao_portal',
-        notes: '',
-      });
+      closeModal();
     } catch (error: any) {
       setFormError(error?.message || 'Erro ao criar fonte.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleEditSource(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!editingSource) return;
+
+    setFormError(null);
+    setVerifyMessage(null);
+
+    if (!form.url.trim()) {
+      setFormError('Informe a URL da fonte.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/admin/opportunity-sources/${editingSource.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: form.url.trim(),
+          source_type: form.source_type,
+          notes: form.notes.trim() || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Erro ao editar fonte.');
+      }
+
+      setSources((current) =>
+        current.map((source) =>
+          source.id === editingSource.id ? result.data : source
+        )
+      );
+
+      closeModal();
+    } catch (error: any) {
+      setFormError(error?.message || 'Erro ao editar fonte.');
     } finally {
       setIsSubmitting(false);
     }
@@ -236,6 +300,8 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
       setIsVerifying(false);
     }
   }
+
+  const isModalOpen = isCreateOpen || !!editingSource;
 
   return (
     <div className="p-8 space-y-6">
@@ -409,6 +475,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => openEditModal(source)}
                           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
                         >
                           <Edit className="size-4" />
@@ -432,27 +499,34 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
         </div>
       </div>
 
-      {isCreateOpen ? (
+      {isModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Nova Fonte</h2>
+                <h2 className="text-xl font-black text-slate-900">
+                  {editingSource ? 'Editar Fonte' : 'Nova Fonte'}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Cadastre uma URL complementar ao núcleo soberano do PNCP.
+                  {editingSource
+                    ? 'Atualize os dados da fonte complementar.'
+                    : 'Cadastre uma URL complementar ao núcleo soberano do PNCP.'}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={closeCreateModal}
+                onClick={closeModal}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="size-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSource} className="space-y-5 px-6 py-5">
+            <form
+              onSubmit={editingSource ? handleEditSource : handleCreateSource}
+              className="space-y-5 px-6 py-5"
+            >
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">URL</label>
                 <input
@@ -504,7 +578,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={closeCreateModal}
+                  onClick={closeModal}
                   className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
                 >
                   Cancelar
@@ -515,7 +589,13 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
                   disabled={isSubmitting}
                   className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Salvando...' : 'Salvar fonte'}
+                  {isSubmitting
+                    ? editingSource
+                      ? 'Salvando...'
+                      : 'Salvando...'
+                    : editingSource
+                      ? 'Salvar alterações'
+                      : 'Salvar fonte'}
                 </button>
               </div>
             </form>
