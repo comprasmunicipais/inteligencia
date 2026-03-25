@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: campaignId } = await params;
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
 
   try {
     // ── 1. Auth ──────────────────────────────────────────────────────────────
