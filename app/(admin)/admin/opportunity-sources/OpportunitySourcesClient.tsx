@@ -98,6 +98,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
   const [editingSource, setEditingSource] = useState<OpportunitySource | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
@@ -243,6 +244,40 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
       setFormError(error?.message || 'Erro ao editar fonte.');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteSource(source: OpportunitySource) {
+    const confirmed = window.confirm(
+      `Deseja realmente excluir a fonte?\n\n${source.url}`
+    );
+
+    if (!confirmed) return;
+
+    setVerifyMessage(null);
+    setFormError(null);
+    setDeletingId(source.id);
+
+    try {
+      const response = await fetch(`/api/admin/opportunity-sources/${source.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Erro ao excluir fonte.');
+      }
+
+      setSources((current) =>
+        current.filter((item) => item.id !== source.id)
+      );
+
+      setVerifyMessage('Fonte excluída com sucesso.');
+    } catch (error: any) {
+      setVerifyMessage(error?.message || 'Erro ao excluir fonte.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -484,10 +519,16 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
 
                         <button
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
+                          onClick={() => handleDeleteSource(source)}
+                          disabled={deletingId === source.id}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <Trash2 className="size-4" />
-                          Excluir
+                          {deletingId === source.id ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-4" />
+                          )}
+                          {deletingId === source.id ? 'Excluindo...' : 'Excluir'}
                         </button>
                       </div>
                     </td>
@@ -590,9 +631,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
                   className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting
-                    ? editingSource
-                      ? 'Salvando...'
-                      : 'Salvando...'
+                    ? 'Salvando...'
                     : editingSource
                       ? 'Salvar alterações'
                       : 'Salvar fonte'}
