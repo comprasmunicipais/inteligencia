@@ -42,6 +42,13 @@ type FormState = {
   notes: string;
 };
 
+type VerificationUpdate = {
+  id: string;
+  last_checked_at: string;
+  last_check_status: 'success' | 'error';
+  last_check_error: string | null;
+};
+
 function formatSourceType(value: OpportunitySource['source_type']) {
   switch (value) {
     case 'municipality_portal':
@@ -191,8 +198,16 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
         throw new Error(result?.error || 'Erro ao verificar fontes.');
       }
 
-      const updatesById = new Map(
-        (result.results ?? []).map((item: any) => [item.id, item])
+      const updatesById = new Map<string, VerificationUpdate>(
+        (result.results ?? []).map((item: any) => [
+          item.id,
+          {
+            id: item.id,
+            last_checked_at: item.last_checked_at,
+            last_check_status: item.last_check_status,
+            last_check_error: item.last_check_error,
+          },
+        ])
       );
 
       setSources((current) =>
