@@ -49,6 +49,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
     { icon: Building2, label: 'Empresas', href: '/admin/companies' },
     { icon: Users, label: 'Usuários', href: '/admin/users' },
+
+    // ✅ NOVO ITEM ADICIONADO AQUI
+    { icon: Database, label: 'Fontes de Oportunidades', href: '/admin/opportunity-sources' },
+
     { icon: Activity, label: 'Logs do Sistema', href: '/admin/logs' },
     { icon: ShieldCheck, label: 'Diagnóstico', href: '/admin/system-health' },
     { icon: Settings, label: 'Configurações', href: '/admin/settings' },
