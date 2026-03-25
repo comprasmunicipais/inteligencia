@@ -1,7 +1,16 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Edit, Trash2, Plus, Search, Globe, RefreshCw, X } from 'lucide-react';
+import {
+  Edit,
+  Trash2,
+  Plus,
+  Search,
+  Globe,
+  RefreshCw,
+  X,
+  Loader2,
+} from 'lucide-react';
 
 type Municipality = {
   id: string;
@@ -80,7 +89,9 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
   const [query, setQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     url: '',
     source_type: 'licitacao_portal',
@@ -122,6 +133,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
   async function handleCreateSource(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFormError(null);
+    setVerifyMessage(null);
 
     if (!form.url.trim()) {
       setFormError('Informe a URL da fonte.');
@@ -163,6 +175,53 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
     }
   }
 
+  async function handleVerifySources() {
+    setIsVerifying(true);
+    setVerifyMessage(null);
+    setFormError(null);
+
+    try {
+      const response = await fetch('/api/admin/opportunity-sources/verify', {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Erro ao verificar fontes.');
+      }
+
+      const updatesById = new Map(
+        (result.results ?? []).map((item: any) => [item.id, item])
+      );
+
+      setSources((current) =>
+        current.map((source) => {
+          const update = updatesById.get(source.id);
+
+          if (!update) {
+            return source;
+          }
+
+          return {
+            ...source,
+            last_checked_at: update.last_checked_at,
+            last_check_status: update.last_check_status,
+            last_check_error: update.last_check_error,
+          };
+        })
+      );
+
+      setVerifyMessage(
+        `Verificação concluída. ${result.successCount} com sucesso e ${result.errorCount} com erro.`
+      );
+    } catch (error: any) {
+      setVerifyMessage(error?.message || 'Erro ao verificar fontes.');
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -175,15 +234,33 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-          <Plus className="size-4" />
-          Nova Fonte
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleVerifySources}
+            disabled={isVerifying || sources.filter((item) => item.is_active).length === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isVerifying ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            {isVerifying ? 'Verificando...' : 'Verificar fontes'}
+          </button>
+
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition"
+          >
+            <Plus className="size-4" />
+            Nova Fonte
+          </button>
+        </div>
       </div>
+
+      {verifyMessage ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+          {verifyMessage}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="rounded-2xl bg-white border border-slate-200 p-5">
