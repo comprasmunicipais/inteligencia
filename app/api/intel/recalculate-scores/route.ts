@@ -2,12 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createClient } from '@/lib/supabase/server';
 
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
   let score = 0;
@@ -110,11 +105,36 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+
+    if (userProfileError || !userProfile?.company_id) {
+      return NextResponse.json({ error: 'Empresa não identificada.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { company_id } = body;
 
     if (!company_id) {
       return NextResponse.json({ error: 'company_id obrigatório' }, { status: 400 });
+    }
+
+    if (userProfile.company_id !== company_id) {
+      return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
     }
 
     // Buscar perfil da empresa

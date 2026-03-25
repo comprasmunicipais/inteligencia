@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
 const DEPARTMENT_RULES = [
   {
@@ -80,7 +80,17 @@ function getDepartmentTerms(department: string | null) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const state = searchParams.get('state') || '';
