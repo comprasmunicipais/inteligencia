@@ -319,10 +319,10 @@ async function syncOpportunitiesForCompany(
 }
 
 export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const token = requestUrl.searchParams.get('token');
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-  if (token !== process.env.CRON_SECRET) {
+  if (!token || token !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

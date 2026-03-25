@@ -5,13 +5,16 @@ import { createServerClient } from '@supabase/ssr';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 🔓 libera cron PNCP
+  // 🔓 libera cron PNCP (autenticação via Authorization: Bearer no handler)
   if (pathname.startsWith('/api/pncp/sync')) {
     return NextResponse.next();
   }
 
-  // 🔐 proteger /admin
-  if (pathname.startsWith('/admin')) {
+  // 🔐 proteger /api/admin/* e /admin (requer platform_admin)
+  const isAdminPage = pathname.startsWith('/admin');
+  const isAdminApi = pathname.startsWith('/api/admin');
+
+  if (isAdminPage || isAdminApi) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -28,6 +31,9 @@ export async function middleware(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
+      if (isAdminApi) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
       return NextResponse.redirect(new URL('/login', request.url));
     }
 
@@ -38,6 +44,9 @@ export async function middleware(request: NextRequest) {
       .single();
 
     if (!profile || profile.role !== 'platform_admin') {
+      if (isAdminApi) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
