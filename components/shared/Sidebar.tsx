@@ -17,6 +17,7 @@ import {
   HelpCircle,
   LogOut,
   BarChart3,
+  BarChart2,
   Target,
   RefreshCw,
   ShieldCheck,
@@ -59,6 +60,7 @@ const sidebarItems = [
       { name: 'Contas de envio', href: '/email/accounts', icon: Settings },
       { name: 'Templates', href: '/email/templates', icon: Layout },
       { name: 'Histórico', href: '/email/history', icon: History },
+      { name: 'Estatísticas', href: '/email/estatisticas', icon: BarChart2 },
     ],
   },
   {
