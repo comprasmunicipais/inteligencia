@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Edit, Trash2, Plus, Search, Globe, RefreshCw } from 'lucide-react';
+import { Edit, Trash2, Plus, Search, Globe, RefreshCw, X } from 'lucide-react';
 
 type Municipality = {
   id: string;
@@ -25,6 +25,12 @@ type OpportunitySource = {
 
 type Props = {
   initialSources: OpportunitySource[];
+};
+
+type FormState = {
+  url: string;
+  source_type: OpportunitySource['source_type'];
+  notes: string;
 };
 
 function formatSourceType(value: OpportunitySource['source_type']) {
@@ -70,8 +76,16 @@ function formatDate(value: string | null) {
 }
 
 export default function OpportunitySourcesClient({ initialSources }: Props) {
-  const [sources] = useState<OpportunitySource[]>(initialSources);
+  const [sources, setSources] = useState<OpportunitySource[]>(initialSources);
   const [query, setQuery] = useState('');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>({
+    url: '',
+    source_type: 'licitacao_portal',
+    notes: '',
+  });
 
   const filteredSources = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -90,6 +104,65 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
     });
   }, [query, sources]);
 
+  function openCreateModal() {
+    setFormError(null);
+    setForm({
+      url: '',
+      source_type: 'licitacao_portal',
+      notes: '',
+    });
+    setIsCreateOpen(true);
+  }
+
+  function closeCreateModal() {
+    if (isSubmitting) return;
+    setIsCreateOpen(false);
+  }
+
+  async function handleCreateSource(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!form.url.trim()) {
+      setFormError('Informe a URL da fonte.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/admin/opportunity-sources', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: form.url.trim(),
+          source_type: form.source_type,
+          notes: form.notes.trim() || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Erro ao criar fonte.');
+      }
+
+      setSources((current) => [result.data, ...current]);
+      setIsCreateOpen(false);
+      setForm({
+        url: '',
+        source_type: 'licitacao_portal',
+        notes: '',
+      });
+    } catch (error: any) {
+      setFormError(error?.message || 'Erro ao criar fonte.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -104,6 +177,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
 
         <button
           type="button"
+          onClick={openCreateModal}
           className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition"
         >
           <Plus className="size-4" />
@@ -153,6 +227,7 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
 
           <button
             type="button"
+            onClick={() => window.location.reload()}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
           >
             <RefreshCw className="size-4" />
@@ -264,6 +339,97 @@ export default function OpportunitySourcesClient({ initialSources }: Props) {
           </table>
         </div>
       </div>
+
+      {isCreateOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Nova Fonte</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cadastre uma URL complementar ao núcleo soberano do PNCP.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSource} className="space-y-5 px-6 py-5">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">URL</label>
+                <input
+                  type="url"
+                  required
+                  value={form.url}
+                  onChange={(e) => setForm((current) => ({ ...current, url: e.target.value }))}
+                  placeholder="https://portal.exemplo.gov.br/licitacoes"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Tipo da fonte</label>
+                <select
+                  value={form.source_type}
+                  onChange={(e) =>
+                    setForm((current) => ({
+                      ...current,
+                      source_type: e.target.value as OpportunitySource['source_type'],
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"
+                >
+                  <option value="municipality_portal">Portal da Prefeitura</option>
+                  <option value="licitacao_portal">Portal de Licitação</option>
+                  <option value="transparency_portal">Portal da Transparência</option>
+                  <option value="other">Outro</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Observações</label>
+                <textarea
+                  rows={4}
+                  value={form.notes}
+                  onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
+                  placeholder="Observações internas sobre esta fonte"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {formError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {formError}
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? 'Salvando...' : 'Salvar fonte'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
