@@ -22,7 +22,7 @@ No test runner is configured in this project.
 
 - `app/(dashboard)/` — Authenticated user area (CRM, email marketing, intelligence, settings)
 - `app/(admin)/admin/` — Platform admin area (companies, municipalities, users, system health)
-- `app/api/` — API routes; only `/api/pncp/sync` is public — all others require auth (enforced in `middleware.ts`)
+- `app/api/` — API routes; `/api/pncp/sync` is the only public endpoint — all others require auth
 - `app/login/` — Auth entry point
 
 ### Data Layer
@@ -44,64 +44,163 @@ The core feature: matches government procurement opportunities against company p
 - `lib/intel/` — Types and service layer for opportunity/profile management
 - `lib/pncp/` — PNCP API client, data mapper, and sync logic
 
-Sync is triggered via `POST /api/pncp/sync` (cron-friendly, unauthenticated). Scores are recalculated via `POST /api/intel/recalculate-scores`.
+Sync is triggered via `GET /api/pncp/sync` (cron-friendly; auth via `Authorization: Bearer <CRON_SECRET>` header). Scores are recalculated via `POST /api/intel/recalculate-scores`.
 
 ### AI Integration
 
-Uses `@google/genai` (Gemini) for:
+Uses Gemini (`@google/genai`) for:
 - Proposal generation (`/api/intel/generate-proposal`)
 - Profile consolidation (`/api/intel/consolidate-profile`)
-Requires `GEMINI_API_KEY` environment variable.
+Requires `GOOGLE_API_KEY` environment variable.
 
-### Email System
+### Admin Module
 
-Dual sending path:
-- **Nodemailer** — SMTP via configurable sending accounts (credentials encrypted with `lib/security/email-settings-crypto.ts`)
-- **Resend** — Alternative delivery provider
+Platform admin (`platform_admin` role) features:
+- `opportunity_sources` table — CRUD via `/api/admin/opportunity-sources`, status verification via `/api/admin/opportunity-sources/verify`
+- Municipality email import — `/api/admin/municipality-emails-import` and `/api/admin/municipality-emails-process`
+- All `/api/admin/*` routes are protected at the middleware level (returns 401/403 JSON) **and** inside each handler
 
-#### Email module details
+---
 
-**Supabase client in API routes — critical rule:**
-Always use `createClient()` (from `lib/supabase/server.ts`) in authenticated API routes. `createAdminClient()` bypasses RLS and must only be used for server-to-server operations that explicitly need it (e.g. public sync endpoints). Using `createAdminClient` in authenticated routes breaks session-based auth.
+## Email Marketing Module (complete, validated in production)
 
-**SMTP account storage (`email_sending_accounts`):**
+### Campaign wizard flow
+
+4-step wizard at `/email/campaigns/[id]`:
+1. **Editor** — subject (required), preheader, HTML/preview/plain-text tabs, variable hints
+2. **Audience** — 7 filters (state, municipality, population range, department, strategic, min score, email search); live count via `GET /api/email/audiences/preview`
+3. **Summary** — validation gate; continue disabled if not ready
+4. **Send** — account selector, truncation warning, confirmation checkbox, `POST /api/email/campaigns/[id]/send`
+
+Required `email_campaigns` columns:
+```sql
+subject TEXT, preheader TEXT, html_content TEXT, text_content TEXT,
+audience_filters JSONB, sending_account_id UUID, sent_at TIMESTAMPTZ,
+sent_count INT DEFAULT 0, failed_count INT DEFAULT 0
+```
+
+### Campaign send API (`POST /api/email/campaigns/[id]/send`)
+
+- Rebuilds audience query from `audience_filters JSONB` (mirrors `/api/email/audiences/preview` logic)
+- Caps send at `min(hourly_limit, 2000)` rows
+- Substitutes `[Nome]`, `[Municipio]`, `[Estado]` in subject, HTML, and plain text
+- Calls `injectTracking(html, campaignId, recipientEmail)` before sending each message — wraps `href` links and appends open pixel
+- Updates campaign: `status='Ativa'`, `sent_at`, `sent_count`, `failed_count`, `sending_account_id`
+
+### Email tracking
+
+Requires `email_events` table (run once in Supabase):
+```sql
+CREATE TABLE IF NOT EXISTS public.email_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL REFERENCES email_campaigns(id) ON DELETE CASCADE,
+  recipient_email text NOT NULL,
+  event_type text NOT NULL CHECK (event_type IN ('open', 'click')),
+  link_url text NULL,
+  tracked_at timestamptz NOT NULL DEFAULT now(),
+  ip_address text NULL,
+  user_agent text NULL
+);
+CREATE INDEX ON email_events(campaign_id);
+CREATE INDEX ON email_events(recipient_email);
+ALTER TABLE email_events ENABLE ROW LEVEL SECURITY;
+```
+
+- **Open pixel** — `GET /api/email/track/open?campaign_id=&email=` — returns 1×1 transparent GIF, records `open` event. No auth. Fails silently.
+- **Click redirect** — `GET /api/email/track/click?campaign_id=&email=&url=` — records `click` event, redirects 302 to destination. Validates `http/https` only to prevent open-redirect.
+- **Tracking stats** — `GET /api/email/tracking-stats` — authenticated; aggregates unique opens/clicks per campaign in JS from `email_events`. Uses `createAdminClient` for the DB read (no SELECT RLS policy on `email_events` yet).
+- Base URL for tracking links: `process.env.NEXT_PUBLIC_APP_URL` (fallback: `https://inteligencia-sooty.vercel.app`)
+
+### SMTP account storage (`email_sending_accounts`)
+
 - Isolated per company via RLS on `company_id`
 - Password never stored in plain text — always encrypted before insert/update
 - `smtp_password_encrypted` column stores the ciphertext; the column `smtp_password` does not exist
 - PATCH (update) must only re-encrypt the password if a new one is provided; omit the field otherwise
 
-**Encryption (`lib/security/email-settings-crypto.ts`):**
+### Encryption (`lib/security/email-settings-crypto.ts`)
+
 - Algorithm: AES-256-GCM
 - Key: env var `EMAIL_SETTINGS_ENCRYPTION_KEY` — hex string, exactly 64 chars (256 bits)
 - Ciphertext format: `"iv:authTag:encryptedData"` (all hex-encoded)
 - Functions: `encryptEmailSettingSecret(plainText)` / `decryptEmailSettingSecret(payload)`
 
-**SMTP endpoint (`POST /api/email/test-connection`):**
+### SMTP test endpoint (`POST /api/email/test-connection`)
+
 - Uses nodemailer `transporter.verify()` to test credentials
 - Saves `last_tested_at`, `last_test_status` (`'success'` | `'error'`), `last_test_error` on the account row
 - Sanitizes error messages before storing (redacts password/username tokens)
 - Timeouts: `connectionTimeout=15000`, `greetingTimeout=15000`, `socketTimeout=20000`
 
-**SMTP ports for email-ssl.com.br (and similar Brazilian providers):**
+### SMTP ports for Brazilian providers (email-ssl.com.br and similar)
+
 - Port **465** — SSL/TLS (`smtp_secure: true`)
 - Port **587** — STARTTLS (`smtp_secure: false`, `requireTLS: true`)
 - Port **993** is IMAP — never use it for SMTP sending
 
-**Campaign send API (`POST /api/email/campaigns/[id]/send`):**
-- Rebuilds audience query from `audience_filters JSONB` stored on the campaign
-- Caps send at `min(hourly_limit, 2000)` rows
-- Substitutes `[Nome]`, `[Municipio]`, `[Estado]` in subject, HTML, and plain text
-- Updates campaign: `status='Ativa'`, `sent_at`, `sent_count`, `failed_count`, `sending_account_id`
+---
 
-### Key Environment Variables
+## Security Rules (audited and enforced)
+
+### Critical: Supabase client choice
+
+**NEVER use `createAdminClient()` in authenticated routes.** It bypasses cookies/session so `auth.getUser()` returns null → always 401.
+
+**ALWAYS use `createClient()` from `lib/supabase/server.ts`** in any route that requires a user session.
+
+`createAdminClient()` is only valid for:
+- Public server-to-server endpoints (`/api/pncp/sync`)
+- Writing tracking events from unauthenticated callers (`/api/email/track/*`)
+- Reading data that has no SELECT RLS policy when called from an already-authenticated API handler
+
+### Auth pattern for every authenticated route
+
+```typescript
+const supabase = await createClient();
+const { data: { user }, error: userError } = await supabase.auth.getUser();
+if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
+if (!profile?.company_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+// Always validate the company_id from the profile against the resource being accessed:
+if (profile.company_id !== body.company_id) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+```
+
+### Auth pattern for platform_admin routes
+
+```typescript
+const authClient = await createClient();
+const { data: { user } } = await authClient.auth.getUser();
+if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+const { data: profile } = await authClient.from('profiles').select('role').eq('id', user.id).single();
+if (!profile || profile.role !== 'platform_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+const supabase = await createAdminClient(); // safe here — auth already verified
+```
+
+### Middleware protection (`middleware.ts`)
+
+- `/api/pncp/sync` — bypassed (auth handled in handler via `Authorization: Bearer`)
+- `/admin/*` — requires `platform_admin`; redirects to `/login` or `/dashboard`
+- `/api/admin/*` — requires `platform_admin`; returns JSON 401/403 (no redirect for API routes)
+- All other routes — `NextResponse.next()` (route handlers self-authenticate)
+
+---
+
+## Key Environment Variables
 
 ```
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
-GEMINI_API_KEY
+GOOGLE_API_KEY
+EMAIL_SETTINGS_ENCRYPTION_KEY   # 64-char hex, AES-256-GCM
+NEXT_PUBLIC_APP_URL              # e.g. https://inteligencia-sooty.vercel.app
+CRON_SECRET                      # passed as Authorization: Bearer header to /api/pncp/sync
 ```
 
-### Path Alias
+## Path Alias
 
 `@/*` maps to the project root (configured in `tsconfig.json`). Use this for all imports.
