@@ -5,9 +5,10 @@ import { createServerClient } from '@supabase/ssr';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 🔓 rotas públicas
+  // 🔓 rotas públicas — sem verificação de sessão
   if (
     pathname.startsWith('/api/pncp/sync') ||
+    pathname.startsWith('/api/email/track') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/api/auth')
@@ -15,20 +16,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Cria um response mutável para que o Supabase possa escrever cookies de
+  // refresh de token de volta ao browser. Sem isso, setAll() é no-op e sessões
+  // com access token expirado aparecem como não autenticadas.
+  let response = NextResponse.next({ request });
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: () => {},
+        setAll(cookiesToSet) {
+          // Propaga os cookies atualizados tanto no request quanto na response
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
+        },
       },
-    }
+    },
   );
 
+  // getUser() valida o JWT com o servidor e renova via refresh token se necessário
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 🔐 sem sessão → redireciona para login
+  // 🔐 sem sessão válida
   if (!user) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -55,7 +69,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // Retorna o response com os cookies de sessão atualizados
+  return response;
 }
 
 export const config = {
