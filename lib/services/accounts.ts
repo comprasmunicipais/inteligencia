@@ -92,6 +92,20 @@ export const accountService = {
       .single();
 
     if (error) throw error;
+
+    if (data.email) {
+      await supabase.from('municipality_emails').upsert(
+        {
+          municipality_id: data.id,
+          email: data.email,
+          department_label: 'institucional',
+          source: 'manual',
+          is_strategic: true,
+        },
+        { onConflict: 'municipality_id,email' }
+      );
+    }
+
     return mapMunicipalityToDTO(data);
   },
 
@@ -104,6 +118,20 @@ export const accountService = {
       .single();
 
     if (error) throw error;
+
+    if (updates.email) {
+      await supabase.from('municipality_emails').upsert(
+        {
+          municipality_id: id,
+          email: updates.email,
+          department_label: 'institucional',
+          source: 'manual',
+          is_strategic: true,
+        },
+        { onConflict: 'municipality_id,email' }
+      );
+    }
+
     return mapMunicipalityToDTO(data);
   },
 
