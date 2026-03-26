@@ -164,6 +164,47 @@ ALTER TABLE email_events ENABLE ROW LEVEL SECURITY;
 
 ---
 
+## Security Audit — March 2026
+
+Full audit completed 2026-03-26. All critical and medium issues resolved.
+
+### RLS policies (applied via migrations)
+
+All tables use `USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()))`:
+- `contacts`, `contracts`, `deals`, `tasks`, `proposals`, `timeline_events`, `municipality_documents` — replaced unsafe `USING (true)` policies
+- `email_job_queue` — policy added (table had RLS enabled but no policy)
+- `email_campaigns`, `email_sending_accounts` — already correct (confirmed via Supabase)
+- `email_events` — `FOR SELECT` scoped via `campaign_id IN (SELECT id FROM email_campaigns WHERE company_id = ...)`
+
+### Atomic RPCs (all `SECURITY DEFINER`)
+
+| Function | Purpose |
+|----------|---------|
+| `claim_email_jobs(p_limit)` | SELECT FOR UPDATE SKIP LOCKED — prevents two workers processing the same job |
+| `finalize_campaign_if_complete(p_campaign_id)` | Atomic NOT EXISTS check + UPDATE — prevents premature `'Ativa'` status |
+| `insert_sending_account_if_under_limit(...)` | Atomic COUNT + INSERT — enforces 5-account limit without race condition |
+| `increment_campaign_counts(p_campaign_id, p_sent, p_failed)` | Atomic counter increment |
+
+### Other fixes applied
+
+- `track/click` and `track/open`: validate `campaign_id` exists before inserting `email_events`
+- `send/route.ts`: explicit 403 if `sending_account_id.company_id ≠ session company_id`
+- `sender-settings/route.ts`: `createAdminClient()` instantiated only after `auth.getUser()` succeeds
+- `sending-accounts POST`: replaced non-atomic COUNT+INSERT with `insert_sending_account_if_under_limit` RPC
+
+### Pending migrations (run in Supabase SQL Editor or `npx supabase db push`)
+
+```
+supabase/migrations/20260326_email_job_queue.sql
+supabase/migrations/20260326_fix_rls_policies.sql
+supabase/migrations/20260326_email_job_queue_claimed_at.sql
+supabase/migrations/20260326_finalize_campaign_if_complete.sql
+supabase/migrations/20260326_email_events_rls.sql
+supabase/migrations/20260326_insert_sending_account_if_under_limit.sql
+```
+
+---
+
 ## Security Rules (audited and enforced)
 
 ### Critical: Supabase client choice
