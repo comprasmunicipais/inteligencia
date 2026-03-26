@@ -145,7 +145,14 @@ export default function AccountsPage() {
     }
     try {
       console.log('editingAccount antes do update:', editingAccount);
-      const updated = await accountService.update(editingAccount.id, editingAccount);
+      const updated = await accountService.update(editingAccount.id, {
+        name: editingAccount.name,
+        city: editingAccount.city,
+        state: editingAccount.state,
+        mayor_name: editingAccount.mayor_name,
+        website: editingAccount.website,
+        email: editingAccount.email,
+      });
       setAccounts(accounts.map(acc => acc.id === updated.id ? updated : acc));
       setIsEditModalOpen(false);
       setEditingAccount(null);
