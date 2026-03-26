@@ -16,6 +16,16 @@ export async function GET(request: NextRequest) {
   if (campaignId && email && url) {
     try {
       const supabase = await createAdminClient();
+
+      const { count } = await supabase
+        .from('email_campaigns')
+        .select('id', { count: 'exact', head: true })
+        .eq('id', campaignId);
+
+      if (!count) {
+        return NextResponse.redirect(destination, { status: 302 });
+      }
+
       await supabase.from('email_events').insert({
         campaign_id: campaignId,
         recipient_email: email,

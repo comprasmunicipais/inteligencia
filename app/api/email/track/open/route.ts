@@ -18,6 +18,24 @@ export async function GET(request: NextRequest) {
   if (campaignId && email) {
     try {
       const supabase = await createAdminClient();
+
+      const { count } = await supabase
+        .from('email_campaigns')
+        .select('id', { count: 'exact', head: true })
+        .eq('id', campaignId);
+
+      if (!count) {
+        return new NextResponse(TRANSPARENT_GIF, {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/gif',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        });
+      }
+
       await supabase.from('email_events').insert({
         campaign_id: campaignId,
         recipient_email: email,
