@@ -1,5 +1,6 @@
 'use client';
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -16,59 +17,55 @@ interface CompanyContextType {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useRef(createClient()).current; // instância única
   const [user, setUser] = useState<User | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const loadUserData = useCallback(async (currentUser: User) => {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id, role')
-      .eq('id', currentUser.id)
-      .single();
-
-    if (profile) {
-      setCompanyId(profile.company_id);
-      setRole(profile.role as UserRole);
-    } else {
-      console.warn('Profile not found for user:', currentUser.id);
-      setCompanyId(null);
-      setRole('user');
-    }
-  }, [supabase]);
+  const supabase = createClient();
 
   useEffect(() => {
-    const init = async () => {
+    const getUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+
       if (user) {
-        setUser(user);
-        await loadUserData(user);
-      } else {
-        setUser(null);
-        setCompanyId(null);
-        setRole(null);
+        // In a real scenario, we would fetch the user's profile from a 'profiles' or 'users' table
+        // For now, we'll mock the company_id and role from user metadata or a mock fetch
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id, role')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          setCompanyId(profile.company_id);
+          setRole(profile.role as UserRole);
+        } else {
+          // Fallback for development if profile doesn't exist yet
+          // In production, we should probably redirect to a setup page or show an error
+          console.warn('Profile not found for user:', user.id);
+          setCompanyId(null);
+          setRole('user'); // Default to basic user role
+        }
       }
+
       setLoading(false);
     };
 
-    init();
+    getUserData();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        await loadUserData(session.user);
-      } else {
-        setUser(null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (!session) {
         setCompanyId(null);
         setRole(null);
+      } else {
+        getUserData();
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, loadUserData]);
+  }, [supabase]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
