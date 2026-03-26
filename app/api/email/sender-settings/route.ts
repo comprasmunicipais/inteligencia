@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { encryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 type SenderSettingsPayload = {
@@ -22,7 +22,7 @@ function normalizeEmail(value?: string | null) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createAdminClient();
+    const authClient = await createClient();
     const body = (await req.json()) as SenderSettingsPayload;
 
     const {
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (userError || !user) {
       return NextResponse.json(
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await authClient
       .from('profiles')
       .select('company_id')
       .eq('id', user.id)
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const supabase = await createAdminClient(); // safe — auth already verified above
     const encryptedPassword = encryptEmailSettingSecret(smtp_password);
 
     const payloadToSave = {

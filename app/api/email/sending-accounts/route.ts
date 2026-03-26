@@ -98,56 +98,39 @@ export async function POST(req: NextRequest) {
     const auth = await getAuthenticatedCompany(supabase);
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    const { count, error: countError } = await supabase
-      .from('email_sending_accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', auth.companyId);
-
-    if (countError) {
-      return NextResponse.json(
-        { error: `Erro ao validar limite de contas: ${countError.message}` },
-        { status: 500 }
-      );
-    }
-
-    if ((count || 0) >= 5) {
-      return NextResponse.json(
-        { error: 'Limite máximo de 5 contas de envio por empresa atingido.' },
-        { status: 400 }
-      );
-    }
-
     const encryptedPassword = encryptEmailSettingSecret(smtp_password);
 
-    const { data, error } = await supabase
-      .from('email_sending_accounts')
-      .insert({
-        company_id: auth.companyId,
-        name: name.trim(),
-        sender_name: sender_name.trim(),
-        sender_email: normalizeEmail(sender_email),
-        reply_to_email: normalizeEmail(reply_to_email),
-        smtp_host: smtp_host.trim(),
-        smtp_port: Number(smtp_port),
-        smtp_secure: Boolean(smtp_secure),
-        smtp_username: smtp_username.trim(),
-        smtp_password_encrypted: encryptedPassword,
-        daily_limit: daily_limit ?? 500,
-        hourly_limit: hourly_limit ?? 100,
-        is_active: is_active ?? true,
-        updated_at: new Date().toISOString(),
-      })
-      .select(
-        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, daily_limit, hourly_limit, is_active, last_tested_at, last_test_status, last_test_error, created_at, updated_at'
-      )
-      .single();
+    const { data: rows, error } = await supabase.rpc('insert_sending_account_if_under_limit', {
+      p_company_id:        auth.companyId,
+      p_name:              name.trim(),
+      p_sender_name:       sender_name.trim(),
+      p_sender_email:      normalizeEmail(sender_email),
+      p_reply_to_email:    normalizeEmail(reply_to_email),
+      p_smtp_host:         smtp_host.trim(),
+      p_smtp_port:         Number(smtp_port),
+      p_smtp_secure:       Boolean(smtp_secure),
+      p_smtp_username:     smtp_username.trim(),
+      p_smtp_password_enc: encryptedPassword,
+      p_daily_limit:       daily_limit ?? 500,
+      p_hourly_limit:      hourly_limit ?? 100,
+      p_is_active:         is_active ?? true,
+      p_updated_at:        new Date().toISOString(),
+    });
 
     if (error) {
+      if (error.message?.includes('LIMIT_EXCEEDED')) {
+        return NextResponse.json(
+          { error: 'Limite máximo de 5 contas de envio por empresa atingido.' },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         { error: `Erro ao salvar conta de envio: ${error.message}` },
         { status: 500 }
       );
     }
+
+    const data = Array.isArray(rows) ? rows[0] : rows;
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
