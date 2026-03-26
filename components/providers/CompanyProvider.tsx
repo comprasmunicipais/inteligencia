@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -16,13 +16,13 @@ interface CompanyContextType {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useRef(createClient()).current; // instância única
   const [user, setUser] = useState<User | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadUserData = useCallback(async (currentUser: User) => {
-    const supabase = createClient();
     const { data: profile } = await supabase
       .from('profiles')
       .select('company_id, role')
@@ -37,11 +37,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setCompanyId(null);
       setRole('user');
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
-    const supabase = createClient();
-
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -70,10 +68,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [loadUserData]);
+  }, [supabase, loadUserData]);
 
   const signOut = async () => {
-    const supabase = createClient();
     await supabase.auth.signOut();
   };
 
