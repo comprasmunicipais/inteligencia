@@ -227,28 +227,17 @@ export async function GET(req: NextRequest) {
     const deltaSent = campaignSent.get(cid) ?? 0;
     const deltaFailed = campaignFailed.get(cid) ?? 0;
 
-    // Check if there are still pending or processing jobs for this campaign
-    const { count } = await supabase
-      .from('email_job_queue')
-      .select('id', { count: 'exact', head: true })
-      .eq('campaign_id', cid)
-      .in('status', ['pending', 'processing']);
-
-    // Increment counters using RPC to avoid race conditions
+    // Increment counters atomically
     await supabase.rpc('increment_campaign_counts', {
       p_campaign_id: cid,
       p_sent: deltaSent,
       p_failed: deltaFailed,
     });
 
-    // If no more pending jobs, mark campaign as 'Ativa'
-    if ((count ?? 0) === 0) {
-      await supabase
-        .from('email_campaigns')
-        .update({ status: 'Ativa', sent_at: new Date().toISOString() })
-        .eq('id', cid)
-        .eq('status', 'Agendada');
-    }
+    // Atomically finalize campaign if no pending/processing jobs remain
+    await supabase.rpc('finalize_campaign_if_complete', {
+      p_campaign_id: cid,
+    });
   }
 
   return NextResponse.json({ processed: jobs.length, sent, failed });
