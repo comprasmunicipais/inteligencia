@@ -51,7 +51,7 @@ import EmptyState from '@/components/shared/EmptyState';
 
 export default function AccountsPage() {
   const router = useRouter();
-  const { companyId } = useCompany();
+  const { companyId, role } = useCompany();
   
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<MunicipalityDTO[]>([]);
@@ -289,13 +289,15 @@ export default function AccountsPage() {
                 Filtrar
               </button>
 
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-white hover:bg-[#0a3690] transition-colors shadow-sm font-bold text-sm"
-              >
-                <Plus className="size-4" />
-                Adicionar Prefeitura
-              </button>
+              {role === 'platform_admin' && (
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-white hover:bg-[#0a3690] transition-colors shadow-sm font-bold text-sm"
+                >
+                  <Plus className="size-4" />
+                  Adicionar Prefeitura
+                </button>
+              )}
             </div>
           </div>
 
@@ -413,15 +415,19 @@ export default function AccountsPage() {
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/crm/accounts/${account.id}`); }}>
                               <Eye className="size-4 mr-2" /> Ver Detalhes
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsEditModalOpen(true); }}>
-                              <Edit className="size-4 mr-2" /> Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={(e) => { e.stopPropagation(); setDeletingAccount(account); setIsDeleteModalOpen(true); }}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="size-4 mr-2" /> Excluir
-                            </DropdownMenuItem>
+                            {role === 'platform_admin' && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsEditModalOpen(true); }}>
+                                <Edit className="size-4 mr-2" /> Editar
+                              </DropdownMenuItem>
+                            )}
+                            {role === 'platform_admin' && (
+                              <DropdownMenuItem
+                                onClick={(e) => { e.stopPropagation(); setDeletingAccount(account); setIsDeleteModalOpen(true); }}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="size-4 mr-2" /> Excluir
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

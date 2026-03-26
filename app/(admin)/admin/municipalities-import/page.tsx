@@ -13,6 +13,8 @@ import {
   Mail,
   Building2,
   Cog,
+  Plus,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -43,6 +45,31 @@ type EmailImportMode = 'append' | 'replace';
 
 export default function MunicipalitiesImportPage() {
   const { user } = useCompany();
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addingSaving, setAddingSaving] = useState(false);
+  const [newMunicipality, setNewMunicipality] = useState({
+    name: '', city: '', state: '', mayor_name: '', website: '', email: '',
+  });
+
+  const handleAddMunicipality = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMunicipality.name || !newMunicipality.city || !newMunicipality.state) {
+      toast.error('Preencha Nome, Cidade e Estado.');
+      return;
+    }
+    setAddingSaving(true);
+    try {
+      await accountService.create(newMunicipality as any);
+      toast.success('Prefeitura adicionada com sucesso!');
+      setIsAddModalOpen(false);
+      setNewMunicipality({ name: '', city: '', state: '', mayor_name: '', website: '', email: '' });
+    } catch {
+      toast.error('Erro ao adicionar prefeitura.');
+    } finally {
+      setAddingSaving(false);
+    }
+  };
 
   const [importTarget, setImportTarget] = useState<ImportTarget>('municipalities');
   const [municipalityImportMode, setMunicipalityImportMode] =
@@ -563,8 +590,63 @@ export default function MunicipalitiesImportPage() {
         subtitle="Escolha se deseja atualizar a base de prefeituras ou importar nova lista de e-mails."
       />
 
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-black text-gray-900">Adicionar Prefeitura</h2>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="size-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddMunicipality} className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Nome *</label>
+                <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" value={newMunicipality.name} onChange={(e) => setNewMunicipality(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Cidade *</label>
+                <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" value={newMunicipality.city} onChange={(e) => setNewMunicipality(p => ({ ...p, city: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Estado (UF) *</label>
+                <input maxLength={2} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" value={newMunicipality.state} onChange={(e) => setNewMunicipality(p => ({ ...p, state: e.target.value.toUpperCase() }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Prefeito</label>
+                <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" value={newMunicipality.mayor_name} onChange={(e) => setNewMunicipality(p => ({ ...p, mayor_name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Website</label>
+                <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" value={newMunicipality.website} onChange={(e) => setNewMunicipality(p => ({ ...p, website: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">E-mail Institucional</label>
+                <input type="email" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/20" placeholder="contato@prefeitura.gov.br" value={newMunicipality.email} onChange={(e) => setNewMunicipality(p => ({ ...p, email: e.target.value }))} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
+                <button type="submit" disabled={addingSaving} className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a3690] disabled:opacity-60">
+                  {addingSaving && <Loader2 className="size-4 animate-spin" />}
+                  Salvar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-8">
         <div className="mx-auto max-w-5xl space-y-8">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#0a3690]"
+            >
+              <Plus className="size-4" />
+              Adicionar Prefeitura
+            </button>
+          </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <button
               type="button"
