@@ -102,7 +102,7 @@ export const accountService = {
           source: 'manual',
           is_strategic: true,
         },
-        { onConflict: 'municipality_id,email' }
+        { onConflict: 'email' }
       );
     }
 
@@ -128,7 +128,7 @@ export const accountService = {
           source: 'manual',
           is_strategic: true,
         },
-        { onConflict: 'municipality_id,email' }
+        { onConflict: 'email' }
       );
     }
 
