@@ -4,10 +4,6 @@
     {
       "path": "/api/pncp/sync",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/email/queue/process",
-      "schedule": "0 * * * *"
     }
   ]
 }
