@@ -984,12 +984,11 @@ function SendStep({
 
       {/* Truncation warning */}
       {willTruncate && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-          <p className="text-sm text-amber-800">
-            A audiência tem <strong>{audienceCount.toLocaleString('pt-BR')}</strong> destinatários, mas o limite
-            horário da conta é <strong>{selected!.hourly_limit.toLocaleString('pt-BR')}</strong>.
-            Serão enviados <strong>{effectiveCount.toLocaleString('pt-BR')}</strong> e-mails neste disparo.
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
+          <p className="text-sm text-blue-800">
+            Sua campanha será enviada em lotes de 100 e-mails por hora até atingir todos os{' '}
+            <strong>{audienceCount.toLocaleString('pt-BR')}</strong> destinatários.
           </p>
         </div>
       )}
@@ -1004,15 +1003,10 @@ function SendStep({
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-4xl font-bold text-[#0f172a]">
-            {effectiveCount.toLocaleString('pt-BR')}
+            {audienceCount.toLocaleString('pt-BR')}
           </span>
-          <span className="text-sm text-slate-500">e-mails serão enviados</span>
+          <span className="text-sm text-slate-500">destinatários no total</span>
         </div>
-        {willTruncate && (
-          <p className="mt-1 text-xs text-amber-700">
-            ({(audienceCount - effectiveCount).toLocaleString('pt-BR')} ignorados por limite horário)
-          </p>
-        )}
       </div>
 
       {/* Confirmation checkbox */}
