@@ -64,10 +64,11 @@ export default function AccountsPage() {
   
   const [newAccount, setNewAccount] = useState<Partial<MunicipalityDTO>>({ 
     name: '', 
-    state: '', 
+    state: '',
     city: '',
-    mayor_name: '', 
-    website: ''
+    mayor_name: '',
+    website: '',
+    email: ''
   });
   const [editingAccount, setEditingAccount] = useState<MunicipalityDTO | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<MunicipalityDTO | null>(null);
@@ -126,7 +127,7 @@ export default function AccountsPage() {
       const created = await accountService.create(newAccount as any);
       setAccounts([created, ...accounts]);
       setIsAddModalOpen(false);
-      setNewAccount({ name: '', state: '', city: '', mayor_name: '', website: '' });
+      setNewAccount({ name: '', state: '', city: '', mayor_name: '', website: '', email: '' });
       toast.success('Prefeitura adicionada com sucesso!');
     } catch (error) {
       toast.error('Erro ao adicionar prefeitura.');
@@ -476,6 +477,10 @@ export default function AccountsPage() {
                 <label className="text-right text-sm font-bold text-gray-700">Website</label>
                 <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={editingAccount.website} onChange={(e) => setEditingAccount({ ...editingAccount, website: e.target.value })} />
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label className="text-right text-sm font-bold text-gray-700">E-mail Institucional</label>
+                <input type="email" className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="contato@prefeitura.gov.br" value={editingAccount.email ?? ''} onChange={(e) => setEditingAccount({ ...editingAccount, email: e.target.value })} />
+              </div>
               <DialogFooter className="pt-4">
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
                 <button type="submit" className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">Salvar Alterações</button>
@@ -528,6 +533,10 @@ export default function AccountsPage() {
             <div className="grid grid-cols-4 items-center gap-4">
               <label className="text-right text-sm font-bold text-gray-700">Website</label>
               <input className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="https://..." value={newAccount.website} onChange={(e) => setNewAccount({ ...newAccount, website: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label className="text-right text-sm font-bold text-gray-700">E-mail Institucional</label>
+              <input type="email" className="col-span-3 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="contato@prefeitura.gov.br" value={newAccount.email} onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })} />
             </div>
             <DialogFooter className="pt-4">
               <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
