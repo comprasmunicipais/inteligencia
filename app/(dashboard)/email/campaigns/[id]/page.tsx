@@ -983,7 +983,7 @@ function SendStep({
       </div>
 
       {/* Truncation warning */}
-      {willTruncate && (
+      {audienceCount > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
           <p className="text-sm text-blue-800">
@@ -1019,7 +1019,7 @@ function SendStep({
         />
         <span className="text-sm text-slate-700">
           Confirmo o envio de{' '}
-          <strong>{effectiveCount.toLocaleString('pt-BR')} e-mails</strong>
+          <strong>{audienceCount.toLocaleString('pt-BR')} e-mails</strong>
           {selected ? ` via conta "${selected.name}"` : ''}.
           Esta ação não pode ser desfeita.
         </span>
