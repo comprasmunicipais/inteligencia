@@ -294,6 +294,14 @@ export default function AccountDetailPage() {
       setAccount(updated);
       setIsEditModalOpen(false);
       toast.success('Prefeitura atualizada com sucesso!');
+
+      if (editData.email) {
+        await fetch(`/api/crm/accounts/${account!.id}/sync-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: editData.email }),
+        });
+      }
     } catch (error) {
       toast.error('Erro ao atualizar prefeitura.');
     }
