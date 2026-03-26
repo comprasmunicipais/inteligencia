@@ -59,6 +59,14 @@ Platform admin (`platform_admin` role) features:
 - `opportunity_sources` table — CRUD via `/api/admin/opportunity-sources`, status verification via `/api/admin/opportunity-sources/verify`
 - Municipality email import — `/api/admin/municipality-emails-import` and `/api/admin/municipality-emails-process`
 - All `/api/admin/*` routes are protected at the middleware level (returns 401/403 JSON) **and** inside each handler
+- **Edit/delete municipalities restricted to `platform_admin`** — UI and API enforce role check before allowing mutations
+
+### Municipality emails (`municipality_emails`)
+
+When saving an institutional email on a municipality record, always perform an upsert into `municipality_emails` with:
+- `source = 'manual'`
+- `department_label = 'institucional'`
+- `is_strategic = true`
 
 ---
 
@@ -82,10 +90,26 @@ sent_count INT DEFAULT 0, failed_count INT DEFAULT 0
 ### Campaign send API (`POST /api/email/campaigns/[id]/send`)
 
 - Rebuilds audience query from `audience_filters JSONB` (mirrors `/api/email/audiences/preview` logic)
-- Caps send at `min(hourly_limit, 2000)` rows
-- Substitutes `[Nome]`, `[Municipio]`, `[Estado]` in subject, HTML, and plain text
-- Calls `injectTracking(html, campaignId, recipientEmail)` before sending each message — wraps `href` links and appends open pixel
-- Updates campaign: `status='Ativa'`, `sent_at`, `sent_count`, `failed_count`, `sending_account_id`
+- **Does NOT send immediately** — inserts all recipients into `email_job_queue` (no row limit)
+- Updates campaign: `status='Agendada'`, `sending_account_id`
+- Returns `{ queued, total }`
+
+### Email job queue (`email_job_queue`)
+
+Batched sending system — processes 100 emails/hour via cron.
+
+```sql
+-- Key columns
+id uuid, campaign_id uuid, company_id uuid, sending_account_id uuid,
+recipient_email text, recipient_name text, municipality text, state text,
+status text DEFAULT 'pending',  -- 'pending' | 'sent' | 'failed'
+created_at timestamptz, sent_at timestamptz NULL
+```
+
+- **Queue processor** — `GET /api/email/queue/process` — fetches up to 100 `pending` rows, sends via nodemailer with tracking injection, marks `sent`/`failed`, increments `sent_count`/`failed_count` via `increment_campaign_counts` RPC, flips campaign to `status='Ativa'` when no pending jobs remain
+- **Auth**: `Authorization: Bearer <CRON_SECRET>` header required
+- **Supabase Edge Function** — `supabase/functions/process-email-queue/index.ts` — calls the queue processor endpoint; deployed to project `iqadumkswzemlvzuetsq`
+- **Cron**: configured via `pg_cron` in Supabase at schedule `0 * * * *`
 
 ### Email tracking
 
@@ -204,3 +228,20 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 ## Path Alias
 
 `@/*` maps to the project root (configured in `tsconfig.json`). Use this for all imports.
+
+---
+
+## Pricing Plans
+
+| Plan | Emails/month |
+|------|-------------|
+| Standard | 10,000 |
+| Pro | 20,000 |
+| Excellence | 50,000 |
+
+---
+
+## Build Rules
+
+- **NEVER include `supabase/functions/` in the Next.js build.** The folder is excluded via `tsconfig.json` `exclude: ["supabase"]`. Edge Functions use Deno and are incompatible with the Next.js TypeScript compiler.
+- Deploy Edge Functions only via `supabase functions deploy`, never via Next.js build pipeline.
