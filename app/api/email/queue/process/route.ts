@@ -70,13 +70,12 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // ── 2. Fetch up to BATCH_SIZE pending jobs ──────────────────────────────
-  const { data: jobs, error: jobsError } = await supabase
-    .from('email_job_queue')
-    .select('id, campaign_id, company_id, sending_account_id, recipient_email, recipient_name, municipality, state')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(BATCH_SIZE);
+  // ── 2. Atomically claim up to BATCH_SIZE pending jobs ───────────────────
+  // UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING *
+  // guarantees two concurrent workers never claim the same job.
+  const { data: jobs, error: jobsError } = await supabase.rpc('claim_email_jobs', {
+    p_limit: BATCH_SIZE,
+  });
 
   if (jobsError) {
     console.error('[queue-process] Erro ao buscar jobs:', jobsError.message);
@@ -88,7 +87,16 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 3. Group jobs by sending_account_id to reuse transporters ──────────
-  type Job = (typeof jobs)[number];
+  type Job = {
+    id: string;
+    campaign_id: string;
+    company_id: string;
+    sending_account_id: string;
+    recipient_email: string;
+    recipient_name: string;
+    municipality: string;
+    state: string;
+  };
 
   const accountGroups = new Map<string, Job[]>();
   for (const job of jobs) {
@@ -131,7 +139,7 @@ export async function GET(req: NextRequest) {
     const campaign = campaignMap.get(job.campaign_id);
 
     if (!account || !campaign) {
-      // Mark as failed — missing config
+      // Mark as failed — missing config (job was already claimed as 'processing')
       await supabase
         .from('email_job_queue')
         .update({ status: 'failed', sent_at: new Date().toISOString() })
@@ -219,12 +227,12 @@ export async function GET(req: NextRequest) {
     const deltaSent = campaignSent.get(cid) ?? 0;
     const deltaFailed = campaignFailed.get(cid) ?? 0;
 
-    // Check if there are still pending jobs for this campaign
+    // Check if there are still pending or processing jobs for this campaign
     const { count } = await supabase
       .from('email_job_queue')
       .select('id', { count: 'exact', head: true })
       .eq('campaign_id', cid)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'processing']);
 
     // Increment counters using RPC to avoid race conditions
     await supabase.rpc('increment_campaign_counts', {
