@@ -32,6 +32,7 @@ import {
   Save,
   Search,
   Server,
+  Sparkles,
   Users,
   X,
   Zap,
@@ -215,7 +216,27 @@ function Stepper({ current }: { current: number }) {
 
 function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: EmailForm) => void }) {
   const [tab, setTab] = useState<EditorTab>('html');
+  const [isGenerating, setIsGenerating] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  async function handleGenerate() {
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/email/generate-content', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao gerar conteúdo com IA.');
+        return;
+      }
+      onChange({ ...form, html_content: data.html });
+      setTab('html');
+      toast.success('Conteúdo gerado com sucesso!');
+    } catch {
+      toast.error('Erro ao conectar com a IA. Tente novamente.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   useEffect(() => {
     if (tab !== 'preview') return;
@@ -294,10 +315,25 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Conteúdo do e-mail
           </h2>
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-            {tabBtn('html', <Code className="size-3.5" />, 'HTML')}
-            {tabBtn('preview', <Eye className="size-3.5" />, 'Prévia')}
-            {tabBtn('text', <AlignLeft className="size-3.5" />, 'Texto simples')}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isGenerating ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="size-3.5" />
+              )}
+              {isGenerating ? 'Gerando…' : 'Gerar com IA'}
+            </button>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+              {tabBtn('html', <Code className="size-3.5" />, 'HTML')}
+              {tabBtn('preview', <Eye className="size-3.5" />, 'Prévia')}
+              {tabBtn('text', <AlignLeft className="size-3.5" />, 'Texto simples')}
+            </div>
           </div>
         </div>
 
