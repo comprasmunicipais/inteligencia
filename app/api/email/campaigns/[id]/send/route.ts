@@ -135,13 +135,16 @@ export async function POST(
     // ── 4. Validate sending account ──────────────────────────────────────────
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
-      .select('id, is_active, smtp_password_encrypted')
+      .select('id, company_id, is_active, smtp_password_encrypted')
       .eq('id', sendingAccountId)
-      .eq('company_id', companyId)
       .single();
 
     if (accountError || !account) {
       return NextResponse.json({ error: 'Conta de envio não encontrada.' }, { status: 404 });
+    }
+
+    if (account.company_id !== companyId) {
+      return NextResponse.json({ error: 'Conta de envio não pertence a esta empresa.' }, { status: 403 });
     }
 
     if (!account.is_active) {
