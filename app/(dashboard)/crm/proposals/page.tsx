@@ -102,6 +102,8 @@ export default function ProposalsPage() {
   useEffect(() => {
     if (companyId) {
       loadProposals();
+    } else {
+      setLoading(false);
     }
   }, [companyId, loadProposals]);
 

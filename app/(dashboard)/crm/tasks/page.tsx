@@ -107,6 +107,8 @@ export default function TasksPage() {
   useEffect(() => {
     if (companyId) {
       loadTasks();
+    } else {
+      setLoading(false);
     }
   }, [companyId, loadTasks]);
 

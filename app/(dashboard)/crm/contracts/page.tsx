@@ -95,8 +95,12 @@ export default function ContractsPage() {
   }, [companyId]);
 
   useEffect(() => {
-    loadContracts();
-  }, [loadContracts]);
+    if (companyId) {
+      loadContracts();
+    } else {
+      setLoading(false);
+    }
+  }, [companyId, loadContracts]);
 
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') loadContracts(); };
