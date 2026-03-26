@@ -80,6 +80,35 @@ function substituteVars(template: string, row: EmailRow): string {
     .replace(/\[Estado\]/gi, state);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tracking injection
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
+  'https://inteligencia-sooty.vercel.app';
+
+function injectTracking(html: string, campaignId: string, recipientEmail: string): string {
+  const encodedEmail = encodeURIComponent(recipientEmail);
+
+  // Replace http/https hrefs with click-tracking redirect
+  const withClickTracking = html.replace(
+    /href="(https?:\/\/[^"]+)"/gi,
+    (_, url: string) => {
+      const tracked = `${BASE_URL}/api/email/track/click?campaign_id=${campaignId}&email=${encodedEmail}&url=${encodeURIComponent(url)}`;
+      return `href="${tracked}"`;
+    },
+  );
+
+  // Append open-tracking pixel before </body> or at end
+  const pixel = `<img src="${BASE_URL}/api/email/track/open?campaign_id=${campaignId}&email=${encodedEmail}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`;
+
+  if (withClickTracking.includes('</body>')) {
+    return withClickTracking.replace('</body>', `${pixel}</body>`);
+  }
+  return withClickTracking + pixel;
+}
+
 function sanitizeSmtpError(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
   return msg
@@ -272,12 +301,18 @@ export async function POST(
 
     for (const row of rows) {
       try {
+        const personalizedHtml = injectTracking(
+          substituteVars(campaign.html_content!, row),
+          campaignId,
+          row.email,
+        );
+
         await transporter.sendMail({
           from: `"${account.sender_name}" <${account.sender_email}>`,
           ...(account.reply_to_email ? { replyTo: account.reply_to_email } : {}),
           to: row.email,
           subject: substituteVars(campaign.subject!, row),
-          html: substituteVars(campaign.html_content!, row),
+          html: personalizedHtml,
           ...(campaign.text_content
             ? { text: substituteVars(campaign.text_content, row) }
             : {}),
