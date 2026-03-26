@@ -1483,6 +1483,16 @@ export default function AccountDetailPage() {
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">E-mail Institucional</label>
+                <input
+                  type="email"
+                  className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                  placeholder="contato@prefeitura.gov.br"
+                  value={editData.email ?? ''}
+                  onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">Endereço</label>
                 <input
                   className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
