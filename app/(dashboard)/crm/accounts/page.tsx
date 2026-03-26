@@ -124,12 +124,14 @@ export default function AccountsPage() {
       return;
     }
     try {
+      console.log('newAccount antes do create:', newAccount);
       const created = await accountService.create(newAccount as any);
       setAccounts([created, ...accounts]);
       setIsAddModalOpen(false);
       setNewAccount({ name: '', state: '', city: '', mayor_name: '', website: '', email: '' });
       toast.success('Prefeitura adicionada com sucesso!');
     } catch (error) {
+      console.error('Erro real ao adicionar prefeitura:', error);
       toast.error('Erro ao adicionar prefeitura.');
     }
   };
@@ -142,12 +144,14 @@ export default function AccountsPage() {
       return;
     }
     try {
+      console.log('editingAccount antes do update:', editingAccount);
       const updated = await accountService.update(editingAccount.id, editingAccount);
       setAccounts(accounts.map(acc => acc.id === updated.id ? updated : acc));
       setIsEditModalOpen(false);
       setEditingAccount(null);
       toast.success('Prefeitura atualizada com sucesso!');
     } catch (error) {
+      console.error('Erro real ao atualizar prefeitura:', error);
       toast.error('Erro ao atualizar prefeitura.');
     }
   };
@@ -249,7 +253,6 @@ export default function AccountsPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Filtro rápido: com licitações */}
               <button
                 onClick={() => {
                   setFilters(prev => ({ ...prev, has_opportunities: !prev.has_opportunities }));
@@ -289,7 +292,6 @@ export default function AccountsPage() {
             </div>
           </div>
 
-          {/* Indicador de filtro ativo */}
           {filters.has_opportunities && (
             <div className="flex items-center gap-2 text-sm text-[#0f49bd] font-bold">
               <Gavel className="size-4" />
@@ -448,7 +450,6 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* Modal: Editar Prefeitura */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -490,7 +491,6 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Excluir */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -506,7 +506,6 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Adicionar */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -546,7 +545,6 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Filtros Avançados */}
       <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
