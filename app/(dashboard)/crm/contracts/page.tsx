@@ -98,6 +98,12 @@ export default function ContractsPage() {
     loadContracts();
   }, [loadContracts]);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') loadContracts(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadContracts]);
+
   const handleAddContract = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContract.title || !newContract.municipality_id || !newContract.value || !newContract.start_date || !newContract.end_date) {

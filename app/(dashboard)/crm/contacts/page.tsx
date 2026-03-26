@@ -99,6 +99,12 @@ export default function ContactsPage() {
     }
   }, [companyId, loadData]);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && companyId) loadData(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [companyId, loadData]);
+
   const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyId) {

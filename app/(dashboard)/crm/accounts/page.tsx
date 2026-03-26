@@ -110,6 +110,12 @@ export default function AccountsPage() {
     loadAccounts();
   }, [loadAccounts]);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') loadAccounts(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadAccounts]);
+
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccount.name || !newAccount.state || !newAccount.city) {

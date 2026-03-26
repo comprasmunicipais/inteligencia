@@ -110,6 +110,12 @@ export default function TasksPage() {
     }
   }, [companyId, loadTasks]);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && companyId) loadTasks(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [companyId, loadTasks]);
+
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.title || !newTask.municipality_id || !newTask.due_date) {

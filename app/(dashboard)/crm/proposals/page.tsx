@@ -105,6 +105,12 @@ export default function ProposalsPage() {
     }
   }, [companyId, loadProposals]);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && companyId) loadProposals(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [companyId, loadProposals]);
+
   const handleAddProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyId) {
