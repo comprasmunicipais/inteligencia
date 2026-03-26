@@ -1138,6 +1138,7 @@ export default function CampaignDetailPage() {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [sendConfirmed, setSendConfirmed] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
@@ -1262,6 +1263,29 @@ export default function CampaignDetailPage() {
     }
   };
 
+  // ── Send test ──────────────────────────────────────────────────────────────
+  const handleSendTest = async () => {
+    if (!selectedAccountId) {
+      toast.error('Selecione uma conta de envio antes de enviar o teste.');
+      return;
+    }
+    try {
+      setIsSendingTest(true);
+      const res = await fetch(`/api/email/campaigns/${campaignId}/send-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sending_account_id: selectedAccountId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao enviar teste.');
+      toast.success(`E-mail de teste enviado para ${json.sent_to}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao enviar e-mail de teste.');
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
   // ── Navigation ─────────────────────────────────────────────────────────────
   const summaryIsReady =
     emailForm.subject.trim().length > 0 &&
@@ -1379,6 +1403,18 @@ export default function CampaignDetailPage() {
                 >
                   <Save className="size-4" />
                   {isSaving ? 'Salvando...' : 'Salvar rascunho'}
+                </button>
+              )}
+
+              {currentStep === 4 && (
+                <button
+                  type="button"
+                  onClick={handleSendTest}
+                  disabled={isSendingTest || isSending || !selectedAccountId}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  <Mail className="size-4" />
+                  {isSendingTest ? 'Enviando...' : 'Enviar teste'}
                 </button>
               )}
 
