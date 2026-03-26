@@ -28,7 +28,7 @@ export const dashboardService = {
       supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
       supabase.from('deals')
-        .select('*, municipalities(name)')
+        .select('*, municipalities(name), pipeline_stages(title)')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
         .limit(3),
@@ -40,15 +40,23 @@ export const dashboardService = {
         .limit(3)
     ]);
 
-    const mappedRecent = (recentDeals || []).map(d => ({
-      organ: (d.municipalities as any)?.name || 'Município',
-      object: d.title,
-      value: d.estimated_value,
-      status: d.status.charAt(0).toUpperCase() + d.status.slice(1),
-      statusColor: d.status === 'ganho' ? 'bg-green-100 text-green-800' : 
-                   d.status === 'perdido' ? 'bg-red-100 text-red-800' : 
-                   'bg-blue-100 text-blue-800'
-    }));
+    const mappedRecent = (recentDeals || []).map(d => {
+      const stageTitle: string = (d.pipeline_stages as any)?.title || d.status || 'Em andamento';
+      const stageLower = stageTitle.toLowerCase();
+      return {
+        organ: (d.municipalities as any)?.name || 'Município',
+        object: d.title,
+        value: d.estimated_value,
+        status: stageTitle,
+        statusColor: stageLower.includes('ganho') || stageLower.includes('won')
+          ? 'bg-green-100 text-green-800'
+          : stageLower.includes('perdido') || stageLower.includes('lost')
+          ? 'bg-red-100 text-red-800'
+          : stageLower.includes('proposta') || stageLower.includes('proposal')
+          ? 'bg-purple-100 text-purple-800'
+          : 'bg-blue-100 text-blue-800',
+      };
+    });
 
     const mappedTasks = (pendingTasks || []).map(t => ({
       id: t.id,
