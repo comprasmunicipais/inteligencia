@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
 import { createClient } from '@/lib/supabase/server';
-import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -60,7 +58,7 @@ function getDepartmentTerms(department: string): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Variable substitution
+// Helper: extract municipality data from a row
 // ─────────────────────────────────────────────────────────────────────────────
 
 function getMuniData(row: EmailRow) {
@@ -70,50 +68,6 @@ function getMuniData(row: EmailRow) {
     city: muni?.city ?? '',
     state: muni?.state ?? '',
   };
-}
-
-function substituteVars(template: string, row: EmailRow): string {
-  const { name, city, state } = getMuniData(row);
-  return template
-    .replace(/\[Nome\]/gi, name || 'Prezado(a)')
-    .replace(/\[Municipio\]/gi, city)
-    .replace(/\[Estado\]/gi, state);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tracking injection
-// ─────────────────────────────────────────────────────────────────────────────
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
-  'https://inteligencia-sooty.vercel.app';
-
-function injectTracking(html: string, campaignId: string, recipientEmail: string): string {
-  const encodedEmail = encodeURIComponent(recipientEmail);
-
-  // Replace http/https hrefs with click-tracking redirect
-  const withClickTracking = html.replace(
-    /href="(https?:\/\/[^"]+)"/gi,
-    (_, url: string) => {
-      const tracked = `${BASE_URL}/api/email/track/click?campaign_id=${campaignId}&email=${encodedEmail}&url=${encodeURIComponent(url)}`;
-      return `href="${tracked}"`;
-    },
-  );
-
-  // Append open-tracking pixel before </body> or at end
-  const pixel = `<img src="${BASE_URL}/api/email/track/open?campaign_id=${campaignId}&email=${encodedEmail}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`;
-
-  if (withClickTracking.includes('</body>')) {
-    return withClickTracking.replace('</body>', `${pixel}</body>`);
-  }
-  return withClickTracking + pixel;
-}
-
-function sanitizeSmtpError(error: unknown): string {
-  const msg = error instanceof Error ? error.message : String(error);
-  return msg
-    .replace(/pass(wo)?rd\s*[:=]\s*[^\s]+/gi, 'password=[redacted]')
-    .replace(/user(name)?\s*[:=]\s*[^\s]+/gi, 'username=[redacted]');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,12 +132,10 @@ export async function POST(
       return NextResponse.json({ error: 'A campanha não tem conteúdo HTML.' }, { status: 400 });
     }
 
-    // ── 4. Load sending account ──────────────────────────────────────────────
+    // ── 4. Validate sending account ──────────────────────────────────────────
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
-      .select(
-        'id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted, hourly_limit, daily_limit, is_active',
-      )
+      .select('id, is_active, smtp_password_encrypted')
       .eq('id', sendingAccountId)
       .eq('company_id', companyId)
       .single();
@@ -200,13 +152,9 @@ export async function POST(
       return NextResponse.json({ error: 'Senha SMTP não configurada na conta.' }, { status: 400 });
     }
 
-    const smtpPassword = decryptEmailSettingSecret(account.smtp_password_encrypted);
-    const maxSend = Math.min(account.hourly_limit ?? 100, 2000);
-
-    // ── 5. Build audience query ──────────────────────────────────────────────
+    // ── 5. Build audience query (no limit — all recipients go to queue) ───────
     const filters = ((campaign.audience_filters ?? {}) as AudienceFilters);
 
-    // Resolve municipality IDs from geo filters
     let municipalityIds: string[] | null = null;
 
     if (filters.state || filters.municipalityId || filters.populationRange) {
@@ -224,7 +172,7 @@ export async function POST(
       municipalityIds = (munData ?? []).map((m: any) => m.id);
 
       if (municipalityIds.length === 0) {
-        return NextResponse.json({ sent: 0, failed: 0, total: 0, truncated: false });
+        return NextResponse.json({ queued: 0, total: 0 });
       }
     }
 
@@ -239,8 +187,7 @@ export async function POST(
           state
         )
       `)
-      .order('priority_score', { ascending: false, nullsFirst: false })
-      .limit(maxSend);
+      .order('priority_score', { ascending: false, nullsFirst: false });
 
     if (municipalityIds) {
       emailQuery = emailQuery.in('municipality_id', municipalityIds);
@@ -273,80 +220,53 @@ export async function POST(
     }
 
     const rows = (emailRows ?? []) as EmailRow[];
-    const truncated = rows.length === maxSend && (filters.totalCount ?? 0) > maxSend;
 
     if (rows.length === 0) {
-      return NextResponse.json({ sent: 0, failed: 0, total: 0, truncated: false });
+      return NextResponse.json({ queued: 0, total: 0 });
     }
 
-    // ── 6. Create SMTP transporter ───────────────────────────────────────────
-    const transporter = nodemailer.createTransport({
-      host: account.smtp_host,
-      port: Number(account.smtp_port),
-      secure: Boolean(account.smtp_secure),
-      auth: {
-        user: account.smtp_username,
-        pass: smtpPassword,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      requireTLS: !account.smtp_secure,
-      tls: { rejectUnauthorized: true },
+    // ── 6. Insert all recipients into email_job_queue ─────────────────────────
+    const jobRows = rows.map((row) => {
+      const { name, city, state } = getMuniData(row);
+      return {
+        campaign_id: campaignId,
+        company_id: companyId,
+        sending_account_id: sendingAccountId,
+        recipient_email: row.email,
+        recipient_name: name,
+        municipality: city,
+        state,
+        status: 'pending',
+      };
     });
 
-    // ── 7. Send emails ───────────────────────────────────────────────────────
-    let sent = 0;
-    let failed = 0;
+    // Insert in chunks of 500 to stay within Supabase payload limits
+    const CHUNK = 500;
+    for (let i = 0; i < jobRows.length; i += CHUNK) {
+      const { error: insertError } = await supabase
+        .from('email_job_queue')
+        .insert(jobRows.slice(i, i + CHUNK));
 
-    for (const row of rows) {
-      try {
-        const personalizedHtml = injectTracking(
-          substituteVars(campaign.html_content!, row),
-          campaignId,
-          row.email,
-        );
-
-        await transporter.sendMail({
-          from: `"${account.sender_name}" <${account.sender_email}>`,
-          ...(account.reply_to_email ? { replyTo: account.reply_to_email } : {}),
-          to: row.email,
-          subject: substituteVars(campaign.subject!, row),
-          html: personalizedHtml,
-          ...(campaign.text_content
-            ? { text: substituteVars(campaign.text_content, row) }
-            : {}),
-          ...(campaign.preheader
-            ? { headers: { 'X-Preheader': campaign.preheader } }
-            : {}),
-        });
-        sent++;
-      } catch (err) {
-        console.error(`[campaign-send] Falha para ${row.email}:`, sanitizeSmtpError(err));
-        failed++;
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
     }
 
-    // ── 8. Update campaign ───────────────────────────────────────────────────
-    const now = new Date().toISOString();
-
+    // ── 7. Update campaign status to 'Agendada' ───────────────────────────────
     await supabase
       .from('email_campaigns')
       .update({
-        status: 'Ativa',
+        status: 'Agendada',
         sending_account_id: sendingAccountId,
-        sent_at: now,
-        sent_count: sent,
-        failed_count: failed,
-        updated_at: now,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', campaignId);
 
-    return NextResponse.json({ sent, failed, total: rows.length, truncated });
+    return NextResponse.json({ queued: rows.length, total: rows.length });
   } catch (error: any) {
     console.error('[campaign-send] Erro interno:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno ao enviar campanha.' },
+      { error: error?.message || 'Erro interno ao agendar campanha.' },
       { status: 500 },
     );
   }
