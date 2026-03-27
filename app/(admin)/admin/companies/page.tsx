@@ -166,12 +166,8 @@ export default function AdminCompaniesPage() {
                     <span className="text-sm text-gray-600 font-mono">{company.cnpj}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={cn(
-                      "text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider",
-                      company.plan === 'Enterprise' ? "bg-purple-50 text-purple-700" :
-                      company.plan === 'Pro' ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
-                    )}>
-                      {company.plan}
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider bg-gray-100 text-gray-600">
+                      {company.plan_id ? 'Vinculado' : 'N/A'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
