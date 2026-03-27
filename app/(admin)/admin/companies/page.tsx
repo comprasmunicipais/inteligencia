@@ -41,7 +41,7 @@ export default function AdminCompaniesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [newCompany, setNewCompany] = useState({ name: '', cnpj: '', plan: 'Pro', status: 'active' });
+  const [newCompany, setNewCompany] = useState({ name: '', status: 'active' });
 
   useEffect(() => {
     loadCompanies();
@@ -61,8 +61,8 @@ export default function AdminCompaniesPage() {
 
   const handleAddCompany = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompany.name || !newCompany.cnpj) {
-      toast.error('Por favor, preencha o nome e CNPJ.');
+    if (!newCompany.name) {
+      toast.error('Por favor, preencha o nome da empresa.');
       return;
     }
 
@@ -70,7 +70,7 @@ export default function AdminCompaniesPage() {
       const created = await createCompanyAction(newCompany);
       setCompanies([created, ...companies]);
       setIsAddModalOpen(false);
-      setNewCompany({ name: '', cnpj: '', plan: 'Pro', status: 'active' });
+      setNewCompany({ name: '', status: 'active' });
       toast.success('Empresa criada com sucesso!');
     } catch (error) {
       toast.error('Erro ao criar empresa.');
@@ -251,38 +251,15 @@ export default function AdminCompaniesPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700">CNPJ</label>
-              <input 
+              <label className="text-sm font-bold text-gray-700">Status</label>
+              <select
                 className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                placeholder="00.000.000/0000-00"
-                value={newCompany.cnpj}
-                onChange={(e) => setNewCompany({ ...newCompany, cnpj: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Plano Inicial</label>
-                <select 
-                  className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={newCompany.plan}
-                  onChange={(e) => setNewCompany({ ...newCompany, plan: e.target.value })}
-                >
-                  <option value="Basic">Basic</option>
-                  <option value="Pro">Pro</option>
-                  <option value="Enterprise">Enterprise</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Status</label>
-                <select 
-                  className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
-                  value={newCompany.status}
-                  onChange={(e) => setNewCompany({ ...newCompany, status: e.target.value })}
-                >
-                  <option value="active">Ativo</option>
-                  <option value="pending">Pendente</option>
-                </select>
-              </div>
+                value={newCompany.status}
+                onChange={(e) => setNewCompany({ ...newCompany, status: e.target.value })}
+              >
+                <option value="active">Ativo</option>
+                <option value="pending">Pendente</option>
+              </select>
             </div>
             <DialogFooter className="pt-4">
               <button 
