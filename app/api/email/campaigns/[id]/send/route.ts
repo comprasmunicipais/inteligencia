@@ -155,6 +155,39 @@ export async function POST(
       return NextResponse.json({ error: 'Senha SMTP não configurada na conta.' }, { status: 400 });
     }
 
+    // ── 4b. Verificar limite de emails do plano ──────────────────────────────
+    const { data: company } = await supabase
+      .from('companies')
+      .select('plan_id, emails_used_this_month, extra_credits_available')
+      .eq('id', companyId)
+      .single();
+
+    const { data: plan } = company?.plan_id
+      ? await supabase.from('plans').select('emails_per_month').eq('id', company.plan_id).single()
+      : { data: null };
+
+    const emailsLimit = plan?.emails_per_month ?? 10000;
+    const emailsUsed = company?.emails_used_this_month ?? 0;
+    const extraCredits = company?.extra_credits_available ?? 0;
+    const totalAvailable = (emailsLimit - emailsUsed) + extraCredits;
+    const sendLimit: number = body.send_limit ?? totalAvailable;
+
+    if (emailsUsed >= emailsLimit && extraCredits <= 0) {
+      return NextResponse.json({
+        error: 'limit_reached',
+        emails_used: emailsUsed,
+        emails_limit: emailsLimit,
+      }, { status: 402 });
+    }
+
+    if (sendLimit <= 0) {
+      return NextResponse.json({
+        error: 'limit_reached',
+        emails_used: emailsUsed,
+        emails_limit: emailsLimit,
+      }, { status: 402 });
+    }
+
     // ── 5. Build audience query (no limit — all recipients go to queue) ───────
     const filters = ((campaign.audience_filters ?? {}) as AudienceFilters);
 
@@ -222,7 +255,8 @@ export async function POST(
       return NextResponse.json({ error: emailError.message }, { status: 500 });
     }
 
-    const rows = (emailRows ?? []) as EmailRow[];
+    const allRows = (emailRows ?? []) as EmailRow[];
+    const rows = allRows.slice(0, Math.min(sendLimit, totalAvailable));
 
     if (rows.length === 0) {
       return NextResponse.json({ queued: 0, total: 0 });
