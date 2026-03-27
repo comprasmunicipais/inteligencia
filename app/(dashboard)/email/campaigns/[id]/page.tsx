@@ -895,12 +895,16 @@ function SendStep({
   onAccountChange,
   confirmed,
   onConfirmChange,
+  sendLimit,
+  onSendLimitChange,
 }: {
   audienceCount: number;
   selectedAccountId: string;
   onAccountChange: (id: string) => void;
   confirmed: boolean;
   onConfirmChange: (v: boolean) => void;
+  sendLimit: number;
+  onSendLimitChange: (v: number) => void;
 }) {
   const [accounts, setAccounts] = useState<SendingAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -993,6 +997,48 @@ function SendStep({
         </div>
       )}
 
+      {/* Send limit selector */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
+            <Users className="size-4 text-[#0f49bd]" />
+          </div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Quantos e-mails deseja enviar?
+          </h3>
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={audienceCount}
+          step={1}
+          value={sendLimit}
+          onChange={(e) => {
+            const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), audienceCount);
+            onSendLimitChange(val);
+          }}
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[25, 50, 75, 100].map((pct) => {
+            const val = Math.max(1, Math.round(audienceCount * pct / 100));
+            return (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => onSendLimitChange(val)}
+                className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                {pct}%
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Você tem <strong>{audienceCount.toLocaleString('pt-BR')}</strong> e-mails na audiência. Selecione quantos deseja usar neste disparo.
+        </p>
+      </div>
+
       {/* Dispatch summary */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
@@ -1003,7 +1049,7 @@ function SendStep({
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-4xl font-bold text-[#0f172a]">
-            {audienceCount.toLocaleString('pt-BR')}
+            {sendLimit.toLocaleString('pt-BR')}
           </span>
           <span className="text-sm text-slate-500">destinatários no total</span>
         </div>
@@ -1019,7 +1065,7 @@ function SendStep({
         />
         <span className="text-sm text-slate-700">
           Confirmo o envio de{' '}
-          <strong>{audienceCount.toLocaleString('pt-BR')} e-mails</strong>
+          <strong>{sendLimit.toLocaleString('pt-BR')} e-mails</strong>
           {selected ? ` via conta "${selected.name}"` : ''}.
           Esta ação não pode ser desfeita.
         </span>
@@ -1134,6 +1180,11 @@ export default function CampaignDetailPage() {
   const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [sendLimit, setSendLimit] = useState(audienceFilters.totalCount);
+
+  useEffect(() => {
+    setSendLimit(audienceFilters.totalCount);
+  }, [audienceFilters.totalCount]);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1244,7 +1295,7 @@ export default function CampaignDetailPage() {
       const res = await fetch(`/api/email/campaigns/${campaignId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sending_account_id: selectedAccountId }),
+        body: JSON.stringify({ sending_account_id: selectedAccountId, send_limit: sendLimit }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao enviar campanha.');
@@ -1362,6 +1413,8 @@ export default function CampaignDetailPage() {
             onAccountChange={setSelectedAccountId}
             confirmed={sendConfirmed}
             onConfirmChange={setSendConfirmed}
+            sendLimit={sendLimit}
+            onSendLimitChange={setSendLimit}
           />
         )}
         {currentStep === 4 && sendResult && (
