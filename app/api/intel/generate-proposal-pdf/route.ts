@@ -110,13 +110,13 @@ export async function POST(request: Request) {
 <body>
   <div class="header">
     <h1>${proposalTitle}</h1>
-    <p>Gerado pelo CM Intelligence — Plataforma B2G · ${new Date().toLocaleDateString('pt-BR')}</p>
+    <p>Gerado pelo CM Pro — Plataforma B2G · ${new Date().toLocaleDateString('pt-BR')}</p>
   </div>
   <div class="content">
     ${htmlLines}
   </div>
   <div class="footer">
-    CM Intelligence — Plataforma de Inteligência Comercial B2G · Documento gerado automaticamente
+    CM Pro — Plataforma de Inteligência Comercial B2G · Documento gerado automaticamente
   </div>
   <button class="print-btn no-print" onclick="window.print()">🖨️ Salvar como PDF</button>
 </body>

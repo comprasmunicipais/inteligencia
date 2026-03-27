@@ -200,13 +200,13 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
 
     if (emailAddresses.length > 0) {
       await resend.emails.send({
-        from: 'CM Intelligence <onboarding@resend.dev>',
+        from: 'CM Pro <onboarding@resend.dev>',
         to: emailAddresses,
         subject: `🎯 ${highScoreOpps.length} nova(s) oportunidade(s) com alta aderência detectada(s)`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
             <div style="background:#0f49bd;padding:24px;border-radius:12px;margin-bottom:24px;">
-              <h1 style="color:white;margin:0;font-size:20px;">CM Intelligence</h1>
+              <h1 style="color:white;margin:0;font-size:20px;">CM Pro</h1>
               <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px;">Alerta de Oportunidades com Alta Aderência</p>
             </div>
             <p style="color:#374151;font-size:15px;">
@@ -219,7 +219,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
               </p>
             </div>
             <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
-              CM Intelligence — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
+              CM Pro — Plataforma B2G · Este e-mail foi gerado automaticamente após a sincronização com o PNCP.
             </p>
           </div>
         `,

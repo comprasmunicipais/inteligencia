@@ -105,7 +105,7 @@ export default function Sidebar() {
           CM
         </div>
         <div className="flex flex-col">
-          <h1 className="text-white text-base font-bold leading-tight">CM Intelligence</h1>
+          <h1 className="text-white text-base font-bold leading-tight">CM Pro</h1>
           <p className="text-gray-400 text-xs font-normal">Plataforma B2G</p>
         </div>
       </div>

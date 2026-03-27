@@ -101,7 +101,7 @@ Principais Insights:
   }
 
   // Footer
-  page.drawText('Confidencial - CM Intelligence © 2024', {
+  page.drawText('Confidencial - CM Pro © 2024', {
     x: width / 2 - 100,
     y: 30,
     size: 8,

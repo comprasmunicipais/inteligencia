@@ -83,7 +83,7 @@ export async function generateProposalPDF(proposal: ProposalDTO) {
   });
 
   // Footer
-  page.drawText('Documento gerado automaticamente pela plataforma CM Intelligence.', {
+  page.drawText('Documento gerado automaticamente pela plataforma CM Pro.', {
     x: 50,
     y: 50,
     size: 8,

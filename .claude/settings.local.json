@@ -3,7 +3,12 @@
     "allow": [
       "Bash(head:*)",
       "Bash(grep:*)",
-      "Bash(find C:/Projetos/inteligencia/inteligencia -type f \\\\\\(-name *email* -o -name *mail* -o -name *smtp* -o -name *campaign* \\\\\\) ! -path */node_modules/*)"
+      "Bash(find C:/Projetos/inteligencia/inteligencia -type f \\\\\\(-name *email* -o -name *mail* -o -name *smtp* -o -name *campaign* \\\\\\) ! -path */node_modules/*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__claude_ai_Supabase__execute_sql"
     ]
   }
 }

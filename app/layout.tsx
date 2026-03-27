@@ -4,7 +4,7 @@ import './globals.css'; // Global styles
 import { CompanyProvider } from '@/components/providers/CompanyProvider';
 
 export const metadata: Metadata = {
-  title: 'CM Intelligence',
+  title: 'CM Pro',
   description: 'Plataforma de Inteligência Comercial para Mercado Público',
 };
 

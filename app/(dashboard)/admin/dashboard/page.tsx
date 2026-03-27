@@ -18,7 +18,7 @@ export default function AdminDashboardPage() {
     <>
       <Header 
         title="Painel Administrativo" 
-        subtitle="Visão geral técnica e operacional da plataforma CM Intelligence." 
+        subtitle="Visão geral técnica e operacional da plataforma CM Pro."
       />
       
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">

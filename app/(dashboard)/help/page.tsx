@@ -23,7 +23,7 @@ export default function HelpPage() {
 
   return (
     <>
-      <Header title="Central de Ajuda" subtitle="Encontre respostas e aprenda a tirar o máximo proveito do CM Intelligence." />
+      <Header title="Central de Ajuda" subtitle="Encontre respostas e aprenda a tirar o máximo proveito do CM Pro." />
       
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-5xl mx-auto space-y-12">
