@@ -57,7 +57,7 @@ export default function LoginPage() {
           <div className="size-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
             <Building2 className="size-8 text-white" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight">CM INTELLIGENCE</h1>
+          <h1 className="text-2xl font-black tracking-tight">CM PRO</h1>
           <p className="text-blue-100 text-sm mt-1">Plataforma de Inteligência Comercial</p>
         </div>
 
