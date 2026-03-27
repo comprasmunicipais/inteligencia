@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/shared/Header';
 import Image from 'next/image';
-import { 
-  User, 
-  Shield, 
-  Bell, 
+import {
+  User,
+  Shield,
+  Bell,
   Database,
   Globe,
   CreditCard,
-  HelpCircle
+  HelpCircle,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -18,16 +19,19 @@ import Link from 'next/link';
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Perfil');
 
-  const mockSubscription = {
-    plan_name: 'Essencial',
-    status: 'trial',
-    trial_ends_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    emails_used: 234,
-    emails_limit: 10000,
-    billing_cycle: 'monthly',
-    price: 297,
-  }
-  const [subscription] = useState(mockSubscription)
+  const [subscriptionData, setSubscriptionData] = useState<any>(null)
+  const [loadingSubscription, setLoadingSubscription] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'Assinatura') {
+      setLoadingSubscription(true)
+      fetch('/api/billing/subscription')
+        .then(r => r.json())
+        .then(data => setSubscriptionData(data))
+        .catch(console.error)
+        .finally(() => setLoadingSubscription(false))
+    }
+  }, [activeTab])
 
   const tabs = [
     { name: 'Perfil', icon: User },
@@ -110,15 +114,42 @@ export default function SettingsPage() {
           </div>
         );
       case 'Assinatura': {
-        const plans = [
-          { name: 'Essencial',    emails: 10000, users: '1 usuário',           price: 297 },
-          { name: 'Profissional', emails: 25000, users: '3 usuários',           price: 497, popular: true },
-          { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados',  price: 797 },
+        if (loadingSubscription) {
+          return (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
+            </div>
+          )
+        }
+
+        const planName     = subscriptionData?.current_plan?.name ?? 'Essencial'
+        const status       = subscriptionData?.subscription?.status ?? 'trial'
+        const trialEndsAt  = subscriptionData?.subscription?.trial_ends_at ?? subscriptionData?.company?.trial_ends_at ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
+        const emailsUsed   = subscriptionData?.company?.emails_used_this_month ?? 0
+        const emailsLimit  = subscriptionData?.current_plan?.emails_per_month ?? 10000
+        const billingCycle = subscriptionData?.subscription?.billing_cycle ?? 'monthly'
+        const price        = subscriptionData?.current_plan?.price_monthly ?? 297
+
+        const fallbackPlans = [
+          { name: 'Essencial',    emails: 10000, users: '1 usuário',          price: 297 },
+          { name: 'Profissional', emails: 25000, users: '3 usuários',          price: 497, popular: true },
+          { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados', price: 797 },
         ]
-        const trialDaysLeft = subscription.status === 'trial'
-          ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        const plans = subscriptionData?.all_plans?.length
+          ? subscriptionData.all_plans.map((p: any, i: number) => ({
+              id: p.id,
+              name: p.name,
+              emails: p.emails_per_month,
+              users: p.max_users === 0 ? 'Usuários ilimitados' : `${p.max_users} usuário${p.max_users !== 1 ? 's' : ''}`,
+              price: p.price_monthly,
+              popular: i === 1,
+            }))
+          : fallbackPlans
+
+        const trialDaysLeft = status === 'trial' && trialEndsAt
+          ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
           : null
-        const emailProgress = Math.round((subscription.emails_used / subscription.emails_limit) * 100)
+        const emailProgress = Math.round((emailsUsed / emailsLimit) * 100)
 
         return (
           <div className="space-y-6">
@@ -129,17 +160,17 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-bold text-gray-900">Plano Atual</h3>
                 <span className={cn(
                   'text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider',
-                  subscription.status === 'active'   ? 'bg-green-100 text-green-700' :
-                  subscription.status === 'trial'    ? 'bg-amber-100 text-amber-700' :
-                  subscription.status === 'past_due' ? 'bg-red-100 text-red-700'     :
-                                                       'bg-gray-100 text-gray-600'
+                  status === 'active'   ? 'bg-green-100 text-green-700' :
+                  status === 'trial'    ? 'bg-amber-100 text-amber-700' :
+                  status === 'past_due' ? 'bg-red-100 text-red-700'     :
+                                         'bg-gray-100 text-gray-600'
                 )}>
-                  {subscription.status === 'trial' ? 'Trial' : subscription.status === 'active' ? 'Ativo' : subscription.status === 'past_due' ? 'Inadimplente' : subscription.status}
+                  {status === 'trial' ? 'Trial' : status === 'active' ? 'Ativo' : status === 'past_due' ? 'Inadimplente' : status}
                 </span>
               </div>
 
-              <p className="text-2xl font-black text-gray-900 mb-1">{subscription.plan_name}</p>
-              <p className="text-sm text-gray-500 mb-4">R$ {subscription.price}/mês · ciclo {subscription.billing_cycle === 'monthly' ? 'mensal' : subscription.billing_cycle}</p>
+              <p className="text-2xl font-black text-gray-900 mb-1">{planName}</p>
+              <p className="text-sm text-gray-500 mb-4">R$ {price}/mês · ciclo {billingCycle === 'monthly' ? 'mensal' : billingCycle}</p>
 
               {trialDaysLeft !== null && (
                 <p className="text-sm text-amber-700 font-bold mb-4">⏳ {trialDaysLeft} dia{trialDaysLeft !== 1 ? 's' : ''} restante{trialDaysLeft !== 1 ? 's' : ''} do período de trial</p>
@@ -148,7 +179,7 @@ export default function SettingsPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold text-gray-500">
                   <span>E-mails utilizados</span>
-                  <span>{subscription.emails_used.toLocaleString('pt-BR')} / {subscription.emails_limit.toLocaleString('pt-BR')}</span>
+                  <span>{emailsUsed.toLocaleString('pt-BR')} / {emailsLimit.toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
                   <div
@@ -162,8 +193,8 @@ export default function SettingsPage() {
 
             {/* Cards de planos */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {plans.map((plan) => {
-                const isCurrent = plan.name === subscription.plan_name
+              {plans.map((plan: any) => {
+                const isCurrent = plan.name === planName
                 return (
                   <div key={plan.name} className={cn(
                     'relative bg-white p-6 rounded-2xl border shadow-sm flex flex-col gap-3',
