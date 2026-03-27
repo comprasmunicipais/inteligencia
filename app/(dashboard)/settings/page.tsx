@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Perfil');
 
   const mockSubscription = {
-    plan_name: 'Iniciante',
+    plan_name: 'Essencial',
     status: 'trial',
     trial_ends_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
     emails_used: 234,
@@ -111,9 +111,9 @@ export default function SettingsPage() {
         );
       case 'Assinatura': {
         const plans = [
-          { name: 'Iniciante',    emails: 10000, users: '1 usuário',           price: 297 },
+          { name: 'Essencial',    emails: 10000, users: '1 usuário',           price: 297 },
           { name: 'Profissional', emails: 25000, users: '3 usuários',           price: 497, popular: true },
-          { name: 'Conversão',    emails: 50000, users: 'Usuários ilimitados',  price: 797 },
+          { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados',  price: 797 },
         ]
         const trialDaysLeft = subscription.status === 'trial'
           ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
