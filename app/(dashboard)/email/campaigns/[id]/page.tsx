@@ -440,7 +440,6 @@ function AudienceStep({
           supabase
             .from('municipalities')
             .select('id, city, state')
-            .order('state', { ascending: true })
             .order('city', { ascending: true }),
           supabase
             .from('municipalities')
