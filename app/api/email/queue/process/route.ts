@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
 
   // ── 4. Load all required accounts and campaigns in bulk ─────────────────
   const accountIds = [...accountGroups.keys()];
-  const campaignIds = [...new Set(jobs.map((j) => j.campaign_id))];
+  const campaignIds = [...new Set(jobs.map((j: Job) => j.campaign_id))];
 
   const [{ data: accounts }, { data: campaigns }] = await Promise.all([
     supabase
