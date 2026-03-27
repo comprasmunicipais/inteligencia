@@ -206,6 +206,7 @@ export async function GET(req: NextRequest) {
         .eq('id', job.id);
 
       sent++;
+      await supabase.rpc('increment_emails_used', { company_id_param: job.company_id });
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
     } catch (err) {
       console.error(`[queue-process] Falha para ${job.recipient_email}:`, sanitizeSmtpError(err));
