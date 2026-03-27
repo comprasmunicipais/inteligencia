@@ -18,6 +18,17 @@ import Link from 'next/link';
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Perfil');
 
+  const mockSubscription = {
+    plan_name: 'Iniciante',
+    status: 'trial',
+    trial_ends_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    emails_used: 234,
+    emails_limit: 10000,
+    billing_cycle: 'monthly',
+    price: 297,
+  }
+  const [subscription] = useState(mockSubscription)
+
   const tabs = [
     { name: 'Perfil', icon: User },
     { name: 'Organização', icon: Globe },
@@ -98,6 +109,106 @@ export default function SettingsPage() {
             </div>
           </div>
         );
+      case 'Assinatura': {
+        const plans = [
+          { name: 'Iniciante',    emails: 10000, users: '1 usuário',           price: 297 },
+          { name: 'Profissional', emails: 25000, users: '3 usuários',           price: 497, popular: true },
+          { name: 'Conversão',    emails: 50000, users: 'Usuários ilimitados',  price: 797 },
+        ]
+        const trialDaysLeft = subscription.status === 'trial'
+          ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : null
+        const emailProgress = Math.round((subscription.emails_used / subscription.emails_limit) * 100)
+
+        return (
+          <div className="space-y-6">
+
+            {/* Plano atual */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Plano Atual</h3>
+                <span className={cn(
+                  'text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider',
+                  subscription.status === 'active'   ? 'bg-green-100 text-green-700' :
+                  subscription.status === 'trial'    ? 'bg-amber-100 text-amber-700' :
+                  subscription.status === 'past_due' ? 'bg-red-100 text-red-700'     :
+                                                       'bg-gray-100 text-gray-600'
+                )}>
+                  {subscription.status === 'trial' ? 'Trial' : subscription.status === 'active' ? 'Ativo' : subscription.status === 'past_due' ? 'Inadimplente' : subscription.status}
+                </span>
+              </div>
+
+              <p className="text-2xl font-black text-gray-900 mb-1">{subscription.plan_name}</p>
+              <p className="text-sm text-gray-500 mb-4">R$ {subscription.price}/mês · ciclo {subscription.billing_cycle === 'monthly' ? 'mensal' : subscription.billing_cycle}</p>
+
+              {trialDaysLeft !== null && (
+                <p className="text-sm text-amber-700 font-bold mb-4">⏳ {trialDaysLeft} dia{trialDaysLeft !== 1 ? 's' : ''} restante{trialDaysLeft !== 1 ? 's' : ''} do período de trial</p>
+              )}
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-bold text-gray-500">
+                  <span>E-mails utilizados</span>
+                  <span>{subscription.emails_used.toLocaleString('pt-BR')} / {subscription.emails_limit.toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full', emailProgress >= 90 ? 'bg-red-500' : emailProgress >= 70 ? 'bg-amber-500' : 'bg-blue-600')}
+                    style={{ width: `${emailProgress}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400">{emailProgress}% utilizado</p>
+              </div>
+            </div>
+
+            {/* Cards de planos */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {plans.map((plan) => {
+                const isCurrent = plan.name === subscription.plan_name
+                return (
+                  <div key={plan.name} className={cn(
+                    'relative bg-white p-6 rounded-2xl border shadow-sm flex flex-col gap-3',
+                    plan.popular ? 'border-blue-600' : 'border-gray-200'
+                  )}>
+                    {plan.popular && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+                        Mais Popular
+                      </span>
+                    )}
+                    <p className="text-sm font-black text-gray-900">{plan.name}</p>
+                    <p className="text-2xl font-black text-gray-900">R$ {plan.price}<span className="text-sm font-bold text-gray-400">/mês</span></p>
+                    <ul className="text-xs text-gray-500 space-y-1 flex-1">
+                      <li>✉️ {plan.emails.toLocaleString('pt-BR')} e-mails/mês</li>
+                      <li>👤 {plan.users}</li>
+                    </ul>
+                    <button
+                      disabled={isCurrent}
+                      className={cn(
+                        'mt-2 w-full py-2 rounded-lg text-sm font-bold transition-all',
+                        isCurrent
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      )}
+                    >
+                      {isCurrent ? 'Plano atual' : 'Assinar'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pacote extra */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">Pacote Extra de E-mails</h3>
+              <p className="text-xs text-gray-500 mb-4">Precisa enviar mais e-mails este mês? Adquira um pacote adicional sem mudar de plano.</p>
+              <button className="px-5 py-2.5 rounded-lg text-sm font-bold border border-blue-600 text-blue-600 hover:bg-blue-50 transition-all">
+                Comprar 5.000 e-mails por R$ 80
+              </button>
+            </div>
+
+          </div>
+        )
+      }
+
       default:
         return (
           <div className="bg-white p-12 rounded-2xl border border-gray-200 shadow-sm text-center">
