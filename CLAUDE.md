@@ -16,7 +16,7 @@ No test runner is configured in this project.
 
 ## Architecture
 
-**Next.js 15 full-stack B2B platform** for Brazilian public procurement intelligence (PNCP). Multi-tenant SaaS with role-based access: `platform_admin`, `company_admin`, `user`.
+**Next.js 15 full-stack CM Pro — Plataforma B2G** for Brazilian public procurement intelligence (PNCP). Multi-tenant SaaS with role-based access: `platform_admin`, `company_admin`, `user`.
 
 ### Route Structure
 
@@ -205,6 +205,58 @@ supabase/migrations/20260326_insert_sending_account_if_under_limit.sql
 
 ---
 
+## Billing & Plans Module
+
+### Plans (tabela `plans`)
+3 planos ativos:
+- Essencial: 10.000 emails/mês, 1 usuário, R$297/mês
+- Profissional: 25.000 emails/mês, 3 usuários, R$497/mês
+- Elite: 50.000 emails/mês, usuários ilimitados, R$797/mês
+
+Pacote extra: 5.000 emails por R$80 (compra avulsa)
+Trial: 7 dias com limite de 500 emails
+
+### Tabelas criadas
+- `plans` — planos com preços e limites
+- `subscriptions` — assinatura por empresa (status: trial/active/past_due/cancelled/expired)
+- `email_credits` — pacotes extras comprados
+- `billing_events` — log de webhooks Asaas
+
+### Colunas adicionadas em `companies`
+- `plan_id` (FK → plans)
+- `emails_used_this_month` (resetado dia 1 de cada mês via pg_cron)
+- `extra_credits_available`
+- `trial_ends_at`
+- `additional_users_count`
+
+### Gateway de pagamento: Asaas
+- Sandbox: `NEXT_PUBLIC_ASAAS_SANDBOX=true`
+- Variáveis: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
+- Client: `lib/asaas.ts`
+
+### Rotas de billing
+- `POST /api/billing/subscribe` — cria cliente + assinatura no Asaas
+- `POST /api/billing/webhook` — recebe eventos Asaas (auth via `asaas-access-token` header)
+- `POST /api/billing/extra-credits` — compra pacote extra
+- `GET /api/billing/subscription` — dados reais de assinatura da empresa
+- `GET /api/billing/reset-monthly` — rota de reset (não usada — reset via pg_cron)
+
+### Controle de limite
+- Disparo bloqueado em `POST /api/email/campaigns/[id]/send` se `emails_used >= emails_limit && extra_credits <= 0` → retorna 402 com `{ error: 'limit_reached', emails_used, emails_limit }`
+- Frontend exibe `LimitReachedModal` (components/email/LimitReachedModal.tsx) com upsell
+- Após cada envio bem-sucedido: RPC `increment_emails_used(company_id)` incrementa `emails_used_this_month`
+- Reset mensal: pg_cron job 'reset-monthly-email-usage' roda `0 0 1 * *` via `reset_monthly_email_usage()` RPC
+
+### RPCs adicionais
+- `increment_emails_used(company_id_param)` — incrementa emails_used_this_month + 1
+- `reset_monthly_email_usage()` — zera emails_used_this_month em todas as empresas
+
+### Página de assinatura
+- Settings → aba Assinatura: dados reais via GET /api/billing/subscription
+- Exibe plano atual, barra de progresso, 3 cards de planos, pacote extra
+
+---
+
 ## Security Rules (audited and enforced)
 
 ### Critical: Supabase client choice
@@ -274,11 +326,27 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 
 ## Pricing Plans
 
-| Plan | Emails/month |
-|------|-------------|
-| Standard | 10,000 |
-| Pro | 20,000 |
-| Excellence | 50,000 |
+| Plan | Emails/mês | Usuários | Mensal | Semestral | Anual |
+|------|-----------|----------|--------|-----------|-------|
+| Essencial | 10.000 | 1 | R$297 | R$1.600 | R$2.800 |
+| Profissional | 25.000 | 3 | R$497 | R$2.600 | R$4.800 |
+| Elite | 50.000 | ilimitado | R$797 | R$4.200 | R$7.800 |
+
+---
+
+## Public Routes
+- `/app` — página pública de apresentação do CM Pro (dark premium, estilo Starforge)
+- `/login` — autenticação
+- `/api/email/track/*` — tracking de emails (sem auth)
+- `/api/pncp/sync` — sync PNCP (auth via Bearer)
+
+## Rebrand
+- Produto renomeado de 'CM Intelligence' para 'CM Pro' em março 2026
+- Planos renomeados: Iniciante→Essencial, Conversão→Elite
+
+## Database Fixes (março 2026)
+- TRIM aplicado em `municipalities.state` — eliminados espaços extras que quebravam filtros de audiência
+- Ordenação de municípios no dropdown corrigida para `.order('city')`
 
 ---
 
