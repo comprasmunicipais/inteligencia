@@ -216,7 +216,7 @@ function Stepper({ current }: { current: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: EmailForm) => void }) {
-  const [tab, setTab] = useState<EditorTab>('html');
+  const [tab, setTab] = useState<EditorTab>('preview');
   const [isGenerating, setIsGenerating] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
