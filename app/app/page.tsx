@@ -554,6 +554,28 @@ export default function AppLandingPage() {
       <section style={{ ...s.section, background: '#111' }}>
         <div style={s.sectionInner}>
           <h2 style={{ ...s.sectionTitle, textAlign: 'center' }}>Planos</h2>
+
+          {/* Recursos comuns */}
+          <div style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
+            <p style={{ fontSize: '14px', fontWeight: 800, color: '#9d7bff', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Todos os planos incluem:</p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+              {[
+                'Base completa de prefeituras do Brasil',
+                'CRM comercial (pipeline, contatos, propostas, contratos)',
+                'Monitoramento de oportunidades públicas',
+                'Geração de propostas com IA',
+                'Perfil estratégico com IA',
+                'Análise de mercado',
+                'Campanhas de e-mail marketing',
+              ].map((item) => (
+                <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+                  <span style={{ color: '#9d7bff', flexShrink: 0 }}>✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <div style={s.planosGrid}>
             {/* Essencial */}
             <div style={s.planoCard}>
@@ -561,8 +583,7 @@ export default function AppLandingPage() {
               <ul style={s.planoFeatureList}>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 10.000 e-mails/mês</li>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 1 usuário</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Base de prefeituras</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Pipeline comercial</li>
+                <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Ideal para começar</li>
               </ul>
               <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtnGhost}>
                 Quero saber mais
@@ -576,9 +597,7 @@ export default function AppLandingPage() {
               <ul style={s.planoFeatureList}>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 25.000 e-mails/mês</li>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 3 usuários</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Tudo do Essencial</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> IA para propostas</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Relatórios avançados</li>
+                <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Para equipes em crescimento</li>
               </ul>
               <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtn}>
                 Quero saber mais
@@ -591,9 +610,8 @@ export default function AppLandingPage() {
               <ul style={s.planoFeatureList}>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 50.000 e-mails/mês</li>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Usuários ilimitados</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Tudo do Profissional</li>
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Suporte prioritário</li>
-                <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Onboarding dedicado</li>
+                <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Para operações de alto volume</li>
               </ul>
               <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtnGhost}>
                 Quero saber mais
