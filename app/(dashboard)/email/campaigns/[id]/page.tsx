@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import LimitReachedModal from '@/components/email/LimitReachedModal';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -1181,6 +1182,8 @@ export default function CampaignDetailPage() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
   const [sendLimit, setSendLimit] = useState(audienceFilters.totalCount);
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+  const [limitData, setLimitData] = useState({ emails_used: 0, emails_limit: 10000 });
 
   useEffect(() => {
     setSendLimit(audienceFilters.totalCount);
@@ -1298,6 +1301,11 @@ export default function CampaignDetailPage() {
         body: JSON.stringify({ sending_account_id: selectedAccountId, send_limit: sendLimit }),
       });
       const json = await res.json();
+      if (res.status === 402 && json.error === 'limit_reached') {
+        setLimitData({ emails_used: json.emails_used, emails_limit: json.emails_limit });
+        setLimitModalOpen(true);
+        return;
+      }
       if (!res.ok) throw new Error(json.error || 'Erro ao enviar campanha.');
       setSendResult(json as SendResult);
       toast.success(`Campanha enviada! ${json.sent} e-mails disparados.`);
@@ -1497,6 +1505,12 @@ export default function CampaignDetailPage() {
           </div>
         </div>
       )}
+      <LimitReachedModal
+        isOpen={limitModalOpen}
+        onClose={() => setLimitModalOpen(false)}
+        emailsUsed={limitData.emails_used}
+        emailsLimit={limitData.emails_limit}
+      />
     </div>
   );
 }
