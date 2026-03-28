@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Header from '@/components/shared/Header';
-import Image from 'next/image';
 import {
   User,
   Shield,
@@ -15,23 +14,68 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+
+interface UserProfile {
+  email: string;
+  role: string;
+  companyName: string;
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Perfil');
 
-  const [subscriptionData, setSubscriptionData] = useState<any>(null)
-  const [loadingSubscription, setLoadingSubscription] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      setLoadingProfile(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email, role, company_id')
+          .eq('id', user.id)
+          .single();
+
+        let companyName = '';
+        if (profile?.company_id) {
+          const { data: company } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', profile.company_id)
+            .single();
+          companyName = company?.name ?? '';
+        }
+
+        setUserProfile({
+          email: profile?.email ?? user.email ?? '',
+          role: profile?.role ?? '',
+          companyName,
+        });
+      } finally {
+        setLoadingProfile(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'Assinatura') {
-      setLoadingSubscription(true)
+      setLoadingSubscription(true);
       fetch('/api/billing/subscription')
         .then(r => r.json())
         .then(data => setSubscriptionData(data))
         .catch(console.error)
-        .finally(() => setLoadingSubscription(false))
+        .finally(() => setLoadingSubscription(false));
     }
-  }, [activeTab])
+  }, [activeTab]);
 
   const tabs = [
     { name: 'Perfil', icon: User },
@@ -42,55 +86,80 @@ export default function SettingsPage() {
     { name: 'Assinatura', icon: CreditCard },
   ];
 
+  const initials = userProfile?.email
+    ? userProfile.email.slice(0, 2).toUpperCase()
+    : '??';
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Perfil':
         return (
           <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
             <h3 className="text-lg font-bold text-gray-900 mb-6">Informações do Perfil</h3>
-            <div className="space-y-6">
-              <div className="flex items-center gap-6">
-                <div className="size-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center overflow-hidden relative">
-                  <Image 
-                    src="https://picsum.photos/seed/user/200/200" 
-                    alt="Avatar" 
-                    fill
-                    className="object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
-                  Alterar Foto
-                </button>
+            {loadingProfile ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="size-6 text-[#0f49bd] animate-spin" />
               </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center gap-6">
+                  <div className="size-20 rounded-full bg-[#0f49bd] flex items-center justify-center">
+                    <span className="text-2xl font-black text-white">{initials}</span>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome Completo</label>
-                  <input type="text" defaultValue="Ricardo Silva" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">E-mail</label>
-                  <input type="email" defaultValue="ricardo@empresa.com.br" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cargo</label>
-                  <input type="text" defaultValue="Diretor Comercial" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Telefone</label>
-                  <input type="text" defaultValue="(11) 98765-4321" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">E-mail</label>
+                    <input
+                      type="email"
+                      defaultValue={userProfile?.email ?? ''}
+                      readOnly
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none bg-gray-50 text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Perfil de Acesso</label>
+                    <input
+                      type="text"
+                      defaultValue={userProfile?.role ?? ''}
+                      readOnly
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none bg-gray-50 text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Empresa</label>
+                    <input
+                      type="text"
+                      defaultValue={userProfile?.companyName ?? ''}
+                      readOnly
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none bg-gray-50 text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cargo</label>
+                    <input
+                      type="text"
+                      defaultValue=""
+                      placeholder="Não informado"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Telefone</label>
+                    <input
+                      type="text"
+                      defaultValue=""
+                      placeholder="Não informado"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                    />
+                  </div>
                 </div>
               </div>
-
-              <div className="pt-6 border-t border-gray-100 flex justify-end">
-                <button className="px-6 py-2.5 bg-[#0f49bd] text-white rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all">
-                  Salvar Alterações
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         );
+
       case 'Organização':
         return (
           <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
@@ -113,28 +182,29 @@ export default function SettingsPage() {
             </div>
           </div>
         );
+
       case 'Assinatura': {
         if (loadingSubscription) {
           return (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
             </div>
-          )
+          );
         }
 
-        const planName     = subscriptionData?.current_plan?.name ?? 'Essencial'
-        const status       = subscriptionData?.subscription?.status ?? 'trial'
-        const trialEndsAt  = subscriptionData?.subscription?.trial_ends_at ?? subscriptionData?.company?.trial_ends_at ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
-        const emailsUsed   = subscriptionData?.company?.emails_used_this_month ?? 0
-        const emailsLimit  = subscriptionData?.current_plan?.emails_per_month ?? 10000
-        const billingCycle = subscriptionData?.subscription?.billing_cycle ?? 'monthly'
-        const price        = subscriptionData?.current_plan?.price_monthly ?? 297
+        const planName     = subscriptionData?.current_plan?.name ?? 'Essencial';
+        const status       = subscriptionData?.subscription?.status ?? 'trial';
+        const trialEndsAt  = subscriptionData?.subscription?.trial_ends_at ?? subscriptionData?.company?.trial_ends_at ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+        const emailsUsed   = subscriptionData?.company?.emails_used_this_month ?? 0;
+        const emailsLimit  = subscriptionData?.current_plan?.emails_per_month ?? 10000;
+        const billingCycle = subscriptionData?.subscription?.billing_cycle ?? 'monthly';
+        const price        = subscriptionData?.current_plan?.price_monthly ?? 297;
 
         const fallbackPlans = [
           { name: 'Essencial',    emails: 10000, users: '1 usuário',          price: 297 },
           { name: 'Profissional', emails: 25000, users: '3 usuários',          price: 497, popular: true },
           { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados', price: 797 },
-        ]
+        ];
         const plans = subscriptionData?.all_plans?.length
           ? subscriptionData.all_plans.map((p: any, i: number) => ({
               id: p.id,
@@ -144,17 +214,15 @@ export default function SettingsPage() {
               price: p.price_monthly,
               popular: i === 1,
             }))
-          : fallbackPlans
+          : fallbackPlans;
 
         const trialDaysLeft = status === 'trial' && trialEndsAt
           ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-          : null
-        const emailProgress = Math.round((emailsUsed / emailsLimit) * 100)
+          : null;
+        const emailProgress = Math.round((emailsUsed / emailsLimit) * 100);
 
         return (
           <div className="space-y-6">
-
-            {/* Plano atual */}
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Plano Atual</h3>
@@ -168,14 +236,11 @@ export default function SettingsPage() {
                   {status === 'trial' ? 'Trial' : status === 'active' ? 'Ativo' : status === 'past_due' ? 'Inadimplente' : status}
                 </span>
               </div>
-
               <p className="text-2xl font-black text-gray-900 mb-1">{planName}</p>
               <p className="text-sm text-gray-500 mb-4">R$ {price}/mês · ciclo {billingCycle === 'monthly' ? 'mensal' : billingCycle}</p>
-
               {trialDaysLeft !== null && (
                 <p className="text-sm text-amber-700 font-bold mb-4">⏳ {trialDaysLeft} dia{trialDaysLeft !== 1 ? 's' : ''} restante{trialDaysLeft !== 1 ? 's' : ''} do período de trial</p>
               )}
-
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold text-gray-500">
                   <span>E-mails utilizados</span>
@@ -191,10 +256,9 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Cards de planos */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {plans.map((plan: any) => {
-                const isCurrent = plan.name === planName
+                const isCurrent = plan.name === planName;
                 return (
                   <div key={plan.name} className={cn(
                     'relative bg-white p-6 rounded-2xl border shadow-sm flex flex-col gap-3',
@@ -223,11 +287,10 @@ export default function SettingsPage() {
                       {isCurrent ? 'Plano atual' : 'Assinar'}
                     </button>
                   </div>
-                )
+                );
               })}
             </div>
 
-            {/* Pacote extra */}
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-1">Pacote Extra de E-mails</h3>
               <p className="text-xs text-gray-500 mb-4">Precisa enviar mais e-mails este mês? Adquira um pacote adicional sem mudar de plano.</p>
@@ -235,9 +298,8 @@ export default function SettingsPage() {
                 Comprar 5.000 e-mails por R$ 80
               </button>
             </div>
-
           </div>
-        )
+        );
       }
 
       default:
@@ -274,7 +336,7 @@ export default function SettingsPage() {
                 {item.name}
               </button>
             ))}
-            
+
             <div className="pt-4 mt-4 border-t border-gray-200">
               <Link
                 href="/help"
