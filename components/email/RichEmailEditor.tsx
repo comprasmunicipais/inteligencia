@@ -118,7 +118,7 @@ export default function RichEmailEditor({ value, onChange, onSwitchToText }: Ric
       {/* Top toolbar — variables + mode switch */}
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Inserir:</span>
-        {(['[Nome]', '[Municipio]', '[Estado]'] as const).map((v) => (
+        {(['[Municipio]', '[Estado]'] as const).map((v) => (
           <button
             key={v}
             type="button"
