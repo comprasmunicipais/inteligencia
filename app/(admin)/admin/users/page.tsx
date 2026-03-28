@@ -52,6 +52,10 @@ export default function AdminUsersPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [resetPasswordLoadingId, setResetPasswordLoadingId] = useState<string | null>(null);
 
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterRole, setFilterRole] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
   const [editData, setEditData] = useState({ role: 'user', company_id: '' });
   const [editLoading, setEditLoading] = useState(false);
@@ -118,10 +122,15 @@ export default function AdminUsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.company?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const hasActiveFilters = filterRole !== '' || filterStatus !== '';
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.company?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === '' || u.role === filterRole;
+    const matchesStatus = filterStatus === '' || u.status === filterStatus;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   return (
     <div className="space-y-6">
@@ -152,19 +161,62 @@ export default function AdminUsersPage() {
         <div className="p-4 border-b border-gray-100 flex gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-            <input 
-              type="text" 
-              placeholder="Buscar por e-mail ou empresa..." 
+            <input
+              type="text"
+              placeholder="Buscar por e-mail ou empresa..."
               className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={cn(
+              "px-4 py-2 border rounded-lg text-sm font-bold flex items-center gap-2 transition-colors",
+              showFilters || hasActiveFilters
+                ? "border-[#0f49bd] text-[#0f49bd] bg-[#0f49bd]/5"
+                : "border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
             <Filter className="size-4" />
             Filtros
+            {hasActiveFilters && (
+              <span className="size-2 rounded-full bg-[#0f49bd] inline-block" />
+            )}
           </button>
         </div>
+
+        {showFilters && (
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center gap-3">
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
+            >
+              <option value="">Papel: Todos</option>
+              <option value="user">Usuário Comum</option>
+              <option value="admin">Admin</option>
+              <option value="platform_admin">Super Admin</option>
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
+            >
+              <option value="">Status: Todos</option>
+              <option value="active">Ativo</option>
+              <option value="inactive">Inativo</option>
+            </select>
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setFilterRole(''); setFilterStatus(''); }}
+                className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
