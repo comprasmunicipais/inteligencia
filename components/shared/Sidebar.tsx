@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import {
   LayoutDashboard,
   Filter,
@@ -83,6 +82,14 @@ const adminItems = {
   ],
 };
 
+function getInitials(email?: string) {
+  if (!email) return 'U';
+  const name = email.split('@')[0];
+  const parts = name.split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -99,106 +106,314 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 flex-shrink-0 flex flex-col bg-[#0d121b] text-white border-r border-gray-800 h-screen sticky top-0">
-      <div className="p-6 flex items-center gap-3">
-        <div className="bg-[#0f49bd] aspect-square rounded-lg size-10 flex items-center justify-center text-white font-bold text-xl">
-          CM
-        </div>
-        <div className="flex flex-col">
-          <h1 className="text-white text-base font-bold leading-tight">CM Pro</h1>
-          <p className="text-gray-400 text-xs font-normal">Plataforma B2G</p>
-        </div>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap');
 
-      <nav className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6">
-        {role === 'platform_admin' && (
-          <div className="flex flex-col gap-1">
-            <h3 className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              {adminItems.group}
-            </h3>
-            {adminItems.items.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group',
-                    isActive
-                      ? 'bg-[#0f49bd] text-white shadow-md'
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'size-5',
-                      isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                    )}
-                  />
-                  <span className="text-sm font-medium">{item.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        .sb-root {
+          width: 256px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          background: #0d1120;
+          border-right: 1px solid rgba(255,255,255,0.06);
+          height: 100vh;
+          position: sticky;
+          top: 0;
+          font-family: 'Outfit', sans-serif;
+        }
 
-        {sidebarItems.map((group) => (
-          <div key={group.group} className="flex flex-col gap-1">
-            <h3 className="px-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              {group.group}
-            </h3>
-            {group.items.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group',
-                    isActive
-                      ? 'bg-[#0f49bd] text-white shadow-md'
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'size-5',
-                      isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                    )}
-                  />
-                  <span className="text-sm font-medium">{item.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
+        /* Header */
+        .sb-header {
+          padding: 20px 18px 18px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          flex-shrink: 0;
+        }
 
-      <div className="p-4 border-t border-gray-800">
-        <div
-          onClick={handleSignOut}
-          className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
-        >
-          <div className="bg-gray-600 h-8 w-8 rounded-full flex items-center justify-center overflow-hidden relative">
-            <Image
-              src={`https://picsum.photos/seed/${user?.id || 'user'}/100/100`}
-              alt="Profile"
-              fill
-              className="object-cover"
-              referrerPolicy="no-referrer"
-            />
+        .sb-logo {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+          box-shadow: 0 0 0 1px rgba(59,130,246,0.35), 0 4px 12px rgba(37,99,235,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .sb-brand-name {
+          font-family: 'Sora', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          color: #e2e8f0;
+          line-height: 1.2;
+          letter-spacing: -0.01em;
+        }
+
+        .sb-brand-name span {
+          color: #3b82f6;
+        }
+
+        .sb-brand-sub {
+          font-family: 'Outfit', sans-serif;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(148,163,184,0.4);
+          margin-top: 1px;
+        }
+
+        /* Nav */
+        .sb-nav {
+          flex: 1;
+          overflow-y: auto;
+          padding: 4px 12px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.06) transparent;
+        }
+
+        .sb-nav::-webkit-scrollbar {
+          width: 3px;
+        }
+        .sb-nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .sb-nav::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.07);
+          border-radius: 2px;
+        }
+
+        .sb-divider {
+          height: 1px;
+          background: rgba(255,255,255,0.05);
+          margin: 6px 4px 10px;
+        }
+
+        .sb-group {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          margin-bottom: 4px;
+        }
+
+        .sb-group-label {
+          padding: 8px 10px 5px;
+          font-family: 'Outfit', sans-serif;
+          font-size: 0.6rem;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(148,163,184,0.35);
+        }
+
+        .sb-item {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 7px 10px;
+          border-radius: 8px;
+          text-decoration: none;
+          color: rgba(148,163,184,0.7);
+          font-family: 'Outfit', sans-serif;
+          font-size: 13px;
+          font-weight: 400;
+          transition: background 0.15s, color 0.15s;
+          cursor: pointer;
+        }
+
+        .sb-item:hover {
+          background: rgba(255,255,255,0.04);
+          color: rgba(203,213,225,0.9);
+        }
+
+        .sb-item.active {
+          background: rgba(37,99,235,0.12);
+          color: #93c5fd;
+        }
+
+        .sb-item.active::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 6px;
+          bottom: 6px;
+          width: 2.5px;
+          border-radius: 0 2px 2px 0;
+          background: #3b82f6;
+        }
+
+        .sb-item-icon {
+          flex-shrink: 0;
+          color: inherit;
+          transition: color 0.15s;
+        }
+
+        .sb-item.active .sb-item-icon {
+          color: #60a5fa;
+        }
+
+        /* Footer */
+        .sb-footer {
+          padding: 10px 12px 12px;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
+        }
+
+        .sb-user {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 8px;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .sb-user:hover {
+          background: rgba(255,255,255,0.04);
+        }
+
+        .sb-avatar {
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Sora', sans-serif;
+          font-size: 11px;
+          font-weight: 700;
+          color: #fff;
+          flex-shrink: 0;
+          letter-spacing: 0.02em;
+        }
+
+        .sb-user-info {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+
+        .sb-user-name {
+          font-family: 'Outfit', sans-serif;
+          font-size: 12.5px;
+          font-weight: 500;
+          color: rgba(226,232,240,0.85);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sb-user-email {
+          font-family: 'Outfit', sans-serif;
+          font-size: 11px;
+          font-weight: 400;
+          color: rgba(100,116,139,0.7);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sb-logout-icon {
+          flex-shrink: 0;
+          color: rgba(100,116,139,0.5);
+          transition: color 0.15s;
+        }
+
+        .sb-user:hover .sb-logout-icon {
+          color: rgba(148,163,184,0.7);
+        }
+      `}</style>
+
+      <aside className="sb-root">
+        {/* Header */}
+        <div className="sb-header">
+          <div className="sb-logo">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="1" y="1" width="6.5" height="6.5" rx="1.5" fill="white" fillOpacity="0.9"/>
+              <rect x="10.5" y="1" width="6.5" height="6.5" rx="1.5" fill="white" fillOpacity="0.9"/>
+              <rect x="1" y="10.5" width="6.5" height="6.5" rx="1.5" fill="white" fillOpacity="0.9"/>
+              <rect x="10.5" y="10.5" width="6.5" height="6.5" rx="1.5" fill="white" fillOpacity="0.9"/>
+            </svg>
           </div>
-          <div className="flex flex-col overflow-hidden">
-            <p className="text-sm font-medium text-white truncate">
-              {user?.email?.split('@')[0] || 'Usuário'}
-            </p>
-            <p className="text-xs text-gray-400 truncate">
-              {user?.email || 'email@empresa.com.br'}
-            </p>
+          <div>
+            <div className="sb-brand-name">CM <span>PRO</span></div>
+            <div className="sb-brand-sub">Plataforma B2G</div>
           </div>
-          <LogOut className="size-4 text-gray-500 ml-auto" />
         </div>
-      </div>
-    </aside>
+
+        {/* Nav */}
+        <nav className="sb-nav">
+          {role === 'platform_admin' && (
+            <>
+              <div className="sb-group">
+                <div className="sb-group-label">{adminItems.group}</div>
+                {adminItems.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={cn('sb-item', isActive && 'active')}
+                    >
+                      <item.icon className="sb-item-icon" size={15} strokeWidth={1.75} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+              <div className="sb-divider" />
+            </>
+          )}
+
+          {sidebarItems.map((group, gi) => (
+            <React.Fragment key={group.group}>
+              {gi > 0 && <div className="sb-divider" />}
+              <div className="sb-group">
+                <div className="sb-group-label">{group.group}</div>
+                {group.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={cn('sb-item', isActive && 'active')}
+                    >
+                      <item.icon className="sb-item-icon" size={15} strokeWidth={1.75} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </React.Fragment>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className="sb-footer">
+          <div className="sb-user" onClick={handleSignOut}>
+            <div className="sb-avatar">
+              {getInitials(user?.email)}
+            </div>
+            <div className="sb-user-info">
+              <div className="sb-user-name">{user?.email?.split('@')[0] || 'Usuário'}</div>
+              <div className="sb-user-email">{user?.email || 'email@empresa.com.br'}</div>
+            </div>
+            <LogOut className="sb-logout-icon" size={14} strokeWidth={1.75} />
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
