@@ -9,8 +9,6 @@ import {
   MoreVertical,
   Shield,
   Mail,
-  Ban,
-  CheckCircle2,
   Loader2,
   Edit,
   Key,
@@ -33,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
-import { getUsersAction, updateUserRoleAction, updateUserStatusAction, getCompaniesAction } from '../actions';
+import { getUsersAction, updateUserRoleAction, getCompaniesAction } from '../actions';
 import { UserProfile, Company } from '@/lib/services/admin';
 
 export default function AdminUsersPage() {
@@ -54,7 +52,6 @@ export default function AdminUsersPage() {
 
   const [showFilters, setShowFilters] = useState(false);
   const [filterRole, setFilterRole] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
 
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
   const [editData, setEditData] = useState({ role: 'user', company_id: '' });
@@ -112,24 +109,13 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
-    try {
-      const updated = await updateUserStatusAction(id, status);
-      setUsers(users.map(u => u.id === id ? updated : u));
-      toast.success(`Status do usuário atualizado para ${status}.`);
-    } catch (error) {
-      toast.error('Erro ao atualizar status.');
-    }
-  };
-
-  const hasActiveFilters = filterRole !== '' || filterStatus !== '';
+  const hasActiveFilters = filterRole !== '';
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.company?.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === '' || u.role === filterRole;
-    const matchesStatus = filterStatus === '' || u.status === filterStatus;
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchesSearch && matchesRole;
   });
 
   return (
@@ -198,18 +184,9 @@ export default function AdminUsersPage() {
               <option value="admin">Admin</option>
               <option value="platform_admin">Super Admin</option>
             </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
-            >
-              <option value="">Status: Todos</option>
-              <option value="active">Ativo</option>
-              <option value="inactive">Inativo</option>
-            </select>
             {hasActiveFilters && (
               <button
-                onClick={() => { setFilterRole(''); setFilterStatus(''); }}
+                onClick={() => setFilterRole('')}
                 className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
               >
                 Limpar filtros
@@ -225,7 +202,6 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4">Usuário</th>
                 <th className="px-6 py-4">Empresa</th>
                 <th className="px-6 py-4">Papel</th>
-                <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Último Acesso</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -233,14 +209,14 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <Loader2 className="size-8 text-[#0f49bd] animate-spin mx-auto" />
                     <p className="text-xs text-gray-400 mt-2 font-bold uppercase">Carregando usuários...</p>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
@@ -270,18 +246,6 @@ export default function AdminUsersPage() {
                       user.role === 'admin' ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
                     )}>
                       {user.role === 'platform_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'Usuário'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider",
-                      user.status === 'active' ? "text-green-600" : "text-red-600"
-                    )}>
-                      <div className={cn(
-                        "size-1.5 rounded-full",
-                        user.status === 'active' ? "bg-green-600" : "bg-red-600"
-                      )} />
-                      {user.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -321,19 +285,6 @@ export default function AdminUsersPage() {
                           className="text-xs font-bold"
                         >
                           <Shield className="size-4 mr-2" /> {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(user.id, user.status === 'active' ? 'inactive' : 'active')}
-                          className={cn(
-                            "text-xs font-bold",
-                            user.status === 'active' ? "text-red-600" : "text-green-600"
-                          )}
-                        >
-                          {user.status === 'active' ? (
-                            <><Ban className="size-4 mr-2" /> Desativar Usuário</>
-                          ) : (
-                            <><CheckCircle2 className="size-4 mr-2" /> Ativar Usuário</>
-                          )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
