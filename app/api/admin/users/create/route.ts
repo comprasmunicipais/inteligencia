@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
           company_id,
           role,
           status: 'active',
-          ...(full_name ? { full_name } : {}),
         },
         { onConflict: 'id' }
       );
