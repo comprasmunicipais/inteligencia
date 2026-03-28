@@ -354,3 +354,30 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 
 - **NEVER include `supabase/functions/` in the Next.js build.** The folder is excluded via `tsconfig.json` `exclude: ["supabase"]`. Edge Functions use Deno and are incompatible with the Next.js TypeScript compiler.
 - Deploy Edge Functions only via `supabase functions deploy`, never via Next.js build pipeline.
+
+---
+
+## Changelog
+
+### Sessão 2026-03-28
+
+- **Login dark premium** — redesign com Sora + Outfit, grid background, halos radiais, card glassmorphism (`app/login/page.tsx`)
+- **Esqueceu a senha** — modal no login + página `app/reset-password/page.tsx`; usa `supabase.auth.resetPasswordForEmail` + `updateUser`
+- **Ciclo de vida de licitações vencidas** — `archiveExpiredOpportunities` (→ `expired`) + `deleteOldExpiredOpportunities` (30 dias) chamados no início de cada sync; pg_cron diário às 06h UTC
+- **Templates de email por IA** — Gemini 2.5 Flash Lite gera 4 tipos (Prospecção, Relacionamento, Apresentação Comercial, Follow-up) com cache por perfil (`/api/email/templates/generate`)
+- **Fix campanha nova** — não busca UUID `'new'` no banco; suporte a query params de template para popular `html_content` e `text_content`
+- **Gerenciamento de usuários no admin** — convite real (`/api/admin/invite`), criação manual (`/api/admin/users/create`), resetar senha (`/api/admin/users/reset-password`), editar permissões (`/api/admin/users/update-role`), filtros por role
+- **`profiles` table** — colunas confirmadas: `id, email, company_id, role, created_at` — sem `status`, sem `last_access`; todas as features dependentes dessas colunas removidas
+- **Oportunidades PNCP globais** — removido `.eq('company_id', companyId)` de `getAll()` e `getStats()` em `lib/services/opportunities.ts`; licitações visíveis para todos os usuários
+- **Sync PNCP ao criar empresa** — `createCompanyAction` dispara `GET /api/pncp/sync?company_id=` fire-and-forget; sync suporta `?company_id=` opcional
+- **Dados falsos removidos**:
+  - Dashboard: `salesPerformance` calculado de deals reais por mês; fallback de `recentOpportunities` removido; `activeTenders` conta `opportunities` reais
+  - Funil: "Previsão (Mês)" → soma de deals Ganho no mês atual; "Taxa de Conversão" calculada de `columns`
+  - Análise de Mercado: todos os hardcoded removidos; KPIs reais de `opportunities`; gráficos substituídos por "Em breve"
+- **Perfil estratégico** — fallback entregue em branco para novos usuários (`lib/intel/services.ts`)
+- **Validação de campanha** — aceita `html_content` OU `text_content` (não ambos obrigatórios)
+- **Editor rico Tiptap** — `components/email/RichEmailEditor.tsx`; toolbar com variáveis `[Municipio]` `[Estado]`, negrito/itálico/sublinhado, link, listas, alinhamento, tabela 3×3; sincronizado com `html_content`
+- **Settings** — carrega dados reais do usuário (email, role, empresa) via `auth.getUser()` + `profiles` + `companies`; avatar com iniciais; remove hardcoded "Ricardo Silva"
+- **Histórico de email** — reescrito para `email_job_queue` com join em `email_campaigns(name, subject)`; filtros 7/30/90 dias; paginação 20/página; status badge
+- **Admin: Logs do Sistema** — `app/(admin)/admin/logs/page.tsx`; tenta ler `audit_logs` (tabela ainda não existe — exibe estado vazio elegante); filtros de período e ação; paginação 50/página
+- **Admin: Diagnóstico** — `app/(admin)/admin/diagnostico/page.tsx` + `GET /api/admin/diagnostics`; verifica conectividade Supabase, 6 env vars críticas (✅/❌ sem expor valores), jobs pendentes na fila de email, último sync PNCP
