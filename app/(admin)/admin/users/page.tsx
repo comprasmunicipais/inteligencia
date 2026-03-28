@@ -42,6 +42,8 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteData, setInviteData] = useState({ email: '', role: 'user', company_id: '' });
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -235,7 +237,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Invite Modal */}
-      <Dialog open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>
+      <Dialog open={isInviteModalOpen} onOpenChange={(open) => { setIsInviteModalOpen(open); if (!open) setInviteError(null); }}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle>Convidar Usuário</DialogTitle>
@@ -282,21 +284,46 @@ export default function AdminUsersPage() {
               </select>
             </div>
           </div>
+          {inviteError && (
+            <p className="text-xs text-red-600 font-bold px-1 -mt-2">{inviteError}</p>
+          )}
           <DialogFooter className="pt-4">
-            <button 
-              type="button" 
-              onClick={() => setIsInviteModalOpen(false)}
+            <button
+              type="button"
+              onClick={() => { setIsInviteModalOpen(false); setInviteError(null); }}
               className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
             >
               Cancelar
             </button>
-            <button 
-              onClick={() => {
-                toast.success('Convite enviado com sucesso!');
-                setIsInviteModalOpen(false);
+            <button
+              disabled={inviteLoading}
+              onClick={async () => {
+                setInviteError(null);
+                setInviteLoading(true);
+                try {
+                  const res = await fetch('/api/admin/invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(inviteData),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) {
+                    setInviteError(json.error || 'Erro ao enviar convite.');
+                    return;
+                  }
+                  toast.success('Convite enviado com sucesso!');
+                  setIsInviteModalOpen(false);
+                  setInviteData({ email: '', role: 'user', company_id: '' });
+                  await loadUsers();
+                } catch {
+                  setInviteError('Erro de conexão. Tente novamente.');
+                } finally {
+                  setInviteLoading(false);
+                }
               }}
-              className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all"
+              className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
             >
+              {inviteLoading && <Loader2 className="size-4 animate-spin" />}
               Enviar Convite
             </button>
           </DialogFooter>
