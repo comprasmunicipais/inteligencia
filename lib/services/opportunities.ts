@@ -42,8 +42,7 @@ export const opportunityService = {
     const supabase = createClient();
     let query = supabase
       .from('opportunities')
-      .select('*, municipalities(name)')
-      .eq('company_id', companyId);
+      .select('*, municipalities(name)');
 
     if (filters?.search) {
       query = query.or(`title.ilike.%${filters.search}%,organ_name.ilike.%${filters.search}%`);
