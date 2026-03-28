@@ -710,7 +710,7 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
   const hasHtml = emailForm.html_content.trim().length > 0;
   const hasText = emailForm.text_content.trim().length > 0;
   const hasAudience = audienceFilters.totalCount > 0;
-  const isReady = hasSubject && hasHtml && hasAudience;
+  const isReady = hasSubject && (hasHtml || hasText) && hasAudience;
 
   // Build active audience filter tags
   const audienceTags: string[] = [];
@@ -1375,7 +1375,7 @@ export default function CampaignDetailPage() {
   // ── Navigation ─────────────────────────────────────────────────────────────
   const summaryIsReady =
     emailForm.subject.trim().length > 0 &&
-    emailForm.html_content.trim().length > 0 &&
+    (emailForm.html_content.trim().length > 0 || emailForm.text_content.trim().length > 0) &&
     audienceFilters.totalCount > 0;
 
   const handleContinue = async () => {
