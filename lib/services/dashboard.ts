@@ -23,6 +23,7 @@ export const dashboardService = {
       { count: dealsCount },
       { count: proposalsCount },
       { count: contractsCount },
+      { count: activeTendersCount },
       { data: recentDeals },
       { data: pendingTasks },
       { data: dealsForChart }
@@ -30,6 +31,7 @@ export const dashboardService = {
       supabase.from('deals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
+      supabase.from('opportunities').select('*', { count: 'exact', head: true }).neq('internal_status', 'expired').gt('opening_date', new Date().toISOString()),
       supabase.from('deals')
         .select('*, municipalities(name), pipeline_stages(title)')
         .eq('company_id', companyId)
@@ -95,7 +97,7 @@ export const dashboardService = {
     return {
       newOpportunities: dealsCount || 0,
       sentProposals: proposalsCount || 0,
-      activeTenders: 0,
+      activeTenders: activeTendersCount || 0,
       activeContracts: contractsCount || 0,
       salesPerformance,
       recentOpportunities: mappedRecent,
