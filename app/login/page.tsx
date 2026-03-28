@@ -10,6 +10,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
   const router = useRouter();
   const supabase = createClient();
 
@@ -22,6 +26,26 @@ export default function LoginPage() {
     };
     checkSession();
   }, [supabase, router]);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${appUrl}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotOpen(false);
+      setForgotEmail('');
+      toast.success('Verifique seu e-mail para redefinir a senha.');
+    } catch (err: any) {
+      setForgotError(err.message || 'Erro ao enviar link de redefinição.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -395,7 +419,9 @@ export default function LoginPage() {
               </div>
 
               <div className="login-forgot-row">
-                <a href="#" className="login-forgot">Esqueceu a senha?</a>
+                <button type="button" onClick={() => { setForgotOpen(true); setForgotError(''); }} className="login-forgot">
+                  Esqueceu a senha?
+                </button>
               </div>
 
               <div className="login-btn-wrap">
@@ -433,6 +459,51 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Forgot password modal */}
+      {forgotOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="login-card" style={{ maxWidth: '400px' }}>
+            <div className="login-card-topbar" />
+            <div className="login-body" style={{ padding: '32px' }}>
+              <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: '18px', fontWeight: 700, color: '#f0f4ff', marginBottom: '8px' }}>
+                Redefinir senha
+              </h2>
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: 'rgba(148,163,184,0.75)', marginBottom: '24px' }}>
+                Informe seu e-mail e enviaremos um link para criar uma nova senha.
+              </p>
+              <form onSubmit={handleForgotPassword} className="login-form">
+                <div className="login-field">
+                  <label className="login-label">E-mail</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="seu@email.com.br"
+                    className="login-input"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                </div>
+                {forgotError && (
+                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#f87171' }}>{forgotError}</p>
+                )}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setForgotOpen(false)}
+                    style={{ flex: 1, height: '44px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'rgba(148,163,184,0.85)', fontFamily: "'Outfit', sans-serif", fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={forgotLoading} className="login-btn" style={{ flex: 2, height: '44px' }}>
+                    {forgotLoading ? <><Loader2 size={16} className="animate-spin" /> Enviando…</> : 'Enviar link'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
