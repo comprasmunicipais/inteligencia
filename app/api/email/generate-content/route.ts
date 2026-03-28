@@ -49,10 +49,10 @@ export async function POST() {
   const prompt = `Com base no perfil comercial abaixo, escreva um e-mail de prospecção para prefeituras municipais. O e-mail deve ter tom profissional, ser direto, destacar o diferencial da empresa e terminar com uma chamada para ação clara. Gere apenas o corpo do e-mail em HTML simples (sem <!DOCTYPE>, sem <html>, sem <head>, sem <body> — apenas o conteúdo interno), usando as variáveis [Nome] para o nome do contato, [Municipio] para o nome do município e [Estado] para o estado. Perfil: ${companyProfile.consolidated_text}`;
 
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GOOGLE_API_KEY! },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
