@@ -52,6 +52,11 @@ export default function AdminUsersPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [resetPasswordLoadingId, setResetPasswordLoadingId] = useState<string | null>(null);
 
+  const [editUser, setEditUser] = useState<UserProfile | null>(null);
+  const [editData, setEditData] = useState({ role: 'user', company_id: '' });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   useEffect(() => {
     loadUsers();
   }, []);
@@ -238,7 +243,14 @@ export default function AdminUsersPage() {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem className="text-xs font-bold">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditUser(user);
+                            setEditData({ role: user.role, company_id: user.company_id });
+                            setEditError(null);
+                          }}
+                          className="text-xs font-bold"
+                        >
                           <Edit className="size-4 mr-2" /> Editar Permissões
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -280,6 +292,92 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      {/* Edit Permissions Modal */}
+      <Dialog open={!!editUser} onOpenChange={(open) => { if (!open) { setEditUser(null); setEditError(null); } }}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Editar Permissões</DialogTitle>
+            <DialogDescription>
+              {editUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Empresa</label>
+              <select
+                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                value={editData.company_id}
+                onChange={(e) => setEditData({ ...editData, company_id: e.target.value })}
+              >
+                <option value="">Sem empresa</option>
+                {companies.map(company => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Papel (Role)</label>
+              <select
+                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                value={editData.role}
+                onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+              >
+                <option value="user">Usuário Comum</option>
+                <option value="admin">Administrador da Empresa</option>
+                <option value="platform_admin">Super Admin da Plataforma</option>
+              </select>
+            </div>
+          </div>
+          {editError && (
+            <p className="text-xs text-red-600 font-bold px-1 -mt-2">{editError}</p>
+          )}
+          <DialogFooter className="pt-4">
+            <button
+              type="button"
+              onClick={() => { setEditUser(null); setEditError(null); }}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={editLoading}
+              onClick={async () => {
+                if (!editUser) return;
+                setEditError(null);
+                setEditLoading(true);
+                try {
+                  const res = await fetch('/api/admin/users/update-role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      user_id: editUser.id,
+                      role: editData.role,
+                      company_id: editData.company_id || undefined,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) {
+                    setEditError(json.error || 'Erro ao salvar permissões.');
+                    return;
+                  }
+                  toast.success('Permissões atualizadas com sucesso!');
+                  setEditUser(null);
+                  await loadUsers();
+                } catch {
+                  setEditError('Erro de conexão. Tente novamente.');
+                } finally {
+                  setEditLoading(false);
+                }
+              }}
+              className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {editLoading && <Loader2 className="size-4 animate-spin" />}
+              Salvar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite Modal */}
       <Dialog open={isInviteModalOpen} onOpenChange={(open) => { setIsInviteModalOpen(open); if (!open) setInviteError(null); }}>
