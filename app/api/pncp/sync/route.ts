@@ -342,11 +342,16 @@ export async function GET(request: Request) {
       .eq('internal_status', 'expired')
       .lt('opening_date', cutoff);
 
-    // Buscar todas as empresas ativas na plataforma
-    const { data: companies, error: companiesError } = await supabase
-      .from('companies')
-      .select('id, name')
-      .eq('status', 'active');
+    // Suporte a company_id opcional — quando presente, sincroniza apenas aquela empresa
+    const requestUrl = new URL(request.url);
+    const targetCompanyId = requestUrl.searchParams.get('company_id');
+
+    let companiesQuery = supabase.from('companies').select('id, name').eq('status', 'active');
+    if (targetCompanyId) {
+      companiesQuery = companiesQuery.eq('id', targetCompanyId);
+    }
+
+    const { data: companies, error: companiesError } = await companiesQuery;
 
     if (companiesError || !companies || companies.length === 0) {
       return NextResponse.json({ ok: false, error: 'Nenhuma empresa ativa encontrada.' }, { status: 400 });

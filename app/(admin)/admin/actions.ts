@@ -10,6 +10,15 @@ export async function getCompaniesAction() {
 export async function createCompanyAction(company: Partial<Company>) {
   const result = await adminService.createCompany(company);
   revalidatePath('/admin/companies');
+
+  // Disparar sync do PNCP para a nova empresa em background (fire and forget)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://inteligencia-sooty.vercel.app';
+  fetch(`${appUrl}/api/pncp/sync?company_id=${result.id}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    cache: 'no-store',
+  }).catch(() => {});
+
   return result;
 }
 
