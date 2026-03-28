@@ -1194,11 +1194,31 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     // id === 'new': não buscar no banco — apenas inicializar com query params do template
     if (isNew) {
+      const rawBody = searchParams.get('template_body') ?? '';
+      const htmlBody = rawBody
+        ? `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 32px; }
+    p { font-size: 15px; line-height: 1.6; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    ${rawBody.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br />')}</p>`).join('\n    ')}
+  </div>
+</body>
+</html>`
+        : '';
       setEmailForm({
         subject: searchParams.get('template_subject') ?? '',
         preheader: '',
-        html_content: '',
-        text_content: searchParams.get('template_body') ?? '',
+        html_content: htmlBody,
+        text_content: rawBody,
       });
       setIsLoading(false);
       return;
