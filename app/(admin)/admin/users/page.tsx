@@ -50,6 +50,7 @@ export default function AdminUsersPage() {
   const [createData, setCreateData] = useState({ full_name: '', email: '', password: '', confirm_password: '', company_id: '', role: 'user' });
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [resetPasswordLoadingId, setResetPasswordLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -78,6 +79,27 @@ export default function AdminUsersPage() {
       toast.success(`Papel do usuário atualizado para ${role}.`);
     } catch (error) {
       toast.error('Erro ao atualizar papel.');
+    }
+  };
+
+  const handleResetPassword = async (id: string, email: string) => {
+    setResetPasswordLoadingId(id);
+    try {
+      const res = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || 'Erro ao resetar senha.');
+        return;
+      }
+      toast.success(`Email de redefinição enviado para ${email}`);
+    } catch {
+      toast.error('Erro de conexão. Tente novamente.');
+    } finally {
+      setResetPasswordLoadingId(null);
     }
   };
 
@@ -219,8 +241,16 @@ export default function AdminUsersPage() {
                         <DropdownMenuItem className="text-xs font-bold">
                           <Edit className="size-4 mr-2" /> Editar Permissões
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-xs font-bold">
-                          <Key className="size-4 mr-2" /> Resetar Senha
+                        <DropdownMenuItem
+                          disabled={resetPasswordLoadingId === user.id}
+                          onClick={() => handleResetPassword(user.id, user.email)}
+                          className="text-xs font-bold"
+                        >
+                          {resetPasswordLoadingId === user.id
+                            ? <Loader2 className="size-4 mr-2 animate-spin" />
+                            : <Key className="size-4 mr-2" />
+                          }
+                          Resetar Senha
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleUpdateRole(user.id, user.role === 'admin' ? 'user' : 'admin')}
