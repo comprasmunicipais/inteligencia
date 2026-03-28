@@ -13,7 +13,9 @@
       "Bash(ls \"C:\\\\Projetos\\\\inteligencia\\\\inteligencia\\\\app\\\\api\\\\email\\\\templates\\\\generate\"\" && ls \"C:Projetosinteligenciainteligenciasupabasemigrations\"\")",
       "mcp__claude_ai_Supabase__list_projects",
       "Bash(ls:*)",
-      "Bash(find \"/c/Projetos/inteligencia/inteligencia/app/\\(dashboard\\)\" -type f \\\\\\( -name \"page.tsx\" -o -name \"page.ts\" \\\\\\))"
+      "Bash(find \"/c/Projetos/inteligencia/inteligencia/app/\\(dashboard\\)\" -type f \\\\\\( -name \"page.tsx\" -o -name \"page.ts\" \\\\\\))",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

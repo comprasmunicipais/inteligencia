@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LimitReachedModal from '@/components/email/LimitReachedModal';
+import RichEmailEditor from '@/components/email/RichEmailEditor';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -340,23 +341,11 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
 
         {tab === 'html' && (
           <div className="p-4">
-            <textarea
+            <RichEmailEditor
               value={form.html_content}
-              onChange={set('html_content')}
-              placeholder={HTML_PLACEHOLDER}
-              rows={22}
-              spellCheck={false}
-              className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10"
+              onChange={(html) => onChange({ ...form, html_content: html })}
+              onSwitchToText={() => setTab('text')}
             />
-            {!form.html_content && (
-              <p className="mt-2 text-xs text-slate-400">
-                Use{' '}
-                <code className="rounded bg-slate-100 px-1 py-0.5">[Nome]</code>,{' '}
-                <code className="rounded bg-slate-100 px-1 py-0.5">[Municipio]</code>,{' '}
-                <code className="rounded bg-slate-100 px-1 py-0.5">[Estado]</code>{' '}
-                como variáveis de personalização.
-              </p>
-            )}
           </div>
         )}
 
