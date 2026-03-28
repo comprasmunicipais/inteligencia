@@ -13,7 +13,9 @@ import {
   Edit,
   Key,
   Building2,
-  UserCog
+  UserCog,
+  Eye,
+  CreditCard,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import {
@@ -31,8 +33,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
-import { getUsersAction, updateUserRoleAction, getCompaniesAction } from '../actions';
+import { getUsersAction, updateUserRoleAction, getCompaniesAction, updateCompanyAction } from '../actions';
 import { UserProfile, Company } from '@/lib/services/admin';
+
+type Plan = { id: string; name: string; price_monthly: number };
+type CompanyDetail = {
+  id: string;
+  name: string;
+  status: string;
+  plan_id: string | null;
+  emails_used_this_month: number;
+  trial_ends_at: string | null;
+  subscription: { status: string; billing_cycle: string } | null;
+};
 
 export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
@@ -58,9 +71,35 @@ export default function AdminUsersPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [companyDetailUser, setCompanyDetailUser] = useState<UserProfile | null>(null);
+  const [companyDetail, setCompanyDetail] = useState<CompanyDetail | null>(null);
+  const [companyDetailLoading, setCompanyDetailLoading] = useState(false);
+  const [companyDetailError, setCompanyDetailError] = useState<string | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [planUpdateLoading, setPlanUpdateLoading] = useState(false);
+  const [suspendLoading, setSuspendLoading] = useState(false);
+
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (!companyDetailUser?.company_id) return;
+    setCompanyDetailLoading(true);
+    setCompanyDetail(null);
+    setCompanyDetailError(null);
+    fetch(`/api/admin/companies/update-plan?company_id=${companyDetailUser.company_id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setCompanyDetailError(data.error); return; }
+        setCompanyDetail(data.company);
+        setPlans(data.plans);
+        setSelectedPlanId(data.company.plan_id ?? '');
+      })
+      .catch(() => setCompanyDetailError('Erro ao carregar detalhes.'))
+      .finally(() => setCompanyDetailLoading(false));
+  }, [companyDetailUser]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -259,6 +298,12 @@ export default function AdminUsersPage() {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => setCompanyDetailUser(user)}
+                          className="text-xs font-bold"
+                        >
+                          <Eye className="size-4 mr-2" /> Ver Detalhes da Empresa
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {
                             setEditUser(user);
@@ -475,6 +520,158 @@ export default function AdminUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Company Detail Modal */}
+      <Dialog open={!!companyDetailUser} onOpenChange={(open) => { if (!open) { setCompanyDetailUser(null); setCompanyDetail(null); } }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="size-5 text-[#0f49bd]" />
+              Detalhes da Empresa
+            </DialogTitle>
+            <DialogDescription>
+              {companyDetailUser?.company?.name || companyDetailUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          {companyDetailLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-7 text-[#0f49bd] animate-spin" />
+            </div>
+          ) : companyDetailError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">
+              {companyDetailError}
+            </div>
+          ) : companyDetail ? (
+            <div className="space-y-5 py-2">
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Status da Empresa</p>
+                  <span className={cn(
+                    'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
+                    companyDetail.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                  )}>
+                    {companyDetail.status === 'active' ? 'Ativa' : 'Suspensa'}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Assinatura</p>
+                  <span className={cn(
+                    'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
+                    companyDetail.subscription?.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
+                    companyDetail.subscription?.status === 'trial' ? 'bg-amber-50 text-amber-700' :
+                    companyDetail.subscription?.status === 'past_due' ? 'bg-orange-50 text-orange-700' :
+                    'bg-red-50 text-red-700'
+                  )}>
+                    {companyDetail.subscription?.status ?? 'Sem assinatura'}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Emails Usados (mês)</p>
+                  <p className="text-lg font-black text-gray-900">
+                    {(companyDetail.emails_used_this_month ?? 0).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Trial até</p>
+                  <p className="text-sm font-bold text-gray-700">
+                    {companyDetail.trial_ends_at
+                      ? new Date(companyDetail.trial_ends_at).toLocaleDateString('pt-BR')
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Plan selector */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+                  <CreditCard className="size-4 text-gray-400" />
+                  Plano atual
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedPlanId}
+                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                    className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
+                  >
+                    <option value="">Sem plano</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — R${p.price_monthly?.toLocaleString('pt-BR')}/mês
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    disabled={planUpdateLoading || selectedPlanId === (companyDetail.plan_id ?? '')}
+                    onClick={async () => {
+                      setPlanUpdateLoading(true);
+                      try {
+                        const res = await fetch('/api/admin/companies/update-plan', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ company_id: companyDetail.id, plan_id: selectedPlanId }),
+                        });
+                        const json = await res.json();
+                        if (!res.ok) { toast.error(json.error || 'Erro ao atualizar plano.'); return; }
+                        toast.success(`Plano atualizado para ${json.plan_name}!`);
+                        setCompanyDetail({ ...companyDetail, plan_id: selectedPlanId });
+                      } catch {
+                        toast.error('Erro de conexão.');
+                      } finally {
+                        setPlanUpdateLoading(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#0f49bd] text-white rounded-lg text-sm font-bold hover:bg-[#0a3690] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {planUpdateLoading && <Loader2 className="size-3.5 animate-spin" />}
+                    Salvar
+                  </button>
+                </div>
+              </div>
+
+              {/* Suspend / Reactivate */}
+              <div className="border-t border-gray-100 pt-4">
+                <button
+                  disabled={suspendLoading}
+                  onClick={async () => {
+                    setSuspendLoading(true);
+                    try {
+                      const newStatus = companyDetail.status === 'active' ? 'suspended' : 'active';
+                      await updateCompanyAction(companyDetail.id, { status: newStatus });
+                      setCompanyDetail({ ...companyDetail, status: newStatus });
+                      toast.success(newStatus === 'suspended' ? 'Empresa suspensa.' : 'Empresa reativada.');
+                    } catch {
+                      toast.error('Erro ao atualizar status.');
+                    } finally {
+                      setSuspendLoading(false);
+                    }
+                  }}
+                  className={cn(
+                    'w-full py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2',
+                    companyDetail.status === 'active'
+                      ? 'border border-red-200 text-red-600 hover:bg-red-50'
+                      : 'border border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                  )}
+                >
+                  {suspendLoading && <Loader2 className="size-4 animate-spin" />}
+                  {companyDetail.status === 'active' ? 'Suspender Empresa' : 'Reativar Empresa'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => { setCompanyDetailUser(null); setCompanyDetail(null); }}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Fechar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create User Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) setCreateError(null); }}>
         <DialogContent className="sm:max-w-[450px]">
