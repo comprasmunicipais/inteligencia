@@ -14,15 +14,18 @@ export const dashboardService = {
   async getMetrics(companyId: string): Promise<DashboardMetrics> {
     const supabase = createClient();
 
-    // In a real app, these would be real queries to Supabase
-    // For now, we'll mix some real counts with mock data for the charts
-    
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
     const [
       { count: dealsCount },
       { count: proposalsCount },
       { count: contractsCount },
       { data: recentDeals },
-      { data: pendingTasks }
+      { data: pendingTasks },
+      { data: dealsForChart }
     ] = await Promise.all([
       supabase.from('deals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
@@ -37,7 +40,11 @@ export const dashboardService = {
         .eq('company_id', companyId)
         .eq('status', 'pendente')
         .order('due_date', { ascending: true })
-        .limit(3)
+        .limit(3),
+      supabase.from('deals')
+        .select('estimated_value, created_at')
+        .eq('company_id', companyId)
+        .gte('created_at', sixMonthsAgo.toISOString())
     ]);
 
     const mappedRecent = (recentDeals || []).map(d => {
@@ -66,24 +73,32 @@ export const dashboardService = {
       priority: t.priority
     }));
 
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const now = new Date();
+    const salesByMonth: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      salesByMonth[`${d.getFullYear()}-${d.getMonth()}`] = 0;
+    }
+    (dealsForChart || []).forEach(deal => {
+      const d = new Date(deal.created_at);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (key in salesByMonth) {
+        salesByMonth[key] += Number(deal.estimated_value || 0);
+      }
+    });
+    const salesPerformance = Object.entries(salesByMonth).map(([key, value]) => {
+      const month = parseInt(key.split('-')[1], 10);
+      return { name: monthNames[month], value };
+    });
+
     return {
       newOpportunities: dealsCount || 0,
       sentProposals: proposalsCount || 0,
-      activeTenders: 0, 
+      activeTenders: 0,
       activeContracts: contractsCount || 0,
-      salesPerformance: [
-        { name: 'Jan', value: 2500000 },
-        { name: 'Fev', value: 2800000 },
-        { name: 'Mar', value: 3200000 },
-        { name: 'Abr', value: 3100000 },
-        { name: 'Mai', value: 3800000 },
-        { name: 'Jun', value: 4200000 },
-      ],
-      recentOpportunities: mappedRecent.length > 0 ? mappedRecent : [
-        { organ: 'Pref. de São Paulo', object: 'Serviços de TI', value: 1200000, status: 'Em Análise', statusColor: 'bg-blue-100 text-blue-800' },
-        { organ: 'Gov. do Estado do RJ', object: 'Equipamentos Médicos', value: 450000, status: 'Pendente', statusColor: 'bg-amber-100 text-amber-800' },
-        { organ: 'Ministério da Saúde', object: 'Licença de Software', value: 2800000, status: 'Aprovado', statusColor: 'bg-green-100 text-green-800' },
-      ],
+      salesPerformance,
+      recentOpportunities: mappedRecent,
       pendingTasks: mappedTasks
     };
   }

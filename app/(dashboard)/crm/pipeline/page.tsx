@@ -395,6 +395,20 @@ export default function PipelinePage() {
     (acc, col) => acc + col.deals.reduce((dAcc, d) => dAcc + d.estimated_value, 0), 0
   );
 
+  const totalDeals = columns.reduce((acc, col) => acc + col.deals.length, 0);
+  const wonDeals = columns
+    .filter(col => col.title.toLowerCase().includes('ganho'))
+    .flatMap(col => col.deals);
+  const conversionRate = totalDeals > 0
+    ? ((wonDeals.length / totalDeals) * 100).toFixed(1)
+    : null;
+  const nowStart = new Date();
+  nowStart.setDate(1);
+  nowStart.setHours(0, 0, 0, 0);
+  const monthlyWon = wonDeals
+    .filter(d => d.created_at && d.created_at >= nowStart.toISOString())
+    .reduce((acc, d) => acc + d.estimated_value, 0);
+
   return (
     <>
       <Header title="Funil de Vendas" subtitle="Gerencie seu pipeline de licitações e contratos." />
@@ -406,13 +420,13 @@ export default function PipelinePage() {
         </div>
         <div className="w-px h-8 bg-gray-200"></div>
         <div className="flex flex-col">
-          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Previsão (Mês)</span>
-          <span className="text-lg font-bold text-green-600">R$ 3.200.000,00</span>
+          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Ganho (Mês)</span>
+          <span className="text-lg font-bold text-green-600">{formatCurrency(monthlyWon)}</span>
         </div>
         <div className="w-px h-8 bg-gray-200"></div>
         <div className="flex flex-col">
           <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Taxa de Conversão</span>
-          <span className="text-lg font-bold text-gray-900">12.5%</span>
+          <span className="text-lg font-bold text-gray-900">{conversionRate !== null ? `${conversionRate}%` : '—'}</span>
         </div>
 
         <div className="ml-auto flex items-center gap-3">
