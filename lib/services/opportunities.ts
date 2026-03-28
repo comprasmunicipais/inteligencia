@@ -126,8 +126,7 @@ export const opportunityService = {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('opportunities')
-      .select('internal_status, match_score, opening_date, created_at')
-      .eq('company_id', companyId);
+      .select('internal_status, match_score, opening_date, created_at');
 
     if (error) {
       console.error('SUPABASE ERROR (opportunities.getStats):', error);
