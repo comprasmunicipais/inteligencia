@@ -3,6 +3,7 @@ import { PNCPMapper } from './mapper';
 import { Opportunity, SyncJob } from '@/lib/intel/types';
 import { generateId } from '@/lib/utils';
 import { calculateMatchesForCompany } from '@/lib/intel/services';
+import { archiveExpiredOpportunities, deleteOldExpiredOpportunities } from '@/lib/services/opportunities';
 import { getTestDataset } from './test-dataset';
 import { RESILIENCE_TEST_DATASET } from './test-resilience-dataset';
 
@@ -43,6 +44,10 @@ export class PNCPSyncService {
     // Window start is the end of the last successful job, or a default date
     const syncWindowStart = lastSuccessfulJob ? lastSuccessfulJob.sync_window_end : '2024-01-01';
     const syncWindowEnd = new Date().toISOString().split('T')[0]; // Current date
+
+    // Arquivar vencidas e remover expiradas há mais de 30 dias antes de inserir novos dados
+    await archiveExpiredOpportunities();
+    await deleteOldExpiredOpportunities();
 
     const job: SyncJob = {
       id: generateId(),

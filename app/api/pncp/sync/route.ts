@@ -327,6 +327,21 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Arquivar oportunidades cujo prazo já passou
+    await supabase
+      .from('opportunities')
+      .update({ internal_status: 'expired', updated_at: new Date().toISOString() })
+      .lt('opening_date', new Date().toISOString())
+      .neq('internal_status', 'expired');
+
+    // Deletar oportunidades expiradas há mais de 30 dias
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from('opportunities')
+      .delete()
+      .eq('internal_status', 'expired')
+      .lt('opening_date', cutoff);
+
     // Buscar todas as empresas ativas na plataforma
     const { data: companies, error: companiesError } = await supabase
       .from('companies')

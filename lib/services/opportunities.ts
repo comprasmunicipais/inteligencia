@@ -2,6 +2,41 @@ import { createClient } from '@/lib/supabase/client';
 import { OpportunityDTO } from '../types/dtos';
 import { mapOpportunityToDTO } from '../mappers/opportunities';
 
+/**
+ * Marca como 'expired' todas as oportunidades cujo prazo já passou.
+ * Chamado no início de cada sincronização com o PNCP.
+ */
+export async function archiveExpiredOpportunities(): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('opportunities')
+    .update({ internal_status: 'expired', updated_at: new Date().toISOString() })
+    .lt('opening_date', new Date().toISOString())
+    .neq('internal_status', 'expired');
+
+  if (error) {
+    console.error('SUPABASE ERROR (archiveExpiredOpportunities):', error);
+  }
+}
+
+/**
+ * Remove definitivamente oportunidades expiradas há mais de 30 dias.
+ * Chamado no início de cada sincronização com o PNCP.
+ */
+export async function deleteOldExpiredOpportunities(): Promise<void> {
+  const supabase = createClient();
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from('opportunities')
+    .delete()
+    .eq('internal_status', 'expired')
+    .lt('opening_date', cutoff);
+
+  if (error) {
+    console.error('SUPABASE ERROR (deleteOldExpiredOpportunities):', error);
+  }
+}
+
 export const opportunityService = {
   async getAll(companyId: string, filters?: any): Promise<OpportunityDTO[]> {
     const supabase = createClient();
@@ -21,6 +56,9 @@ export const opportunityService = {
     }
     if (filters?.internal_status) {
       query = query.eq('internal_status', filters.internal_status);
+    } else {
+      // Ocultar vencidas por padrão; passar internal_status explícito para exibi-las
+      query = query.neq('internal_status', 'expired');
     }
 
     const { data, error } = await query.order('publication_date', { ascending: false });
