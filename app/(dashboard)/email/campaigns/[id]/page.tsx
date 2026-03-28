@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LimitReachedModal from '@/components/email/LimitReachedModal';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -1157,8 +1157,10 @@ function PlaceholderStep({ title, description }: { title: string; description: s
 export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const campaignId = params.id as string;
+  const isNew = campaignId === 'new';
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1190,6 +1192,18 @@ export default function CampaignDetailPage() {
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
+    // id === 'new': não buscar no banco — apenas inicializar com query params do template
+    if (isNew) {
+      setEmailForm({
+        subject: searchParams.get('template_subject') ?? '',
+        preheader: '',
+        html_content: '',
+        text_content: searchParams.get('template_body') ?? '',
+      });
+      setIsLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         setIsLoading(true);
@@ -1374,7 +1388,7 @@ export default function CampaignDetailPage() {
     );
   }
 
-  if (!campaign) return null;
+  if (!campaign && !isNew) return null;
 
   return (
     <div className="flex min-h-full flex-col bg-[#f8fafc]">
@@ -1389,7 +1403,7 @@ export default function CampaignDetailPage() {
             Campanhas
           </button>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="font-medium text-slate-900 line-clamp-1">{campaign.name}</span>
+          <span className="font-medium text-slate-900 line-clamp-1">{campaign?.name ?? 'Nova Campanha'}</span>
         </div>
       </div>
 
@@ -1406,7 +1420,7 @@ export default function CampaignDetailPage() {
         {currentStep === 2 && (
           <AudienceStep filters={audienceFilters} onChange={setAudienceFilters} />
         )}
-        {currentStep === 3 && (
+        {currentStep === 3 && campaign && (
           <SummaryStep
             campaign={campaign}
             emailForm={emailForm}
@@ -1427,7 +1441,7 @@ export default function CampaignDetailPage() {
         {currentStep === 4 && sendResult && (
           <SendResultScreen
             result={sendResult}
-            campaignName={campaign.name}
+            campaignName={campaign?.name ?? 'Nova Campanha'}
             onGoBack={() => router.push('/email/campaigns')}
           />
         )}
