@@ -1417,7 +1417,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Stepper */}
-      <div className="border-b border-slate-200 bg-white px-6 py-4">
+      <div className="border-b border-slate-200 bg-white px-6 py-4 overflow-x-auto">
         <Stepper current={currentStep} />
       </div>
 
@@ -1459,7 +1459,7 @@ export default function CampaignDetailPage() {
       {/* Footer — hidden after successful send */}
       {!sendResult && (
         <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={handleBack}
