@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendWelcomeEmail } from '@/lib/email/transactional';
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,6 +83,13 @@ export async function POST(request: NextRequest) {
         { error: 'Erro ao criar perfil. Tente novamente.' },
         { status: 500 }
       );
+    }
+
+    // Step 4: Send welcome email (best-effort, don't fail signup if email fails)
+    try {
+      await sendWelcomeEmail({ name, email, companyName: company_name });
+    } catch {
+      // non-blocking
     }
 
     return NextResponse.json({ success: true, userId });

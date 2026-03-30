@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { sendPaymentConfirmedEmail } from '@/lib/email/transactional'
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get('asaas-access-token')
@@ -45,6 +46,39 @@ export async function POST(req: NextRequest) {
     await supabase.from('billing_events')
       .update({ company_id: companyId })
       .eq('asaas_event_id', payment.id)
+
+    // Send payment confirmation email (best-effort)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name, plan_id')
+        .eq('id', companyId)
+        .single()
+
+      const { data: plan } = company?.plan_id
+        ? await supabase.from('plans').select('name').eq('id', company.plan_id).single()
+        : { data: null }
+
+      if (profile?.email) {
+        await sendPaymentConfirmedEmail({
+          name: profile.full_name || profile.email,
+          email: profile.email,
+          companyName: company?.name ?? '',
+          value: payment.value ?? 0,
+          planName: plan?.name ?? 'CM Pro',
+        })
+      }
+    } catch {
+      // non-blocking
+    }
   }
 
   if (event === 'PAYMENT_OVERDUE') {
