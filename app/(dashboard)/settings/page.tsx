@@ -32,6 +32,8 @@ export default function SettingsPage() {
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -329,6 +331,17 @@ export default function SettingsPage() {
               })}
             </div>
 
+            {status !== 'cancelled' && status !== 'trial' && (
+              <div className="text-center">
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="text-xs text-red-400 hover:text-red-600 underline underline-offset-2 transition-colors"
+                >
+                  Cancelar assinatura
+                </button>
+              </div>
+            )}
+
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-1">Pacote Extra de E-mails</h3>
               <p className="text-xs text-gray-500 mb-4">Precisa enviar mais e-mails este mês? Adquira um pacote adicional sem mudar de plano.</p>
@@ -363,6 +376,59 @@ export default function SettingsPage() {
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
         )}>
           {toast.message}
+        </div>
+      )}
+
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 max-w-sm w-full mx-4">
+            <h3 className="text-base font-bold text-gray-900 mb-2">Cancelar assinatura</h3>
+            <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+              Tem certeza? Você perderá acesso ao final do período atual. Seus dados ficam preservados por 30 dias.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelling}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Voltar
+              </button>
+              <button
+                disabled={cancelling}
+                onClick={async () => {
+                  setCancelling(true);
+                  try {
+                    const res = await fetch('/api/billing/cancel', { method: 'POST' });
+                    const data = await res.json();
+                    setShowCancelModal(false);
+                    if (!res.ok) {
+                      setToast({ message: data.error || 'Erro ao cancelar.', type: 'error' });
+                    } else {
+                      setToast({ message: 'Assinatura cancelada.', type: 'success' });
+                      setLoadingSubscription(true);
+                      fetch('/api/billing/subscription')
+                        .then(r => r.json())
+                        .then(d => setSubscriptionData(d))
+                        .catch(console.error)
+                        .finally(() => setLoadingSubscription(false));
+                    }
+                    setTimeout(() => setToast(null), 4000);
+                  } catch {
+                    setShowCancelModal(false);
+                    setToast({ message: 'Erro de conexão. Tente novamente.', type: 'error' });
+                    setTimeout(() => setToast(null), 4000);
+                  } finally {
+                    setCancelling(false);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+              >
+                {cancelling && <Loader2 className="size-3.5 animate-spin" />}
+                {cancelling ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       <Header title="Configurações" subtitle="Gerencie as preferências da sua conta e da organização." />
