@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { createAsaasCustomer, createAsaasSubscription } from '@/lib/asaas'
+import { createAsaasCustomer, createAsaasSubscription, cancelAsaasSubscription } from '@/lib/asaas'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -47,7 +47,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid billing cycle' }, { status: 400 })
   }
 
-  const customer = await createAsaasCustomer({ name, email, cpfCnpj })
+  // Check for existing subscription — cancel it before creating a new one
+  const adminSupabase = await createAdminClient()
+
+  const { data: existingSub } = await adminSupabase
+    .from('subscriptions')
+    .select('asaas_subscription_id, asaas_customer_id')
+    .eq('company_id', profile.company_id)
+    .single()
+
+  if (existingSub?.asaas_subscription_id) {
+    try {
+      await cancelAsaasSubscription(existingSub.asaas_subscription_id)
+    } catch {
+      // proceed even if cancel fails (e.g. already cancelled in Asaas)
+    }
+  }
+
+  // Reuse existing Asaas customer if available
+  const customer = existingSub?.asaas_customer_id
+    ? { id: existingSub.asaas_customer_id }
+    : await createAsaasCustomer({ name, email, cpfCnpj })
 
   const nextDueDate = new Date()
   nextDueDate.setDate(nextDueDate.getDate() + 1)
@@ -61,8 +81,6 @@ export async function POST(req: NextRequest) {
     cycle: billing.cycle,
     description: `CM Pro — Plano ${plan.name} (${billingCycle})`,
   })
-
-  const adminSupabase = await createAdminClient()
 
   await adminSupabase.from('subscriptions')
     .update({

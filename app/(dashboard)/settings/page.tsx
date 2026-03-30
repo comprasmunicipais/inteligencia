@@ -30,6 +30,8 @@ export default function SettingsPage() {
 
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -205,6 +207,38 @@ export default function SettingsPage() {
           { name: 'Profissional', emails: 25000, users: '3 usuários',          price: 497, popular: true },
           { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados', price: 797 },
         ];
+        const showToast = (message: string, type: 'success' | 'error') => {
+          setToast({ message, type });
+          setTimeout(() => setToast(null), 4000);
+        };
+
+        const handleSubscribe = async (plan: any) => {
+          setSubscribingPlan(plan.name);
+          try {
+            const res = await fetch('/api/billing/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ planId: plan.id, billingCycle: 'monthly', billingType: 'PIX', email: userProfile?.email ?? '', name: userProfile?.companyName ?? '' }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showToast(data.error || 'Erro ao assinar plano.', 'error');
+            } else {
+              showToast('Plano atualizado com sucesso!', 'success');
+              setLoadingSubscription(true);
+              fetch('/api/billing/subscription')
+                .then(r => r.json())
+                .then(d => setSubscriptionData(d))
+                .catch(console.error)
+                .finally(() => setLoadingSubscription(false));
+            }
+          } catch {
+            showToast('Erro de conexão. Tente novamente.', 'error');
+          } finally {
+            setSubscribingPlan(null);
+          }
+        };
+
         const plans = subscriptionData?.all_plans?.length
           ? subscriptionData.all_plans.map((p: any, i: number) => ({
               id: p.id,
@@ -276,15 +310,19 @@ export default function SettingsPage() {
                       <li>👤 {plan.users}</li>
                     </ul>
                     <button
-                      disabled={isCurrent}
+                      disabled={isCurrent || subscribingPlan !== null}
+                      onClick={() => !isCurrent && handleSubscribe(plan)}
                       className={cn(
-                        'mt-2 w-full py-2 rounded-lg text-sm font-bold transition-all',
+                        'mt-2 w-full py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2',
                         isCurrent
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : subscribingPlan === plan.name
+                          ? 'bg-blue-400 text-white cursor-wait'
                           : 'bg-blue-600 text-white hover:bg-blue-700'
                       )}
                     >
-                      {isCurrent ? 'Plano atual' : 'Assinar'}
+                      {subscribingPlan === plan.name && <Loader2 className="size-3.5 animate-spin" />}
+                      {isCurrent ? 'Plano atual' : subscribingPlan === plan.name ? 'Aguarde...' : 'Assinar'}
                     </button>
                   </div>
                 );
@@ -319,6 +357,14 @@ export default function SettingsPage() {
 
   return (
     <>
+      {toast && (
+        <div className={cn(
+          'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold text-white transition-all',
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        )}>
+          {toast.message}
+        </div>
+      )}
       <Header title="Configurações" subtitle="Gerencie as preferências da sua conta e da organização." />
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-8">

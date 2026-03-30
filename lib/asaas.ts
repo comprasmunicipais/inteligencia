@@ -50,3 +50,11 @@ export async function createAsaasPayment(params: {
 export async function getAsaasPayment(paymentId: string) {
   return asaasRequest(`/payments/${paymentId}`)
 }
+
+export async function cancelAsaasSubscription(subscriptionId: string) {
+  return asaasRequest(`/subscriptions/${subscriptionId}`, 'DELETE')
+}
+
+export async function getAsaasCustomer(customerId: string) {
+  return asaasRequest(`/customers/${customerId}`)
+}
