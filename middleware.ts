@@ -9,10 +9,12 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/api/pncp/sync') ||
     pathname.startsWith('/api/email/track') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/plans') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
-    pathname.startsWith('/app') ||
-    pathname.startsWith('/api/auth')
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/app')
   ) {
     return NextResponse.next();
   }
@@ -41,7 +43,9 @@ export async function middleware(request: NextRequest) {
   );
 
   // getUser() valida o JWT com o servidor e renova via refresh token se necessário
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // 🔐 sem sessão válida
   if (!user) {
