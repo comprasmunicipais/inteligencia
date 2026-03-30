@@ -35,6 +35,10 @@ export default function SettingsPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, 'PIX' | 'BOLETO' | 'CREDIT_CARD'>>({});
+  const [cardModal, setCardModal] = useState<{ plan: any } | null>(null);
+  const [cardForm, setCardForm] = useState({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
+  const [submittingCard, setSubmittingCard] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -70,6 +74,92 @@ export default function SettingsPage() {
       }
     })();
   }, []);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const getPaymentMethod = (planName: string): 'PIX' | 'BOLETO' | 'CREDIT_CARD' =>
+    paymentMethods[planName] ?? 'PIX';
+
+  const handleSubscribe = async (plan: any, billingType: string) => {
+    setSubscribingPlan(plan.name);
+    try {
+      const res = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: plan.id, billingCycle: 'monthly', billingType, email: userProfile?.email ?? '', name: userProfile?.companyName ?? '' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Erro ao assinar plano.', 'error');
+      } else {
+        showToast('Plano atualizado com sucesso!', 'success');
+        loadSubscription();
+      }
+    } catch {
+      showToast('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+      setSubscribingPlan(null);
+    }
+  };
+
+  const handleSubscribeClick = (plan: any) => {
+    const method = getPaymentMethod(plan.name);
+    if (method === 'CREDIT_CARD') {
+      setCardModal({ plan });
+    } else {
+      handleSubscribe(plan, method);
+    }
+  };
+
+  const handleSubmitCard = async () => {
+    if (!cardModal) return;
+    setSubmittingCard(true);
+    try {
+      const res = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: cardModal.plan.id,
+          billingCycle: 'monthly',
+          billingType: 'CREDIT_CARD',
+          email: userProfile?.email ?? '',
+          name: userProfile?.companyName ?? '',
+          creditCard: {
+            holderName: cardForm.holderName,
+            number: cardForm.number.replace(/\s/g, ''),
+            expiryMonth: cardForm.expiryMonth,
+            expiryYear: cardForm.expiryYear,
+            ccv: cardForm.ccv,
+          },
+          creditCardHolderInfo: {
+            name: cardForm.holderName,
+            email: userProfile?.email ?? '',
+            cpfCnpj: cardForm.cpfCnpj.replace(/\D/g, ''),
+            postalCode: cardForm.postalCode.replace(/\D/g, ''),
+            addressNumber: cardForm.addressNumber,
+            ...(cardForm.phone ? { phone: cardForm.phone } : {}),
+          },
+        }),
+      });
+      const data = await res.json();
+      setCardModal(null);
+      setCardForm({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
+      if (!res.ok) {
+        showToast(data.error || 'Erro ao processar cartão.', 'error');
+      } else {
+        showToast('Assinatura com cartão confirmada!', 'success');
+        loadSubscription();
+      }
+    } catch {
+      setCardModal(null);
+      showToast('Erro de conexão. Tente novamente.', 'error');
+    } finally {
+      setSubmittingCard(false);
+    }
+  };
 
   const loadSubscription = () => {
     setLoadingSubscription(true);
@@ -229,33 +319,6 @@ export default function SettingsPage() {
         const emailsLimit  = subscriptionData.current_plan?.emails_per_month ?? 0;
         const billingCycle = subscriptionData.subscription?.billing_cycle ?? 'monthly';
         const price        = subscriptionData.current_plan?.price_monthly ?? 0;
-        const showToast = (message: string, type: 'success' | 'error') => {
-          setToast({ message, type });
-          setTimeout(() => setToast(null), 4000);
-        };
-
-        const handleSubscribe = async (plan: any) => {
-          setSubscribingPlan(plan.name);
-          try {
-            const res = await fetch('/api/billing/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ planId: plan.id, billingCycle: 'monthly', billingType: 'PIX', email: userProfile?.email ?? '', name: userProfile?.companyName ?? '' }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-              showToast(data.error || 'Erro ao assinar plano.', 'error');
-            } else {
-              showToast('Plano atualizado com sucesso!', 'success');
-              loadSubscription();
-            }
-          } catch {
-            showToast('Erro de conexão. Tente novamente.', 'error');
-          } finally {
-            setSubscribingPlan(null);
-          }
-        };
-
         const plans = subscriptionData?.all_plans?.length
           ? subscriptionData.all_plans.map((p: any, i: number) => ({
               id: p.id,
@@ -326,9 +389,27 @@ export default function SettingsPage() {
                       <li>✉️ {plan.emails.toLocaleString('pt-BR')} e-mails/mês</li>
                       <li>👤 {plan.users}</li>
                     </ul>
+                    {!isCurrent && (
+                      <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[11px] font-bold">
+                        {(['PIX', 'BOLETO', 'CREDIT_CARD'] as const).map((method) => {
+                          const label = method === 'CREDIT_CARD' ? 'Cartão' : method === 'BOLETO' ? 'Boleto' : 'PIX';
+                          const selected = getPaymentMethod(plan.name) === method;
+                          return (
+                            <button
+                              key={method}
+                              type="button"
+                              onClick={() => setPaymentMethods(prev => ({ ...prev, [plan.name]: method }))}
+                              className={cn('flex-1 py-1.5 transition-all', selected ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50')}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                     <button
                       disabled={isCurrent || subscribingPlan !== null}
-                      onClick={() => !isCurrent && handleSubscribe(plan)}
+                      onClick={() => !isCurrent && handleSubscribeClick(plan)}
                       className={cn(
                         'mt-2 w-full py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2',
                         isCurrent
@@ -441,6 +522,137 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+      {cardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-bold text-gray-900 mb-1">Pagamento com Cartão</h3>
+            <p className="text-xs text-gray-500 mb-5">Plano <strong>{cardModal.plan.name}</strong> · R$ {cardModal.plan.price}/mês</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome no cartão</label>
+                <input
+                  type="text"
+                  value={cardForm.holderName}
+                  onChange={e => setCardForm(f => ({ ...f, holderName: e.target.value }))}
+                  placeholder="Como impresso no cartão"
+                  className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Número do cartão</label>
+                <input
+                  type="text"
+                  value={cardForm.number}
+                  onChange={e => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+                    const masked = digits.replace(/(.{4})/g, '$1 ').trim();
+                    setCardForm(f => ({ ...f, number: masked }));
+                  }}
+                  placeholder="0000 0000 0000 0000"
+                  className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mês</label>
+                  <input
+                    type="text"
+                    value={cardForm.expiryMonth}
+                    onChange={e => setCardForm(f => ({ ...f, expiryMonth: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                    placeholder="MM"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ano</label>
+                  <input
+                    type="text"
+                    value={cardForm.expiryYear}
+                    onChange={e => setCardForm(f => ({ ...f, expiryYear: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                    placeholder="AAAA"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">CVV</label>
+                  <input
+                    type="password"
+                    value={cardForm.ccv}
+                    onChange={e => setCardForm(f => ({ ...f, ccv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                    placeholder="···"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">CPF / CNPJ do titular</label>
+                <input
+                  type="text"
+                  value={cardForm.cpfCnpj}
+                  onChange={e => setCardForm(f => ({ ...f, cpfCnpj: e.target.value }))}
+                  placeholder="000.000.000-00"
+                  className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">CEP</label>
+                  <input
+                    type="text"
+                    value={cardForm.postalCode}
+                    onChange={e => setCardForm(f => ({ ...f, postalCode: e.target.value }))}
+                    placeholder="00000-000"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Número</label>
+                  <input
+                    type="text"
+                    value={cardForm.addressNumber}
+                    onChange={e => setCardForm(f => ({ ...f, addressNumber: e.target.value }))}
+                    placeholder="123"
+                    className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Telefone (opcional)</label>
+                <input
+                  type="text"
+                  value={cardForm.phone}
+                  onChange={e => setCardForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setCardModal(null); setCardForm({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' }); }}
+                disabled={submittingCard}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitCard}
+                disabled={submittingCard}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+              >
+                {submittingCard && <Loader2 className="size-3.5 animate-spin" />}
+                {submittingCard ? 'Processando...' : 'Confirmar pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Header title="Configurações" subtitle="Gerencie as preferências da sua conta e da organização." />
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-8">

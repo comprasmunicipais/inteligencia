@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Company not found' }, { status: 404 })
   }
 
-  const { planId, billingCycle, billingType, email, name, cpfCnpj } = await req.json()
+  // NOTE: creditCard data is never logged — it is only forwarded to Asaas
+  const body = await req.json()
+  const { planId, billingCycle, billingType, email, name, cpfCnpj, creditCard, creditCardHolderInfo, remoteIp } = body
 
   if (!planId || !billingCycle || !billingType || !email || !name) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -80,6 +82,9 @@ export async function POST(req: NextRequest) {
     nextDueDate: nextDueDateStr,
     cycle: billing.cycle,
     description: `CM Pro — Plano ${plan.name} (${billingCycle})`,
+    ...(billingType === 'CREDIT_CARD' && creditCard ? { creditCard } : {}),
+    ...(billingType === 'CREDIT_CARD' && creditCardHolderInfo ? { creditCardHolderInfo } : {}),
+    ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
   })
 
   await adminSupabase.from('subscriptions')

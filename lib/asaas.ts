@@ -33,6 +33,22 @@ export async function createAsaasSubscription(params: {
   nextDueDate: string
   cycle: 'MONTHLY' | 'SEMIANNUAL' | 'YEARLY'
   description: string
+  creditCard?: {
+    holderName: string
+    number: string
+    expiryMonth: string
+    expiryYear: string
+    ccv: string
+  }
+  creditCardHolderInfo?: {
+    name: string
+    email: string
+    cpfCnpj: string
+    postalCode: string
+    addressNumber: string
+    phone?: string
+  }
+  remoteIp?: string
 }) {
   return asaasRequest('/subscriptions', 'POST', params)
 }
