@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/email/track') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/plans') ||
+    pathname.startsWith('/api/signup') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/signup') ||
