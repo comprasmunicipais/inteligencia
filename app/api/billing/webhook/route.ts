@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
     await supabase.from('subscriptions')
       .update({ status: 'past_due' })
       .eq('asaas_subscription_id', payment.subscriptionId)
+
+    await supabase.from('companies')
+      .update({ status: 'past_due' })
+      .eq('id', companyId)
   }
 
   if (event === 'SUBSCRIPTION_CANCELLED' || event === 'PAYMENT_DELETED') {

@@ -37,8 +37,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Role inválida.' }, { status: 400 });
     }
 
-    // 3. Criar usuário via Supabase Auth Admin (exige service role key)
+    // 3. Verificar limite de usuários do plano
     const adminClient = await createAdminClient();
+
+    const { data: targetCompany } = await adminClient
+      .from('companies')
+      .select('plan_id')
+      .eq('id', company_id)
+      .single();
+
+    if (targetCompany?.plan_id) {
+      const { data: plan } = await adminClient
+        .from('plans')
+        .select('max_users')
+        .eq('id', targetCompany.plan_id)
+        .single();
+
+      // max_users = 0 means unlimited (Elite plan)
+      if (plan && plan.max_users > 0) {
+        const { count } = await adminClient
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', company_id);
+
+        if ((count ?? 0) >= plan.max_users) {
+          return NextResponse.json(
+            { error: 'Limite de usuários do plano atingido.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    // 4. Criar usuário via Supabase Auth Admin (exige service role key)
     const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,

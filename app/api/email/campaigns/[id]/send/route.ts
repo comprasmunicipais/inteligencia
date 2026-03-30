@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { checkCompanyAccess } from '@/lib/billing-guard';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -103,6 +104,15 @@ export async function POST(
     }
 
     const companyId: string = profile.company_id;
+
+    // ── 1b. Billing guard ────────────────────────────────────────────────────
+    const access = await checkCompanyAccess(companyId);
+    if (access.blocked) {
+      return NextResponse.json(
+        { error: 'Acesso bloqueado', reason: access.reason },
+        { status: 403 },
+      );
+    }
 
     // ── 2. Body ──────────────────────────────────────────────────────────────
     const body = await req.json();
