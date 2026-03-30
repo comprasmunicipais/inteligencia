@@ -435,15 +435,9 @@ export default function SignupPlanPage() {
 
         {/* Header */}
         <div className="plan-header">
-          <div className="plan-badge">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            7 dias grátis em qualquer plano
-          </div>
           <h1 className="plan-title">Escolha seu <span>plano</span></h1>
           <p className="plan-subtitle">
-            Comece com 7 dias grátis. Cancele a qualquer momento, sem fidelidade.
+            Escolha o plano ideal para sua operação. Cancele quando quiser.
           </p>
         </div>
 
@@ -575,7 +569,6 @@ export default function SignupPlanPage() {
         {/* Footer */}
         <div className="plan-footer">
           <p>
-            7 dias grátis em qualquer plano · Cancele quando quiser · Sem fidelidade<br />
             <a href="/login">Já tenho conta</a> · <a href="#">Termos de Uso</a> · <a href="#">Privacidade</a>
           </p>
         </div>

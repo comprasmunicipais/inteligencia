@@ -340,7 +340,7 @@ export default function SignupPage() {
                 </svg>
               </div>
               <div className="signup-brand-name">CM <span>PRO</span></div>
-              <div className="signup-brand-sub">Crie sua conta gratuita por 7 dias</div>
+              <div className="signup-brand-sub">Crie sua conta</div>
             </div>
 
             {/* Form */}
@@ -460,7 +460,7 @@ export default function SignupPage() {
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="rgba(16,185,129,0.12)"/>
                 </svg>
-                Conexão Segura · 7 dias grátis · Sem cartão
+                Conexão Segura · Cancele quando quiser
               </div>
             </div>
           </div>
