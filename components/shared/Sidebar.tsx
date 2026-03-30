@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -24,6 +24,8 @@ import {
   History,
   Mail,
   Layout,
+  Menu,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -94,6 +96,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, signOut } = useCompany();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -334,11 +337,45 @@ export default function Sidebar() {
         .sb-user:hover .sb-logout-icon {
           color: rgba(148,163,184,0.7);
         }
+
+        /* Mobile */
+        @media (max-width: 767px) {
+          .sb-root {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 50;
+            transform: translateX(-100%);
+            transition: transform 0.25s ease;
+          }
+          .sb-root.mobile-open {
+            transform: translateX(0);
+          }
+        }
       `}</style>
 
-      <aside className="sb-root">
+      {/* Mobile hamburger button */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#0d1120] text-white shadow-lg"
+        onClick={() => setIsMobileOpen(true)}
+        aria-label="Abrir menu"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/60"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      <aside className={`sb-root ${isMobileOpen ? 'mobile-open' : ''}`}>
         {/* Header */}
-        <div className="sb-header">
+        <div className="sb-header" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <div className="sb-logo">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <rect x="1" y="1" width="6.5" height="6.5" rx="1.5" fill="white" fillOpacity="0.9"/>
@@ -351,6 +388,15 @@ export default function Sidebar() {
             <div className="sb-brand-name">CM <span>PRO</span></div>
             <div className="sb-brand-sub">Plataforma B2G</div>
           </div>
+          </div>
+          <button
+            className="md:hidden"
+            onClick={() => setIsMobileOpen(false)}
+            aria-label="Fechar menu"
+            style={{ background: 'none', border: 'none', color: 'rgba(148,163,184,0.6)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Nav */}
@@ -366,6 +412,7 @@ export default function Sidebar() {
                       key={item.name}
                       href={item.href}
                       className={cn('sb-item', isActive && 'active')}
+                      onClick={() => setIsMobileOpen(false)}
                     >
                       <item.icon className="sb-item-icon" size={15} strokeWidth={1.75} />
                       {item.name}
@@ -389,6 +436,7 @@ export default function Sidebar() {
                       key={item.name}
                       href={item.href}
                       className={cn('sb-item', isActive && 'active')}
+                      onClick={() => setIsMobileOpen(false)}
                     >
                       <item.icon className="sb-item-icon" size={15} strokeWidth={1.75} />
                       {item.name}

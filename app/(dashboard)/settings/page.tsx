@@ -30,6 +30,7 @@ export default function SettingsPage() {
 
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState(false);
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -70,14 +71,22 @@ export default function SettingsPage() {
     })();
   }, []);
 
+  const loadSubscription = () => {
+    setLoadingSubscription(true);
+    setSubscriptionError(false);
+    fetch('/api/billing/subscription')
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(data => setSubscriptionData(data))
+      .catch(() => setSubscriptionError(true))
+      .finally(() => setLoadingSubscription(false));
+  };
+
   useEffect(() => {
     if (activeTab === 'Assinatura') {
-      setLoadingSubscription(true);
-      fetch('/api/billing/subscription')
-        .then(r => r.json())
-        .then(data => setSubscriptionData(data))
-        .catch(console.error)
-        .finally(() => setLoadingSubscription(false));
+      loadSubscription();
     }
   }, [activeTab]);
 
@@ -196,19 +205,30 @@ export default function SettingsPage() {
           );
         }
 
-        const planName     = subscriptionData?.current_plan?.name ?? 'Essencial';
-        const status       = subscriptionData?.subscription?.status ?? 'trial';
-        const trialEndsAt  = subscriptionData?.subscription?.trial_ends_at ?? subscriptionData?.company?.trial_ends_at ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
-        const emailsUsed   = subscriptionData?.company?.emails_used_this_month ?? 0;
-        const emailsLimit  = subscriptionData?.current_plan?.emails_per_month ?? 10000;
-        const billingCycle = subscriptionData?.subscription?.billing_cycle ?? 'monthly';
-        const price        = subscriptionData?.current_plan?.price_monthly ?? 297;
+        if (subscriptionError) {
+          return (
+            <div className="bg-white p-12 rounded-2xl border border-gray-200 shadow-sm text-center">
+              <p className="text-sm font-bold text-gray-900 mb-2">Não foi possível carregar dados da assinatura</p>
+              <p className="text-xs text-gray-500 mb-6">Verifique sua conexão e tente novamente.</p>
+              <button
+                onClick={loadSubscription}
+                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          );
+        }
 
-        const fallbackPlans = [
-          { name: 'Essencial',    emails: 10000, users: '1 usuário',          price: 297 },
-          { name: 'Profissional', emails: 25000, users: '3 usuários',          price: 497, popular: true },
-          { name: 'Elite',        emails: 50000, users: 'Usuários ilimitados', price: 797 },
-        ];
+        if (!subscriptionData) return null;
+
+        const planName     = subscriptionData.current_plan?.name ?? '';
+        const status       = subscriptionData.subscription?.status ?? subscriptionData.company?.status ?? '';
+        const trialEndsAt  = subscriptionData.subscription?.trial_ends_at ?? subscriptionData.company?.trial_ends_at ?? null;
+        const emailsUsed   = subscriptionData.company?.emails_used_this_month ?? 0;
+        const emailsLimit  = subscriptionData.current_plan?.emails_per_month ?? 0;
+        const billingCycle = subscriptionData.subscription?.billing_cycle ?? 'monthly';
+        const price        = subscriptionData.current_plan?.price_monthly ?? 0;
         const showToast = (message: string, type: 'success' | 'error') => {
           setToast({ message, type });
           setTimeout(() => setToast(null), 4000);
@@ -227,12 +247,7 @@ export default function SettingsPage() {
               showToast(data.error || 'Erro ao assinar plano.', 'error');
             } else {
               showToast('Plano atualizado com sucesso!', 'success');
-              setLoadingSubscription(true);
-              fetch('/api/billing/subscription')
-                .then(r => r.json())
-                .then(d => setSubscriptionData(d))
-                .catch(console.error)
-                .finally(() => setLoadingSubscription(false));
+              loadSubscription();
             }
           } catch {
             showToast('Erro de conexão. Tente novamente.', 'error');
@@ -406,12 +421,7 @@ export default function SettingsPage() {
                       setToast({ message: data.error || 'Erro ao cancelar.', type: 'error' });
                     } else {
                       setToast({ message: 'Assinatura cancelada.', type: 'success' });
-                      setLoadingSubscription(true);
-                      fetch('/api/billing/subscription')
-                        .then(r => r.json())
-                        .then(d => setSubscriptionData(d))
-                        .catch(console.error)
-                        .finally(() => setLoadingSubscription(false));
+                      loadSubscription();
                     }
                     setTimeout(() => setToast(null), 4000);
                   } catch {
