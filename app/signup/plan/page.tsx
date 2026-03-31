@@ -163,47 +163,50 @@ export default function SignupPlanPage() {
 
         /* Cycle toggle */
         .cycle-toggle {
-          display: inline-flex;
+          display: flex;
           align-items: center;
-          background: rgba(13,18,30,0.95);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 14px;
-          padding: 4px;
-          gap: 2px;
-          margin-bottom: 40px;
+          background: #ffffff;
+          border-radius: 12px;
+          padding: 6px;
+          gap: 4px;
+          margin: 0 auto 40px;
+          max-width: fit-content;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08);
           z-index: 1;
           animation: fadeInUp 0.5s ease both;
           animation-delay: 0.10s;
         }
 
         .cycle-btn {
-          position: relative;
-          padding: 8px 18px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 12px 20px;
           border: none;
-          border-radius: 10px;
+          border-radius: 8px;
           background: transparent;
-          color: rgba(148,163,184,0.65);
+          color: #64748b;
           font-family: 'Outfit', sans-serif;
           font-size: 13px;
           font-weight: 500;
           cursor: pointer;
-          transition: color 0.2s;
+          transition: background 0.18s, color 0.18s;
           white-space: nowrap;
+          line-height: 1.3;
         }
 
         .cycle-btn.active {
-          background: rgba(37,99,235,0.18);
-          color: #93c5fd;
-          font-weight: 600;
+          background: #080c14;
+          color: #ffffff;
+          font-weight: 700;
         }
 
         .cycle-savings {
-          font-size: 10px;
-          font-weight: 600;
-          color: #34d399;
-          letter-spacing: 0.04em;
+          font-size: 11px;
+          font-weight: 700;
+          color: #10b981;
           display: block;
-          margin-top: 1px;
+          margin-top: 2px;
         }
 
         /* Cards grid */
