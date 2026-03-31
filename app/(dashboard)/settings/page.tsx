@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<Record<string, 'PIX' | 'BOLETO' | 'CREDIT_CARD'>>({});
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly');
   const [cardModal, setCardModal] = useState<{ plan: any } | null>(null);
   const [cardForm, setCardForm] = useState({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
   const [submittingCard, setSubmittingCard] = useState(false);
@@ -89,7 +90,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/billing/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: plan.id, billingCycle: 'monthly', billingType, email: userProfile?.email ?? '', name: userProfile?.companyName ?? '' }),
+        body: JSON.stringify({ planId: plan.id, billingCycle, billingType, email: userProfile?.email ?? '', name: userProfile?.companyName ?? '' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -123,7 +124,7 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: cardModal.plan.id,
-          billingCycle: 'monthly',
+          billingCycle,
           billingType: 'CREDIT_CARD',
           email: userProfile?.email ?? '',
           name: userProfile?.companyName ?? '',
@@ -317,7 +318,7 @@ export default function SettingsPage() {
         const trialEndsAt  = subscriptionData.subscription?.trial_ends_at ?? subscriptionData.company?.trial_ends_at ?? null;
         const emailsUsed   = subscriptionData.company?.emails_used_this_month ?? 0;
         const emailsLimit  = subscriptionData.current_plan?.emails_per_month ?? 0;
-        const billingCycle = subscriptionData.subscription?.billing_cycle ?? 'monthly';
+        const currentCycle = subscriptionData.subscription?.billing_cycle ?? 'monthly';
         const price        = subscriptionData.current_plan?.price_monthly ?? 0;
         const plans = subscriptionData?.all_plans?.length
           ? subscriptionData.all_plans.map((p: any, i: number) => ({
@@ -325,7 +326,9 @@ export default function SettingsPage() {
               name: p.name,
               emails: p.emails_per_month,
               users: p.max_users === 0 ? 'Usuários ilimitados' : `${p.max_users} usuário${p.max_users !== 1 ? 's' : ''}`,
-              price: p.price_monthly,
+              price_monthly: p.price_monthly,
+              price_semiannual: p.price_semiannual,
+              price_annual: p.price_annual,
               popular: i === 1,
             }))
           : [];
@@ -351,7 +354,7 @@ export default function SettingsPage() {
                 </span>
               </div>
               <p className="text-2xl font-black text-gray-900 mb-1">{planName}</p>
-              <p className="text-sm text-gray-500 mb-4">R$ {price}/mês · ciclo {billingCycle === 'monthly' ? 'mensal' : billingCycle}</p>
+              <p className="text-sm text-gray-500 mb-4">R$ {price}/mês · ciclo {currentCycle === 'monthly' ? 'mensal' : currentCycle}</p>
               {trialDaysLeft !== null && (
                 <p className="text-sm text-amber-700 font-bold mb-4">⏳ {trialDaysLeft} dia{trialDaysLeft !== 1 ? 's' : ''} restante{trialDaysLeft !== 1 ? 's' : ''} do período de trial</p>
               )}
@@ -370,9 +373,38 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Billing cycle toggle */}
+            <div className="flex justify-center">
+              <div className="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                {(['monthly', 'semiannual', 'annual'] as const).map((c) => {
+                  const labels = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
+                  const savings: Record<string, string | null> = { monthly: null, semiannual: '-10%', annual: '-22%' };
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setBillingCycle(c)}
+                      className={cn(
+                        'px-4 py-2 rounded-lg text-xs font-bold transition-all flex flex-col items-center min-w-[72px]',
+                        billingCycle === c ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      )}
+                    >
+                      {labels[c]}
+                      {savings[c] && <span className="text-[10px] text-green-600 font-bold leading-none mt-0.5">{savings[c]}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {plans.map((plan: any) => {
                 const isCurrent = plan.name === planName;
+                const displayPrice = billingCycle === 'semiannual'
+                  ? plan.price_semiannual
+                  : billingCycle === 'annual'
+                  ? plan.price_annual
+                  : plan.price_monthly;
+                const cycleSuffix = billingCycle === 'monthly' ? '/mês' : billingCycle === 'semiannual' ? '/sem.' : '/ano';
                 return (
                   <div key={plan.name} className={cn(
                     'relative bg-white p-6 rounded-2xl border shadow-sm flex flex-col gap-3',
@@ -384,7 +416,7 @@ export default function SettingsPage() {
                       </span>
                     )}
                     <p className="text-sm font-black text-gray-900">{plan.name}</p>
-                    <p className="text-2xl font-black text-gray-900">R$ {plan.price}<span className="text-sm font-bold text-gray-400">/mês</span></p>
+                    <p className="text-2xl font-black text-gray-900">R$ {displayPrice}<span className="text-sm font-bold text-gray-400">{cycleSuffix}</span></p>
                     <ul className="text-xs text-gray-500 space-y-1 flex-1">
                       <li>✉️ {plan.emails.toLocaleString('pt-BR')} e-mails/mês</li>
                       <li>👤 {plan.users}</li>
@@ -526,7 +558,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-gray-900 mb-1">Pagamento com Cartão</h3>
-            <p className="text-xs text-gray-500 mb-5">Plano <strong>{cardModal.plan.name}</strong> · R$ {cardModal.plan.price}/mês</p>
+            <p className="text-xs text-gray-500 mb-5">Plano <strong>{cardModal.plan.name}</strong> · R$ {billingCycle === 'semiannual' ? cardModal.plan.price_semiannual : billingCycle === 'annual' ? cardModal.plan.price_annual : cardModal.plan.price_monthly}/{billingCycle === 'monthly' ? 'mês' : billingCycle === 'semiannual' ? 'sem.' : 'ano'}</p>
 
             <div className="space-y-3">
               <div>

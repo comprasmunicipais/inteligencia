@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 type BillingCycle = 'monthly' | 'semiannual' | 'annual';
@@ -47,6 +48,7 @@ function formatEmails(count: number): string {
 }
 
 export default function SignupPlanPage() {
+  const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -64,8 +66,11 @@ export default function SignupPlanPage() {
   }, []);
 
   const handleSelectPlan = (plan: Plan) => {
-    // Payment integration coming next — log selection for now
-    console.log('Plano selecionado:', { plan, cycle, price: getPlanPrice(plan, cycle) });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cm_pending_plan', JSON.stringify({ planId: plan.id, billingCycle: cycle }));
+    }
+    // Redirect to /signup/payment when that page is created; for now send to /dashboard
+    router.push(`/dashboard?plan=${plan.id}&cycle=${cycle}`);
   };
 
   const isProfessional = (plan: Plan) => plan.name === 'Profissional';
