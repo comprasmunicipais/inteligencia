@@ -13,6 +13,9 @@ const supabase = createClient(
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const ALERT_SCORE_THRESHOLD = 90;
+const MODALITIES = [6, 8, 1]; // Pregão Eletrônico, Dispensa, Concorrência
+const MAX_PAGES = 50;
+const PAGE_SIZE = 500;
 
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -127,10 +130,10 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
 
   const users = companyUsers || [];
 
+  // Oportunidades são globais — sem filtro por company_id
   const { data: opportunities, error: oppsError } = await supabase
     .from('opportunities')
-    .select('id, title, description, organ_name, modality, state, estimated_value, official_url, opening_date')
-    .eq('company_id', companyId);
+    .select('id, title, description, organ_name, modality, state, estimated_value, official_url, opening_date');
 
   if (oppsError || !opportunities) {
     console.error('Erro ao buscar oportunidades para recálculo:', oppsError);
@@ -230,8 +233,72 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
   return { updated, total: opportunities.length, alerts };
 }
 
-async function syncOpportunitiesForCompany(
-  companyId: string,
+async function fetchPNCPPage(
+  modalidade: number,
+  pagina: number,
+  dataInicial: string,
+  dataFinal: string
+): Promise<{ items: any[]; hasMore: boolean }> {
+  const params = new URLSearchParams({
+    pagina: String(pagina),
+    tamanhoPagina: String(PAGE_SIZE),
+    dataInicial,
+    dataFinal,
+    codigoModalidadeContratacao: String(modalidade),
+  });
+
+  const response = await fetch(
+    `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`,
+    { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
+  );
+
+  if (!response.ok) {
+    console.error(`PNCP modalidade ${modalidade} pág ${pagina}: HTTP ${response.status}`);
+    return { items: [], hasMore: false };
+  }
+
+  const json = await response.json();
+  const items: any[] = json?.data || [];
+  // API retorna paginasRestantes quando há mais páginas
+  const hasMore = items.length === PAGE_SIZE || (json?.paginasRestantes ?? 0) > 0;
+
+  return { items, hasMore };
+}
+
+async function fetchAllPNCPItems(dataInicial: string, dataFinal: string): Promise<{ items: any[]; byModalidade: Record<number, number> }> {
+  // Mapa de deduplicação por numeroControlePNCP
+  const seen = new Map<string, any>();
+  const byModalidade: Record<number, number> = {};
+
+  for (const modalidade of MODALITIES) {
+    let pagina = 1;
+    let hasMore = true;
+    let modalidadeCount = 0;
+
+    while (hasMore && pagina <= MAX_PAGES) {
+      const { items, hasMore: more } = await fetchPNCPPage(modalidade, pagina, dataInicial, dataFinal);
+
+      for (const item of items) {
+        const key =
+          item.numeroControlePNCP ||
+          `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
+        if (!seen.has(key)) {
+          seen.set(key, item);
+          modalidadeCount++;
+        }
+      }
+
+      hasMore = more;
+      pagina++;
+    }
+
+    byModalidade[modalidade] = modalidadeCount;
+  }
+
+  return { items: Array.from(seen.values()), byModalidade };
+}
+
+async function syncOpportunities(
   items: any[],
   municipalityCache: Map<string, any[]>
 ): Promise<{ inserted: number; updated: number; errors: any[] }> {
@@ -251,7 +318,6 @@ async function syncOpportunitiesForCompany(
     let municipalityId: string | null = null;
 
     if (city && state) {
-      // Usar cache para evitar múltiplas queries ao banco
       const cacheKey = state;
       if (!municipalityCache.has(cacheKey)) {
         const { data: municipalities } = await supabase
@@ -269,16 +335,14 @@ async function syncOpportunitiesForCompany(
       municipalityId = matchedMunicipality?.id ?? null;
     }
 
-    // Verificar se já existe para esta empresa especificamente
     const { data: existingRecord } = await supabase
       .from('opportunities')
       .select('id')
-      .eq('external_id', `${externalIdString}-${companyId}`)
+      .eq('external_id', externalIdString)
       .maybeSingle();
 
     const oportunidade = {
-      company_id: companyId,
-      external_id: `${externalIdString}-${companyId}`,
+      external_id: externalIdString,
       source: 'PNCP',
       title: item.objetoCompra || 'Objeto não informado',
       description: item.objetoCompra || null,
@@ -342,7 +406,7 @@ export async function GET(request: Request) {
       .eq('internal_status', 'expired')
       .lt('opening_date', cutoff);
 
-    // Suporte a company_id opcional — quando presente, sincroniza apenas aquela empresa
+    // Suporte a company_id opcional — quando presente, sincroniza scores apenas para aquela empresa
     const requestUrl = new URL(request.url);
     const targetCompanyId = requestUrl.searchParams.get('company_id');
 
@@ -357,7 +421,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: 'Nenhuma empresa ativa encontrada.' }, { status: 400 });
     }
 
-    // Controle de sincronização
+    // Janela de sincronização via sync_control
     const { data: lastSyncData } = await supabase
       .from('sync_control')
       .select('last_sync')
@@ -369,71 +433,31 @@ export async function GET(request: Request) {
     defaultStart.setDate(defaultStart.getDate() - 1);
 
     const dataInicialDate = lastSyncData?.last_sync ? new Date(lastSyncData.last_sync) : defaultStart;
-    const dataFinalDate = now;
+    const dataInicial = formatDateToPNCP(dataInicialDate);
+    const dataFinal = formatDateToPNCP(now);
 
-    const params = new URLSearchParams({
-      pagina: '1',
-      tamanhoPagina: '20',
-      dataInicial: formatDateToPNCP(dataInicialDate),
-      dataFinal: formatDateToPNCP(dataFinalDate),
-      codigoModalidadeContratacao: '6',
-    });
+    // Buscar todos os itens do PNCP (todas as modalidades, todas as páginas)
+    const { items, byModalidade } = await fetchAllPNCPItems(dataInicial, dataFinal);
 
-    const pncpUrl = `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`;
-
-    const response = await fetch(pncpUrl, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json({
-        ok: false,
-        error: 'Erro ao buscar PNCP',
-        status: response.status,
-        detail: errorText,
-      });
-    }
-
-    const json = await response.json();
-    const items = json?.data || [];
-
-    // Cache de municípios para evitar queries repetidas
+    // Upsert global — sem company_id
     const municipalityCache = new Map<string, any[]>();
+    const { inserted, updated, errors } = await syncOpportunities(items, municipalityCache);
 
-    // Resultados por empresa
+    // Recalcular scores e notificar por empresa
     const companyResults: any[] = [];
-    let totalInserted = 0;
-    let totalUpdated = 0;
     let totalAlerts = 0;
 
-    // Processar cada empresa
     for (const company of companies) {
       try {
-        const { inserted, updated, errors } = await syncOpportunitiesForCompany(
-          company.id,
-          items,
-          municipalityCache
-        );
-
         const scoreResult = await recalculateAndNotify(company.id);
-
-        totalInserted += inserted;
-        totalUpdated += updated;
         totalAlerts += scoreResult.alerts;
-
         companyResults.push({
           company_id: company.id,
           company_name: company.name,
-          inseridos: inserted,
-          atualizados: updated,
-          erros: errors.length,
           alertas: scoreResult.alerts,
         });
       } catch (err) {
-        console.error(`Erro ao processar empresa ${company.id}:`, err);
+        console.error(`Erro ao recalcular scores para empresa ${company.id}:`, err);
         companyResults.push({
           company_id: company.id,
           company_name: company.name,
@@ -450,15 +474,14 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       total_recebidos: items.length,
-      total_empresas: companies.length,
-      total_inseridos: totalInserted,
-      total_atualizados: totalUpdated,
+      total_inseridos: inserted,
+      total_atualizados: updated,
+      total_erros: errors.length,
       total_alertas: totalAlerts,
+      total_empresas: companies.length,
       sincronizado_em: now.toISOString(),
-      janela_consultada: {
-        data_inicial: formatDateToPNCP(dataInicialDate),
-        data_final: formatDateToPNCP(dataFinalDate),
-      },
+      janela_consultada: { data_inicial: dataInicial, data_final: dataFinal },
+      por_modalidade: byModalidade,
       por_empresa: companyResults,
     });
 
