@@ -42,6 +42,8 @@ export default function AdminCompaniesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [newCompany, setNewCompany] = useState({ name: '', status: 'active' });
+  const [deleteTargetCompany, setDeleteTargetCompany] = useState<Company | null>(null);
+  const [deleteCompanyLoading, setDeleteCompanyLoading] = useState(false);
 
   useEffect(() => {
     loadCompanies();
@@ -87,7 +89,26 @@ export default function AdminCompaniesPage() {
     }
   };
 
-  const filteredCompanies = companies.filter(c => 
+  const handleDeleteCompany = async (company: Company) => {
+    setDeleteCompanyLoading(true);
+    try {
+      const res = await fetch(`/api/admin/companies/${company.id}/delete`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || 'Erro ao excluir empresa.');
+        return;
+      }
+      setCompanies(companies.filter(c => c.id !== company.id));
+      toast.success('Empresa excluída com sucesso.');
+      setDeleteTargetCompany(null);
+    } catch {
+      toast.error('Erro de conexão. Tente novamente.');
+    } finally {
+      setDeleteCompanyLoading(false);
+    }
+  };
+
+  const filteredCompanies = companies.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.cnpj.includes(searchTerm)
   );
@@ -204,7 +225,7 @@ export default function AdminCompaniesPage() {
                         <DropdownMenuItem className="text-xs font-bold">
                           <ShieldCheck className="size-4 mr-2" /> Alterar Plano
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => handleUpdateStatus(company.id, company.status === 'active' ? 'suspended' : 'active')}
                           className={cn(
                             "text-xs font-bold",
@@ -217,6 +238,12 @@ export default function AdminCompaniesPage() {
                             <><ShieldCheck className="size-4 mr-2" /> Reativar Empresa</>
                           )}
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setDeleteTargetCompany(company)}
+                          className="text-xs font-bold text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="size-4 mr-2" /> Excluir Empresa
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -226,6 +253,42 @@ export default function AdminCompaniesPage() {
           </table>
         </div>
       </div>
+
+      {/* Delete Company Confirmation */}
+      <Dialog open={!!deleteTargetCompany} onOpenChange={(open) => { if (!open) setDeleteTargetCompany(null); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="size-5" /> Excluir Empresa
+            </DialogTitle>
+            <DialogDescription>
+              Excluir esta empresa removerá todos os seus dados e usuários vinculados. Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTargetCompany && (
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700 font-medium">
+              {deleteTargetCompany.name}
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteTargetCompany(null)}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={deleteCompanyLoading}
+              onClick={() => deleteTargetCompany && handleDeleteCompany(deleteTargetCompany)}
+              className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-700 shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {deleteCompanyLoading && <Loader2 className="size-4 animate-spin" />}
+              Excluir
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Company Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>

@@ -16,6 +16,7 @@ import {
   UserCog,
   Eye,
   CreditCard,
+  Trash2,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import {
@@ -79,6 +80,8 @@ export default function AdminUsersPage() {
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [planUpdateLoading, setPlanUpdateLoading] = useState(false);
   const [suspendLoading, setSuspendLoading] = useState(false);
+  const [deleteTargetUser, setDeleteTargetUser] = useState<UserProfile | null>(null);
+  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -145,6 +148,25 @@ export default function AdminUsersPage() {
       toast.error('Erro de conexão. Tente novamente.');
     } finally {
       setResetPasswordLoadingId(null);
+    }
+  };
+
+  const handleDeleteUser = async (user: UserProfile) => {
+    setDeleteUserLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/delete`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || 'Erro ao excluir usuário.');
+        return;
+      }
+      setUsers(users.filter(u => u.id !== user.id));
+      toast.success('Usuário excluído com sucesso.');
+      setDeleteTargetUser(null);
+    } catch {
+      toast.error('Erro de conexão. Tente novamente.');
+    } finally {
+      setDeleteUserLoading(false);
     }
   };
 
@@ -330,6 +352,12 @@ export default function AdminUsersPage() {
                           className="text-xs font-bold"
                         >
                           <Shield className="size-4 mr-2" /> {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setDeleteTargetUser(user)}
+                          className="text-xs font-bold text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="size-4 mr-2" /> Excluir Usuário
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -667,6 +695,42 @@ export default function AdminUsersPage() {
               className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
             >
               Fechar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation */}
+      <Dialog open={!!deleteTargetUser} onOpenChange={(open) => { if (!open) setDeleteTargetUser(null); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="size-5" /> Excluir Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Tem certeza? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTargetUser && (
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700 font-medium">
+              {deleteTargetUser.email}
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteTargetUser(null)}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={deleteUserLoading}
+              onClick={() => deleteTargetUser && handleDeleteUser(deleteTargetUser)}
+              className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-700 shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {deleteUserLoading && <Loader2 className="size-4 animate-spin" />}
+              Excluir
             </button>
           </DialogFooter>
         </DialogContent>
