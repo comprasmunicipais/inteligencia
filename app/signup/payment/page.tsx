@@ -22,9 +22,9 @@ interface PlanData {
 }
 
 const CYCLE_LABELS: Record<BillingCycle, string> = {
-  monthly: 'mensal',
-  semiannual: 'semestral',
-  annual: 'anual',
+  monthly: 'Cobrança mensal',
+  semiannual: 'Cobrança semestral · Economia de 10%',
+  annual: 'Cobrança anual · Economia de 22%',
 };
 
 const CYCLE_SUFFIX: Record<BillingCycle, string> = {
@@ -552,7 +552,7 @@ export default function SignupPaymentPage() {
             <div className="pay-summary">
               <div className="pay-summary-left">
                 <div className="pay-summary-plan">{plan.name}</div>
-                <div className="pay-summary-cycle">Cobrança {CYCLE_LABELS[pending.billingCycle]}</div>
+                <div className="pay-summary-cycle">{CYCLE_LABELS[pending.billingCycle]}</div>
               </div>
               <div>
                 <div className="pay-summary-price">{formatCurrency(price)}</div>
@@ -781,7 +781,7 @@ export default function SignupPaymentPage() {
             {/* Footer */}
             <div className="pay-footer">
               <p>
-                <a href="/signup/plan">← Escolher outro plano</a>
+                <a href="/signup/plan">← Alterar plano ou ciclo</a>
               </p>
               <div className="pay-ssl">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
