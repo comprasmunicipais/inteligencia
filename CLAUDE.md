@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with this repository. It is the master reference document for the CM Pro project — keep it up to date.
+
+---
 
 ## Commands
 
@@ -14,6 +16,36 @@ npm run clean    # Clean Next.js build cache
 
 No test runner is configured in this project.
 
+---
+
+## Produto & Contexto Estratégico
+
+**CM Pro** é um SaaS B2G multi-tenant de inteligência comercial e CRM voltado para empresas que vendem para prefeituras brasileiras. Integra dados públicos do PNCP com perfis estratégicos de empresa para gerar oportunidades qualificadas.
+
+- Produto renomeado de 'CM Intelligence' para 'CM Pro' em março 2026
+- Planos renomeados: Iniciante→Essencial, Conversão→Elite
+- Deploy no Vercel + Supabase (PostgreSQL + RLS)
+- Roles: `platform_admin`, `company_admin`, `user`
+- Produto ainda sem clientes pagantes — comercialização não iniciada
+
+### Prioridade atual
+
+- **Primeiro cliente pago antes de novas features**
+- A-HA moment: usuário ver licitações abertas para seu segmento nos primeiros 5 minutos
+- Landing page é pré-requisito para comercialização (ainda não existe)
+- Após primeiro cliente: inverter proporção para 90% marketing / 10% produto
+
+### Workflow com Claude Code
+
+- Projeto instalado em: `C:\Projetos\inteligencia\inteligencia`
+- CLAUDE.md é lido automaticamente a cada sessão — mantê-lo atualizado é obrigação
+- Usar `/compact` em sessões longas para economizar tokens
+- Iniciar novas sessões após marcos importantes
+- Sessões devem ter escopo fechado e definido antes de iniciar
+- Limite Pro: ~44k tokens por janela de 5h — sessões abertas e vagas são desperdício
+
+---
+
 ## Architecture
 
 **Next.js 15 full-stack CM Pro — Plataforma B2G** for Brazilian public procurement intelligence (PNCP). Multi-tenant SaaS with role-based access: `platform_admin`, `company_admin`, `user`.
@@ -25,9 +57,44 @@ No test runner is configured in this project.
 - `app/api/` — API routes; `/api/pncp/sync` is the only public endpoint — all others require auth
 - `app/login/` — Auth entry point
 
-### Data Layer
+### Data Layer: Dados Globais vs Dados Operacionais
 
-**Supabase** (PostgreSQL + RLS) via two client modes:
+**DECISÃO ARQUITETURAL CRÍTICA — nunca regredir.**
+
+O sistema possui dois tipos de dados com naturezas completamente distintas:
+
+#### 1. Dados Globais (compartilhados entre todos os tenants)
+
+| Tabela | Descrição |
+|--------|-----------|
+| `municipalities` | Prefeituras brasileiras — base institucional central |
+| `opportunities` | Licitações públicas do PNCP — `company_id` é nullable, dados são globais |
+| Futuras bases públicas enriquecidas | PNCP, dados administrativos, enriquecimentos públicos |
+
+Regras:
+- São únicos — não duplicar por empresa
+- Não pertencem a nenhum tenant específico
+- `external_id` é o identificador canônico para deduplicação (sem `company_id` no sufixo)
+- ON CONFLICT deve usar `external_id` isolado, não `(company_id, external_id)`
+
+#### 2. Dados Operacionais (por empresa / tenant)
+
+| Tabela | Descrição |
+|--------|-----------|
+| `contacts` | Contatos comerciais da empresa |
+| `deals` | Negociações e funil |
+| `proposals` | Propostas enviadas |
+| `contracts` | Contratos fechados |
+| `tasks` | Tarefas operacionais |
+| `email_campaigns`, `email_job_queue` | Campanhas e fila de disparo |
+| Futuros registros operacionais privados | Por tenant |
+
+Regras:
+- Sempre isolados por `company_id`
+- RLS obrigatório
+- Nunca vazam entre empresas
+
+**Supabase** (PostgreSQL + RLS) via dois modos de client:
 - `lib/supabase/client.ts` — Browser-side client
 - `lib/supabase/server.ts` — Server-side client (for Server Components and API routes)
 
@@ -37,20 +104,50 @@ Always use the server client in API routes and Server Components. RLS policies e
 
 `lib/services/` contains all business logic as plain async functions. Pages and API routes call these functions — there is no shared state or class instances. Mappers in `lib/mappers/` convert between database rows and UI types.
 
-### Intelligence Engine
+### Intelligence Engine / PNCP Sync
 
 The core feature: matches government procurement opportunities against company profiles.
 - `lib/intelligence/` — Match scoring engine
 - `lib/intel/` — Types and service layer for opportunity/profile management
-- `lib/pncp/` — PNCP API client, data mapper, and sync logic
+- `lib/pncp/` — PNCP API client, data mapper, and sync logic (legado/demo — não escreve no banco)
+- `app/api/pncp/sync/route.ts` — **Rota real de sync** (escreve na tabela `opportunities`)
 
-Sync is triggered via `GET /api/pncp/sync` (cron-friendly; auth via `Authorization: Bearer <CRON_SECRET>` header). Scores are recalculated via `POST /api/intel/recalculate-scores`.
+Sync é disparado via `GET /api/pncp/sync` (cron-friendly; auth via `Authorization: Bearer <CRON_SECRET>`). Scores são recalculados via `POST /api/intel/recalculate-scores`.
+
+#### Comportamento atual do sync (`app/api/pncp/sync/route.ts`)
+
+- **Endpoint PNCP**: `GET https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao`
+- **Modalidades**: 6 (Pregão Eletrônico), 8 (Dispensa), 1 (Concorrência) — uma requisição por modalidade
+- **Paginação**: loop até 50 páginas × `tamanhoPagina=500` por modalidade
+- **Deduplicação**: `external_id = numeroControlePNCP` (sem `company_id`); `ON CONFLICT (external_id)`
+- **Janela**: controlada por `sync_control.last_sync`; fallback: ontem
+- **Upsert global**: sem `company_id` no objeto inserido — `opportunities.company_id` é nullable
+- **Scores**: recalculados por empresa após upsert global; notificações para scores ≥ 90
+- **Ciclo de vida**: expiradas → `internal_status='expired'`; deletadas após 30 dias
+- **Cron**: Vercel cron job configurado em `vercel.json`
+
+#### Aprendizados reais da integração PNCP
+
+- Parâmetros obrigatórios: `dataInicial`, `dataFinal` (formato `yyyyMMdd`), `codigoModalidadeContratacao`
+- Erros já corrigidos: 400 por falta de parâmetros, 422 por formato de data inválido, upsert sem unique constraint em `external_id`
+- `lib/pncp/sync.ts` usa armazenamento in-memory (legado/demo) — não persiste no banco
+
+#### Migration aplicada (2026-03-31)
+
+```sql
+-- opportunities são globais — company_id nullable
+ALTER TABLE public.opportunities ALTER COLUMN company_id DROP NOT NULL;
+DROP INDEX IF EXISTS idx_opportunities_company_external_id;
+UPDATE public.opportunities SET company_id = NULL;
+```
 
 ### AI Integration
 
 Uses Gemini (`@google/genai`) for:
 - Proposal generation (`/api/intel/generate-proposal`)
 - Profile consolidation (`/api/intel/consolidate-profile`)
+- Email template generation via Gemini 2.5 Flash Lite — 4 tipos com cache por perfil (`/api/email/templates/generate`)
+
 Requires `GOOGLE_API_KEY` environment variable.
 
 ### Admin Module
@@ -67,6 +164,145 @@ When saving an institutional email on a municipality record, always perform an u
 - `source = 'manual'`
 - `department_label = 'institucional'`
 - `is_strategic = true`
+
+**Campo `email` em `municipalities`**: coluna `TEXT` que existe diretamente na tabela. É salvo via `accountService.update()` e exposto no modal de Editar/Adicionar Prefeitura. Não confundir com `municipality_emails` (tabela separada para múltiplos e-mails por prefeitura). A rota `sync-email` (`app/api/crm/accounts/[id]/sync-email/route.ts`) sincroniza o e-mail principal para `municipality_emails` como entrada adicional — são fluxos distintos.
+
+---
+
+## Padrões de Desenvolvimento
+
+### Regra de Ouro: Prefeitura é Entidade
+
+**Prefeitura NÃO é texto. Prefeitura é entidade.**
+
+- Sempre usar `municipality_id` (FK → `municipalities`)
+- Nunca salvar nome de prefeitura como texto livre quando representa vínculo operacional
+- Sempre usar dropdown conectado à tabela `municipalities`
+- `municipality_id` é a referência canônica para associação com prefeitura
+- `department`, `secretariat`, `unit` são complementares — nunca substituem `municipality_id`
+
+### Padrão Operacional dos Módulos CRM
+
+Todos os módulos do CRM devem ter:
+
+| Campo | Tipo | Obrigatoriedade |
+|-------|------|----------------|
+| `municipality_id` | FK → municipalities | Obrigatório |
+| `company_id` | FK → companies | Obrigatório |
+| `department` | TEXT | Complementar |
+| `secretariat` | TEXT | Complementar |
+| `unit` | TEXT | Complementar |
+
+### Padrão de Loading nas Páginas CRM
+
+**Problema**: `loading=true` inicial + `if (!companyId) return` sem `setLoading(false)` causava spinner infinito quando o `CompanyProvider` demorava a inicializar.
+
+**Padrão correto** (já aplicado em proposals, tasks, contracts):
+
+```typescript
+useEffect(() => {
+  if (companyId) {
+    loadXxx();
+  } else {
+    setLoading(false); // encerra spinner mesmo quando companyId é null
+  }
+}, [companyId, loadXxx]);
+```
+
+### CompanyProvider: Evitar Lock Collision
+
+**Problema**: múltiplas instâncias do `GoTrueClient` criadas em paralelo causavam `"Lock broken by another request with the 'steal' option"` e spinner infinito.
+
+**Correção validada** (`components/providers/CompanyProvider.tsx`):
+- `createClient()` chamado **UMA ÚNICA VEZ** via `useRef`
+- Mesma instância reutilizada em `init()`, `onAuthStateChange()` e `loadUserData()`
+- **Nunca** chamar `createClient()` múltiplas vezes dentro do mesmo provider
+
+### Checklist de Qualidade por Alteração
+
+Sempre que fizer qualquer alteração, validar:
+
+1. DTO — reflete exatamente o que a UI usa
+2. Service — reflete o que o banco e a UI precisam
+3. UI — nunca assume campo inexistente
+4. Banco — constraints e índices coerentes com upserts
+5. Mappers — coerentes com entity, DTO e uso real em tela
+6. Enums — consistentes entre banco, DTO e UI
+7. Persistência real — testar que o dado persiste
+8. Build — `npm run build` passa sem erros
+9. Impacto colateral — módulos já estabilizados não regridem
+
+**Nenhuma entrega é válida se:**
+- Quebra o build
+- Não persiste no banco
+- Usa dados inconsistentes
+- Quebra tipagem
+- Gera comportamento imprevisível
+- Exige correções manuais em cadeia
+- Resolve sintoma mas preserva causa raiz
+- Introduz risco de regressão sem necessidade
+
+---
+
+## Problemas Conhecidos e Soluções Validadas
+
+### 1. ON CONFLICT quebrando
+
+**Causa**: ausência de constraint UNIQUE compatível com o upsert.
+
+**Solução**: criar constraint ou índice único coerente com a chave de deduplicação **antes** de usar `upsert` com `onConflict`. Nunca assumir que o campo existe como unique sem verificar `pg_indexes`.
+
+Exemplos já corrigidos:
+- `municipalities` → deduplicação por `city + state`
+- `opportunities` → unique index em `external_id` para upsert global
+
+### 2. CSV com números inválidos
+
+**Causa**: valores como `"1.948"` interpretados incorretamente (separador de milhar vs. decimal).
+
+**Solução**: normalizar antes de inserir; tratar no backend antes da persistência; nunca confiar que planilha virá tipada corretamente.
+
+### 3. Tipagem quebrando o build
+
+**Causas comuns**: DTO divergente da UI, campos inexistentes, enums inconsistentes, mappers retornando campos não declarados.
+
+**Regra**: DTO → Service → Mapper → UI devem ser coerentes entre si. Quando a UI precisa de um campo novo, ajustar DTO, mapper e service juntos.
+
+### 4. Assinatura errada de service
+
+```typescript
+// ERRADO:
+accountService.getAll({ pageSize: 1000 })
+
+// CORRETO:
+accountService.getAll(undefined, 1, 1000)
+```
+
+**Regra**: revisar a assinatura real do service antes de editar páginas. Nunca inventar formato de chamada.
+
+### 5. Campo inexistente no DTO
+
+**Exemplos reais**: `task.title`, `contact.location`, `contract.notes` quando o DTO não tinha esses campos.
+
+**Regra**: a UI nunca deve assumir campo inexistente. Quando a UI precisa de um campo, o DTO, mapper e service devem ser ajustados corretamente.
+
+### 6. Toast disparando sozinho
+
+**Causa**: uso incorreto em `useEffect` — carga inicial disparando feedback indevido.
+
+**Regra**: toast só em ação explícita do usuário. Erros de carga inicial devem ser tratados com estado de erro na UI, não com toast automático.
+
+### 7. Relações quebrando queries PostgREST
+
+**Causa**: `select` com relacionamento (ex.: `municipalities(name)`) quando o relacionamento não estava corretamente exposto pelo PostgREST.
+
+**Solução**: priorizar `select` simples sem join até estabilizar a estrutura. Desacoplar o frontend do relacionamento em caso de instabilidade.
+
+### 8. Limpeza de base global bloqueada por foreign keys
+
+**Causa**: `TRUNCATE`/`DELETE` em `municipalities` falha porque `contacts`, `proposals` e outras tabelas referenciam a tabela.
+
+**Regra**: antes de limpar bases globais, mapear FKs e avaliar impacto. Em produção, preferir substituição controlada à deleção cega.
 
 ---
 
@@ -93,6 +329,7 @@ sent_count INT DEFAULT 0, failed_count INT DEFAULT 0
 - **Does NOT send immediately** — inserts all recipients into `email_job_queue` (no row limit)
 - Updates campaign: `status='Agendada'`, `sending_account_id`
 - Returns `{ queued, total }`
+- Bloqueado se `emails_used >= emails_limit && extra_credits <= 0` → 402 com `{ error: 'limit_reached' }`
 
 ### Email job queue (`email_job_queue`)
 
@@ -142,25 +379,128 @@ ALTER TABLE email_events ENABLE ROW LEVEL SECURITY;
 - `smtp_password_encrypted` column stores the ciphertext; the column `smtp_password` does not exist
 - PATCH (update) must only re-encrypt the password if a new one is provided; omit the field otherwise
 
+Endpoints validados:
+- `GET    /api/email/sending-accounts` → lista contas da empresa
+- `POST   /api/email/sending-accounts` → cria conta (limite: 5 por empresa, via RPC atômica)
+- `PATCH  /api/email/sending-accounts` → edita conta (senha: só recriptografa se informada)
+- `DELETE /api/email/sending-accounts` → exclui conta
+- `POST   /api/email/test-connection`  → testa SMTP via nodemailer; salva `last_tested_at` / `last_test_status` / `last_test_error`
+
 ### Encryption (`lib/security/email-settings-crypto.ts`)
 
 - Algorithm: AES-256-GCM
 - Key: env var `EMAIL_SETTINGS_ENCRYPTION_KEY` — hex string, exactly 64 chars (256 bits)
-- Ciphertext format: `"iv:authTag:encryptedData"` (all hex-encoded)
+- Ciphertext format: `"iv:authTag:encryptedData"` (all hex-encoded, 3 partes separadas por ":")
 - Functions: `encryptEmailSettingSecret(plainText)` / `decryptEmailSettingSecret(payload)`
-
-### SMTP test endpoint (`POST /api/email/test-connection`)
-
-- Uses nodemailer `transporter.verify()` to test credentials
-- Saves `last_tested_at`, `last_test_status` (`'success'` | `'error'`), `last_test_error` on the account row
-- Sanitizes error messages before storing (redacts password/username tokens)
-- Timeouts: `connectionTimeout=15000`, `greetingTimeout=15000`, `socketTimeout=20000`
 
 ### SMTP ports for Brazilian providers (email-ssl.com.br and similar)
 
 - Port **465** — SSL/TLS (`smtp_secure: true`)
 - Port **587** — STARTTLS (`smtp_secure: false`, `requireTLS: true`)
-- Port **993** is IMAP — never use it for SMTP sending
+- Port **993** is IMAP — **never use it for SMTP sending**
+
+---
+
+## Billing & Plans Module
+
+### Plans (tabela `plans`)
+3 planos ativos:
+- Essencial: 10.000 emails/mês, 1 usuário, R$297/mês
+- Profissional: 25.000 emails/mês, 3 usuários, R$497/mês
+- Elite: 50.000 emails/mês, usuários ilimitados, R$797/mês
+
+Pacote extra: 5.000 emails por R$80 (compra avulsa)
+Trial: 7 dias com limite de 500 emails
+
+### Tabelas criadas
+- `plans` — planos com preços e limites
+- `subscriptions` — assinatura por empresa (status: trial/active/past_due/cancelled/expired)
+- `email_credits` — pacotes extras comprados
+- `billing_events` — log de webhooks Asaas
+
+### Colunas adicionadas em `companies`
+- `plan_id` (FK → plans)
+- `emails_used_this_month` (resetado dia 1 de cada mês via pg_cron)
+- `extra_credits_available`
+- `trial_ends_at`
+- `additional_users_count`
+
+### Gateway de pagamento: Asaas
+- Sandbox: `NEXT_PUBLIC_ASAAS_SANDBOX=true`
+- Variáveis: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
+- Client: `lib/asaas.ts`
+- Troca de plano: cancela assinatura anterior antes de criar nova; reutiliza `asaas_customer_id` existente
+
+### Rotas de billing
+- `POST /api/billing/subscribe` — cria cliente + assinatura no Asaas; suporta `billingType=CREDIT_CARD` com campos `creditCard`, `creditCardHolderInfo`, `remoteIp`
+- `POST /api/billing/webhook` — recebe eventos Asaas (auth via `asaas-access-token` header)
+- `POST /api/billing/cancel` — cancela assinatura no Asaas + atualiza `subscriptions.status='cancelled'`
+- `POST /api/billing/extra-credits` — compra pacote extra
+- `GET  /api/billing/subscription` — dados reais de assinatura da empresa
+- `GET  /api/billing/reset-monthly` — rota de reset (não usada — reset via pg_cron)
+
+### Controle de limite
+- Disparo bloqueado em `POST /api/email/campaigns/[id]/send` se `emails_used >= emails_limit && extra_credits <= 0` → retorna 402 com `{ error: 'limit_reached', emails_used, emails_limit }`
+- Frontend exibe `LimitReachedModal` (components/email/LimitReachedModal.tsx) com upsell
+- Após cada envio bem-sucedido: RPC `increment_emails_used(company_id)` incrementa `emails_used_this_month`
+- Reset mensal: pg_cron job 'reset-monthly-email-usage' roda `0 0 1 * *` via `reset_monthly_email_usage()` RPC
+
+### RPCs adicionais
+- `increment_emails_used(company_id_param)` — incrementa emails_used_this_month + 1
+- `reset_monthly_email_usage()` — zera emails_used_this_month em todas as empresas
+
+### Página de assinatura
+- Settings → aba Assinatura: dados reais via GET /api/billing/subscription
+- Exibe plano atual, barra de progresso, 3 cards de planos, pacote extra, botão Cancelar assinatura
+
+---
+
+## Security Rules (audited and enforced)
+
+### Critical: Supabase client choice
+
+**NEVER use `createAdminClient()` in authenticated routes.** It bypasses cookies/session so `auth.getUser()` returns null → always 401. Afeta qualquer rota que precise de `company_id` — se usar admin client, o RLS não filtra por empresa.
+
+**ALWAYS use `createClient()` from `lib/supabase/server.ts`** in any route that requires a user session.
+
+`createAdminClient()` is only valid for:
+- Public server-to-server endpoints (`/api/pncp/sync`)
+- Writing tracking events from unauthenticated callers (`/api/email/track/*`)
+- Reading data that has no SELECT RLS policy when called from an **already-authenticated** API handler (auth via `createClient()` must happen first)
+
+### Auth pattern for every authenticated route
+
+```typescript
+const supabase = await createClient();
+const { data: { user }, error: userError } = await supabase.auth.getUser();
+if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
+if (!profile?.company_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+// Always validate the company_id from the profile against the resource being accessed:
+if (profile.company_id !== body.company_id) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+```
+
+### Auth pattern for platform_admin routes
+
+```typescript
+const authClient = await createClient();
+const { data: { user } } = await authClient.auth.getUser();
+if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+const { data: profile } = await authClient.from('profiles').select('role').eq('id', user.id).single();
+if (!profile || profile.role !== 'platform_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+const supabase = await createAdminClient(); // safe here — auth already verified
+```
+
+### Middleware protection (`middleware.ts`)
+
+- `/api/pncp/sync` — bypassed (auth handled in handler via `Authorization: Bearer`)
+- `/admin/*` — requires `platform_admin`; redirects to `/login` or `/dashboard`
+- `/api/admin/*` — requires `platform_admin`; returns JSON 401/403 (no redirect for API routes)
+- All other routes — `NextResponse.next()` (route handlers self-authenticate)
 
 ---
 
@@ -205,107 +545,6 @@ supabase/migrations/20260326_insert_sending_account_if_under_limit.sql
 
 ---
 
-## Billing & Plans Module
-
-### Plans (tabela `plans`)
-3 planos ativos:
-- Essencial: 10.000 emails/mês, 1 usuário, R$297/mês
-- Profissional: 25.000 emails/mês, 3 usuários, R$497/mês
-- Elite: 50.000 emails/mês, usuários ilimitados, R$797/mês
-
-Pacote extra: 5.000 emails por R$80 (compra avulsa)
-Trial: 7 dias com limite de 500 emails
-
-### Tabelas criadas
-- `plans` — planos com preços e limites
-- `subscriptions` — assinatura por empresa (status: trial/active/past_due/cancelled/expired)
-- `email_credits` — pacotes extras comprados
-- `billing_events` — log de webhooks Asaas
-
-### Colunas adicionadas em `companies`
-- `plan_id` (FK → plans)
-- `emails_used_this_month` (resetado dia 1 de cada mês via pg_cron)
-- `extra_credits_available`
-- `trial_ends_at`
-- `additional_users_count`
-
-### Gateway de pagamento: Asaas
-- Sandbox: `NEXT_PUBLIC_ASAAS_SANDBOX=true`
-- Variáveis: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
-- Client: `lib/asaas.ts`
-
-### Rotas de billing
-- `POST /api/billing/subscribe` — cria cliente + assinatura no Asaas
-- `POST /api/billing/webhook` — recebe eventos Asaas (auth via `asaas-access-token` header)
-- `POST /api/billing/extra-credits` — compra pacote extra
-- `GET /api/billing/subscription` — dados reais de assinatura da empresa
-- `GET /api/billing/reset-monthly` — rota de reset (não usada — reset via pg_cron)
-
-### Controle de limite
-- Disparo bloqueado em `POST /api/email/campaigns/[id]/send` se `emails_used >= emails_limit && extra_credits <= 0` → retorna 402 com `{ error: 'limit_reached', emails_used, emails_limit }`
-- Frontend exibe `LimitReachedModal` (components/email/LimitReachedModal.tsx) com upsell
-- Após cada envio bem-sucedido: RPC `increment_emails_used(company_id)` incrementa `emails_used_this_month`
-- Reset mensal: pg_cron job 'reset-monthly-email-usage' roda `0 0 1 * *` via `reset_monthly_email_usage()` RPC
-
-### RPCs adicionais
-- `increment_emails_used(company_id_param)` — incrementa emails_used_this_month + 1
-- `reset_monthly_email_usage()` — zera emails_used_this_month em todas as empresas
-
-### Página de assinatura
-- Settings → aba Assinatura: dados reais via GET /api/billing/subscription
-- Exibe plano atual, barra de progresso, 3 cards de planos, pacote extra
-
----
-
-## Security Rules (audited and enforced)
-
-### Critical: Supabase client choice
-
-**NEVER use `createAdminClient()` in authenticated routes.** It bypasses cookies/session so `auth.getUser()` returns null → always 401.
-
-**ALWAYS use `createClient()` from `lib/supabase/server.ts`** in any route that requires a user session.
-
-`createAdminClient()` is only valid for:
-- Public server-to-server endpoints (`/api/pncp/sync`)
-- Writing tracking events from unauthenticated callers (`/api/email/track/*`)
-- Reading data that has no SELECT RLS policy when called from an already-authenticated API handler
-
-### Auth pattern for every authenticated route
-
-```typescript
-const supabase = await createClient();
-const { data: { user }, error: userError } = await supabase.auth.getUser();
-if (userError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
-if (!profile?.company_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-// Always validate the company_id from the profile against the resource being accessed:
-if (profile.company_id !== body.company_id) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
-```
-
-### Auth pattern for platform_admin routes
-
-```typescript
-const authClient = await createClient();
-const { data: { user } } = await authClient.auth.getUser();
-if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-const { data: profile } = await authClient.from('profiles').select('role').eq('id', user.id).single();
-if (!profile || profile.role !== 'platform_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-const supabase = await createAdminClient(); // safe here — auth already verified
-```
-
-### Middleware protection (`middleware.ts`)
-
-- `/api/pncp/sync` — bypassed (auth handled in handler via `Authorization: Bearer`)
-- `/admin/*` — requires `platform_admin`; redirects to `/login` or `/dashboard`
-- `/api/admin/*` — requires `platform_admin`; returns JSON 401/403 (no redirect for API routes)
-- All other routes — `NextResponse.next()` (route handlers self-authenticate)
-
----
-
 ## Key Environment Variables
 
 ```
@@ -315,7 +554,11 @@ SUPABASE_SERVICE_ROLE_KEY
 GOOGLE_API_KEY
 EMAIL_SETTINGS_ENCRYPTION_KEY   # 64-char hex, AES-256-GCM
 NEXT_PUBLIC_APP_URL              # e.g. https://inteligencia-sooty.vercel.app
-CRON_SECRET                      # passed as Authorization: Bearer header to /api/pncp/sync
+CRON_SECRET                      # Authorization: Bearer header — /api/pncp/sync e /api/email/queue/process
+ASAAS_API_KEY
+ASAAS_WEBHOOK_TOKEN
+NEXT_PUBLIC_ASAAS_SANDBOX        # 'true' em desenvolvimento
+RESEND_API_KEY                   # e-mails transacionais via Resend
 ```
 
 ## Path Alias
@@ -336,17 +579,9 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 
 ## Public Routes
 - `/app` — página pública de apresentação do CM Pro (dark premium, estilo Starforge)
-- `/login` — autenticação
+- `/login` — autenticação (dark premium, grid background, card glassmorphism)
 - `/api/email/track/*` — tracking de emails (sem auth)
 - `/api/pncp/sync` — sync PNCP (auth via Bearer)
-
-## Rebrand
-- Produto renomeado de 'CM Intelligence' para 'CM Pro' em março 2026
-- Planos renomeados: Iniciante→Essencial, Conversão→Elite
-
-## Database Fixes (março 2026)
-- TRIM aplicado em `municipalities.state` — eliminados espaços extras que quebravam filtros de audiência
-- Ordenação de municípios no dropdown corrigida para `.order('city')`
 
 ---
 
@@ -357,7 +592,23 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 
 ---
 
+## Database Fixes (março 2026)
+
+- TRIM aplicado em `municipalities.state` — eliminados espaços extras que quebravam filtros de audiência
+- Ordenação de municípios no dropdown corrigida para `.order('city')`
+- `opportunities.company_id` tornado nullable (2026-03-31) — oportunidades são globais
+- Índice composto `(company_id, external_id)` em `opportunities` removido (2026-03-31)
+
+---
+
 ## Changelog
+
+### Sessão 2026-03-31
+
+- **PNCP sync — paginação completa**: loop até 50 páginas × 500 itens por modalidade (`app/api/pncp/sync/route.ts`)
+- **PNCP sync — múltiplas modalidades**: modalidades 6 (Pregão), 8 (Dispensa), 1 (Concorrência)
+- **PNCP sync — deduplicação global**: `external_id = pncpId` sem `company_id`; `ON CONFLICT (external_id)`; `opportunities.company_id` tornado nullable via migration
+- **Fix `fallbackPlans`**: referência undefined removida em `settings/page.tsx` (substituída por `[]`)
 
 ### Sessão 2026-03-28
 
@@ -381,3 +632,15 @@ CRON_SECRET                      # passed as Authorization: Bearer header to /ap
 - **Histórico de email** — reescrito para `email_job_queue` com join em `email_campaigns(name, subject)`; filtros 7/30/90 dias; paginação 20/página; status badge
 - **Admin: Logs do Sistema** — `app/(admin)/admin/logs/page.tsx`; tenta ler `audit_logs` (tabela ainda não existe — exibe estado vazio elegante); filtros de período e ação; paginação 50/página
 - **Admin: Diagnóstico** — `app/(admin)/admin/diagnostico/page.tsx` + `GET /api/admin/diagnostics`; verifica conectividade Supabase, 6 env vars críticas (✅/❌ sem expor valores), jobs pendentes na fila de email, último sync PNCP
+- **Google OAuth** — botão "Continuar com Google" em login e signup; `app/auth/callback/route.ts` provisiona empresa + perfil para novos usuários OAuth e redireciona para `/signup/onboarding`
+- **Billing — troca de plano**: cancela assinatura anterior no Asaas antes de criar nova; reutiliza `asaas_customer_id`
+- **Billing — cartão de crédito**: checkout transparente Asaas com campos `creditCard`, `creditCardHolderInfo`, `remoteIp`
+- **Billing — cancelamento**: `POST /api/billing/cancel` + modal de confirmação em Settings
+- **E-mails transacionais** (Resend): `sendWelcomeEmail` (signup), `sendPaymentConfirmedEmail` (webhook Asaas), `sendTrialExpiringEmail` (cron diário `/api/cron/trial-expiring`)
+- **Mobile**: sidebar com CSS transform + overlay; stepper de campanha com `overflow-x-auto`; footer de navegação com `flex-wrap`
+- **app/error.tsx** — global error boundary com reset
+- **app/not-found.tsx** — 404 com link para /dashboard
+- **app/(dashboard)/loading.tsx** — skeleton de 4 KPI cards + tabela
+- **lib/fetch-client.ts** — `fetchWithAuth` com interceptação de 401 → redirect `/login?error=session_expired`
+- **Admin: gestão de usuários** — convite, criação manual, reset de senha, edição de permissões
+- **Admin: Ver Detalhes da Empresa** + `POST /api/admin/update-plan` — gestão de plano e suspensão
