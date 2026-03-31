@@ -69,8 +69,7 @@ export default function SignupPlanPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('cm_pending_plan', JSON.stringify({ planId: plan.id, billingCycle: cycle }));
     }
-    // Redirect to /signup/payment when that page is created; for now send to /dashboard
-    router.push(`/dashboard?plan=${plan.id}&cycle=${cycle}`);
+    router.push('/signup/payment');
   };
 
   const isProfessional = (plan: Plan) => plan.name === 'Profissional';
