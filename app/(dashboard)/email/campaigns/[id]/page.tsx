@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 import LimitReachedModal from '@/components/email/LimitReachedModal';
 import RichEmailEditor from '@/components/email/RichEmailEditor';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -1165,6 +1166,8 @@ export default function CampaignDetailPage() {
 
   const [audienceFilters, setAudienceFilters] = useState<AudienceFilters>(DEFAULT_AUDIENCE);
 
+  const isReadOnly = useIsReadOnly();
+
   // Step 4 state
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [sendConfirmed, setSendConfirmed] = useState(false);
@@ -1495,6 +1498,12 @@ export default function CampaignDetailPage() {
                 </button>
               )}
 
+              {currentStep === 4 && isReadOnly && (
+                <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Envio desabilitado no modo demonstração
+                </span>
+              )}
+
               <button
                 type="button"
                 onClick={handleContinue}
@@ -1503,7 +1512,8 @@ export default function CampaignDetailPage() {
                   isSending ||
                   (currentStep === 2 && audienceFilters.totalCount === 0) ||
                   (currentStep === 3 && !summaryIsReady) ||
-                  (currentStep === 4 && (!selectedAccountId || !sendConfirmed))
+                  (currentStep === 4 && (!selectedAccountId || !sendConfirmed)) ||
+                  (currentStep === 4 && isReadOnly)
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
               >

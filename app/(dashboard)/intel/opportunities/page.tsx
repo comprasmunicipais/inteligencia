@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 import { opportunityService } from '@/lib/services/opportunities';
 import { OpportunityDTO } from '@/lib/types/dtos';
 import EmptyState from '@/components/shared/EmptyState';
@@ -48,6 +49,7 @@ type QuickFilterKey = 'all' | 'new_last_sync' | 'high_match' | 'expiring_soon' |
 
 export default function OpportunitiesPage() {
   const { companyId } = useCompany();
+  const isReadOnly = useIsReadOnly();
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -90,7 +92,7 @@ export default function OpportunitiesPage() {
 
     try {
       const oppsData = await opportunityService.getAll(companyId);
-      setOpps(oppsData || []);
+      setOpps(isReadOnly ? (oppsData || []).slice(0, 5) : (oppsData || []));
     } catch (error) {
       setOpps([]);
     }
@@ -541,6 +543,12 @@ export default function OpportunitiesPage() {
               )}
             </div>
 
+            {isReadOnly && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 font-medium">
+                Exibindo 5 oportunidades como amostra
+              </div>
+            )}
+
             {filteredOpps.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
                 <EmptyState
@@ -677,19 +685,21 @@ export default function OpportunitiesPage() {
                           <span className="md:hidden">Gerar Proposta</span>
                         </button>
 
-                        <button
-                          onClick={() => {
-                            if (opp.official_url) {
-                              window.open(opp.official_url, '_blank', 'noopener,noreferrer');
-                            } else {
-                              toast.error('Link oficial não disponível.');
-                            }
-                          }}
-                          className="flex-1 md:flex-none p-2.5 rounded-lg bg-[#0f49bd] text-white hover:bg-[#0a3690] transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-sm"
-                        >
-                          <ExternalLink className="size-5" />
-                          <span className="md:hidden">Link Oficial</span>
-                        </button>
+                        {!isReadOnly && (
+                          <button
+                            onClick={() => {
+                              if (opp.official_url) {
+                                window.open(opp.official_url, '_blank', 'noopener,noreferrer');
+                              } else {
+                                toast.error('Link oficial não disponível.');
+                              }
+                            }}
+                            className="flex-1 md:flex-none p-2.5 rounded-lg bg-[#0f49bd] text-white hover:bg-[#0a3690] transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-sm"
+                          >
+                            <ExternalLink className="size-5" />
+                            <span className="md:hidden">Link Oficial</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -952,18 +962,20 @@ export default function OpportunitiesPage() {
               </div>
 
               <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => {
-                    if (selectedOpp.official_url) {
-                      window.open(selectedOpp.official_url, '_blank');
-                    } else {
-                      toast.error('Link não disponível.');
-                    }
-                  }}
-                  className="flex-1 bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all flex items-center justify-center gap-2"
-                >
-                  <ExternalLink className="size-4" /> Ver Link Oficial
-                </button>
+                {!isReadOnly && (
+                  <button
+                    onClick={() => {
+                      if (selectedOpp.official_url) {
+                        window.open(selectedOpp.official_url, '_blank');
+                      } else {
+                        toast.error('Link não disponível.');
+                      }
+                    }}
+                    className="flex-1 bg-[#0f49bd] text-white py-2.5 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all flex items-center justify-center gap-2"
+                  >
+                    <ExternalLink className="size-4" /> Ver Link Oficial
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

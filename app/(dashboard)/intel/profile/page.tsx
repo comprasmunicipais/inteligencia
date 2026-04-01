@@ -33,6 +33,7 @@ import { companyDocumentService, CompanyDocument, DOCUMENT_CATEGORIES } from '@/
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -64,6 +65,7 @@ const fileTypeLabel = (type: string) => {
 
 export default function IntelProfilePage() {
   const { companyId } = useCompany();
+  const isReadOnly = useIsReadOnly();
   const [profile, setProfile] = useState<CompanyIntelligenceProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -327,11 +329,11 @@ export default function IntelProfilePage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={handleGenerateConsolidated} disabled={isGenerating} className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all shadow-md disabled:opacity-50">
+              <button onClick={handleGenerateConsolidated} disabled={isGenerating || isReadOnly} className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all shadow-md disabled:opacity-50">
                 {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 {isGenerating ? 'Gerando...' : 'Gerar Perfil Consolidado'}
               </button>
-              <button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50">
+              <button onClick={handleSave} disabled={isSaving || isReadOnly} className="flex items-center gap-2 px-6 py-2.5 bg-[#0f49bd] text-white rounded-xl font-bold text-sm hover:bg-[#0a3690] transition-all shadow-md disabled:opacity-50">
                 {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Salvar Perfil
               </button>
@@ -357,7 +359,7 @@ export default function IntelProfilePage() {
                       <Edit className="size-3.5" /> Editar
                     </button>
                   ) : (
-                    <button onClick={handleSaveConsolidated} disabled={isSavingConsolidated} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50">
+                    <button onClick={handleSaveConsolidated} disabled={isSavingConsolidated || isReadOnly} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50">
                       {isSavingConsolidated ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
                       Salvar
                     </button>
@@ -500,7 +502,7 @@ export default function IntelProfilePage() {
                   <div className="flex gap-3">
                     <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Nome da linha de produto" value={productLineName} onChange={(e) => setProductLineName(e.target.value)} />
                     <div className="relative">
-                      <input type="file" id="catalog-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadCatalog} disabled={uploadingCatalog} />
+                      <input type="file" id="catalog-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadCatalog} disabled={uploadingCatalog || isReadOnly} />
                       <label htmlFor="catalog-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingCatalog ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
                         {uploadingCatalog ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                         {uploadingCatalog ? 'Enviando...' : 'Upload'}
@@ -554,7 +556,7 @@ export default function IntelProfilePage() {
                     <div className="flex gap-3">
                       <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Descrição opcional (ex: CND Federal — validade 12/2025)" value={documentDescription} onChange={(e) => setDocumentDescription(e.target.value)} />
                       <div className="relative">
-                        <input type="file" id="doc-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadDocument} disabled={uploadingDocument} />
+                        <input type="file" id="doc-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadDocument} disabled={uploadingDocument || isReadOnly} />
                         <label htmlFor="doc-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingDocument ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
                           {uploadingDocument ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
                           {uploadingDocument ? 'Enviando...' : 'Upload'}

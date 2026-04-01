@@ -36,6 +36,7 @@ import {
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 import { accountService, MunicipalityFilters } from '@/lib/services/accounts';
 import { MunicipalityDTO } from '@/lib/types/dtos';
 import { AccountStatus, Region } from '@/lib/types/enums';
@@ -52,6 +53,7 @@ import EmptyState from '@/components/shared/EmptyState';
 export default function AccountsPage() {
   const router = useRouter();
   const { companyId, role } = useCompany();
+  const isReadOnly = useIsReadOnly();
   
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<MunicipalityDTO[]>([]);
@@ -314,6 +316,12 @@ export default function AccountsPage() {
             </div>
           )}
 
+          {isReadOnly && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 font-medium">
+              Exibindo 10 municípios como amostra
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -442,17 +450,17 @@ export default function AccountsPage() {
                 Mostrando {accounts.length} de <span className="font-bold text-gray-900">{totalCount}</span> resultados
               </span>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
+                  disabled={currentPage === 1 || isReadOnly}
                   className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
                 >
                   <ChevronLeft className="size-3" /> Anterior
                 </button>
                 <span className="text-xs font-bold text-gray-500 px-2">Página {currentPage} de {totalPages || 1}</span>
-                <button 
+                <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages || totalPages === 0}
+                  disabled={currentPage === totalPages || totalPages === 0 || isReadOnly}
                   className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
                 >
                   Próxima <ChevronRight className="size-3" />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
 type SendingAccount = {
   id: string;
@@ -230,6 +231,29 @@ export default function EmailAccountsPage() {
   }
 
   const isEditing = !!editingAccount;
+  const isReadOnly = useIsReadOnly();
+
+  if (isReadOnly) {
+    return (
+      <div className="min-h-full bg-[#f8fafc] p-6 flex items-center justify-center">
+        <div className="max-w-sm w-full rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-amber-50">
+            <span className="text-2xl">🔒</span>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">Funcionalidade disponível após contratação</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            Configure contas SMTP e dispare campanhas reais com o plano completo do CM Pro.
+          </p>
+          <a
+            href="/contato"
+            className="mt-6 inline-block rounded-lg bg-[#0f49bd] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#0a3690] transition-colors"
+          >
+            Quero contratar
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
