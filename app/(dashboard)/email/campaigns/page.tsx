@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Mail, Plus, Search, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
 type CampaignStatus = 'Rascunho' | 'Ativa';
 
@@ -30,6 +31,7 @@ export default function EmailCampaignsPage() {
   const supabase = createClient();
   const router = useRouter();
   const { companyId } = useCompany();
+  const isReadOnly = useIsReadOnly();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -200,14 +202,22 @@ export default function EmailCampaignsPage() {
                 Filtrar
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c]"
-            >
-              <Plus className="size-4" />
-              Nova Campanha
-            </button>
+            <div className="flex items-center gap-3">
+              {isReadOnly && (
+                <span className="text-xs font-medium text-amber-700">
+                  Disponível após contratação
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={isReadOnly ? undefined : handleOpenCreateModal}
+                disabled={isReadOnly}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="size-4" />
+                Nova Campanha
+              </button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -239,8 +249,8 @@ export default function EmailCampaignsPage() {
                   {filteredCampaigns.map((campaign) => (
                     <tr
                       key={campaign.id}
-                      onClick={() => router.push(`/email/campaigns/${campaign.id}`)}
-                      className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                      onClick={isReadOnly ? undefined : () => router.push(`/email/campaigns/${campaign.id}`)}
+                      className={`border-b border-slate-100 transition hover:bg-slate-50 ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
                     >
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
