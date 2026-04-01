@@ -603,6 +603,14 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 
 ## Changelog
 
+### Sessão 2026-04-01
+
+- **Auditoria RLS — 12 tabelas protegidas**: `supabase/migrations/20260401_rls_missing_tables.sql` aplicado no Supabase
+  - Isolamento por `company_id`: `company_profiles`, `company_catalogs`, `company_documents`, `ai_proposals`, `notifications`, `pipeline_stages`
+  - Somente leitura autenticada: `municipalities`, `municipality_emails`, `municipality_emails_import`, `municipalities_import_log`, `sync_control`, `pncp_contratacoes`
+- **Admin — Excluir Usuário**: `DELETE /api/admin/users/[id]/delete` + modal de confirmação na página de usuários
+- **Admin — Excluir Empresa**: `DELETE /api/admin/companies/[id]/delete` + modal de confirmação na página de empresas
+
 ### Sessão 2026-03-31
 
 - **PNCP sync — paginação completa**: loop até 50 páginas × 500 itens por modalidade (`app/api/pncp/sync/route.ts`)
