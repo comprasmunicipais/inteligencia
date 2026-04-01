@@ -217,7 +217,7 @@ function Stepper({ current }: { current: number }) {
 // Step 1 — Email editor
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: EmailForm) => void }) {
+function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailForm; onChange: (f: EmailForm) => void; isReadOnly?: boolean }) {
   const [tab, setTab] = useState<EditorTab>('preview');
   const [isGenerating, setIsGenerating] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -288,9 +288,10 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
               type="text"
               value={form.subject}
               onChange={set('subject')}
+              disabled={isReadOnly}
               placeholder="Ex.: Como reduzir custos em licitações públicas"
               maxLength={150}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10"
+              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10 disabled:opacity-60"
             />
             <p className="mt-1 text-right text-xs text-slate-400">{form.subject.length}/150</p>
           </div>
@@ -303,9 +304,10 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
               type="text"
               value={form.preheader}
               onChange={set('preheader')}
+              disabled={isReadOnly}
               placeholder="Ex.: Descubra como nossos clientes economizam até 30%..."
               maxLength={200}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10"
+              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10 disabled:opacity-60"
             />
             <p className="mt-1 text-right text-xs text-slate-400">{form.preheader.length}/200</p>
           </div>
@@ -322,7 +324,7 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || isReadOnly}
               className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isGenerating ? (
@@ -344,7 +346,7 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
           <div className="p-4">
             <RichEmailEditor
               value={form.html_content}
-              onChange={(html) => onChange({ ...form, html_content: html })}
+              onChange={isReadOnly ? () => {} : (html) => onChange({ ...form, html_content: html })}
               onSwitchToText={() => setTab('text')}
             />
           </div>
@@ -380,9 +382,10 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
             <textarea
               value={form.text_content}
               onChange={set('text_content')}
+              disabled={isReadOnly}
               placeholder={'Olá [Nome],\n\nEscreva a versão em texto simples aqui.\n\nAtenciosamente,\nSua equipe'}
               rows={18}
-              className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10"
+              className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10 disabled:opacity-60"
             />
           </div>
         )}
@@ -410,9 +413,11 @@ function EmailEditorStep({ form, onChange }: { form: EmailForm; onChange: (f: Em
 function AudienceStep({
   filters,
   onChange,
+  isReadOnly = false,
 }: {
   filters: AudienceFilters;
   onChange: (f: AudienceFilters) => void;
+  isReadOnly?: boolean;
 }) {
   const supabase = createClient();
 
@@ -560,7 +565,7 @@ function AudienceStep({
             <select
               value={filters.state}
               onChange={(e) => set('state', e.target.value)}
-              disabled={loadingFilters}
+              disabled={loadingFilters || isReadOnly}
               className={selectClass}
             >
               <option value="">Todos os estados</option>
@@ -575,7 +580,7 @@ function AudienceStep({
             <select
               value={filters.municipalityId}
               onChange={(e) => set('municipalityId', e.target.value)}
-              disabled={loadingFilters}
+              disabled={loadingFilters || isReadOnly}
               className={selectClass}
             >
               <option value="">Todos os municípios</option>
@@ -590,7 +595,7 @@ function AudienceStep({
             <select
               value={filters.populationRange}
               onChange={(e) => set('populationRange', e.target.value)}
-              disabled={loadingFilters}
+              disabled={loadingFilters || isReadOnly}
               className={selectClass}
             >
               <option value="">Todas as faixas</option>
@@ -605,6 +610,7 @@ function AudienceStep({
             <select
               value={filters.department}
               onChange={(e) => set('department', e.target.value)}
+              disabled={isReadOnly}
               className={selectClass}
             >
               <option value="">Todos os departamentos</option>
@@ -619,6 +625,7 @@ function AudienceStep({
             <select
               value={filters.strategic}
               onChange={(e) => set('strategic', e.target.value as AudienceFilters['strategic'])}
+              disabled={isReadOnly}
               className={selectClass}
             >
               <option value="all">Todos</option>
@@ -634,6 +641,7 @@ function AudienceStep({
               min="0"
               value={filters.minScore}
               onChange={(e) => set('minScore', e.target.value)}
+              disabled={isReadOnly}
               placeholder="Ex.: 20"
               className={selectClass}
             />
@@ -647,6 +655,7 @@ function AudienceStep({
                 type="text"
                 value={filters.emailSearch}
                 onChange={(e) => set('emailSearch', e.target.value)}
+                disabled={isReadOnly}
                 placeholder="Ex.: saude, adm, compras"
                 className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               />
@@ -887,6 +896,7 @@ function SendStep({
   onConfirmChange,
   sendLimit,
   onSendLimitChange,
+  isReadOnly = false,
 }: {
   audienceCount: number;
   selectedAccountId: string;
@@ -895,6 +905,7 @@ function SendStep({
   onConfirmChange: (v: boolean) => void;
   sendLimit: number;
   onSendLimitChange: (v: number) => void;
+  isReadOnly?: boolean;
 }) {
   const [accounts, setAccounts] = useState<SendingAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -938,7 +949,8 @@ function SendStep({
           <select
             value={selectedAccountId}
             onChange={(e) => onAccountChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+            disabled={isReadOnly}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd] disabled:opacity-60"
           >
             <option value="">Selecionar conta de envio...</option>
             {accounts.filter((a) => a.is_active).map((a) => (
@@ -1007,7 +1019,8 @@ function SendStep({
             const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), audienceCount);
             onSendLimitChange(val);
           }}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+          disabled={isReadOnly}
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd] disabled:opacity-60"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           {[25, 50, 75, 100].map((pct) => {
@@ -1017,7 +1030,8 @@ function SendStep({
                 key={pct}
                 type="button"
                 onClick={() => onSendLimitChange(val)}
-                className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                disabled={isReadOnly}
+                className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pct}%
               </button>
@@ -1051,7 +1065,8 @@ function SendStep({
           type="checkbox"
           checked={confirmed}
           onChange={(e) => onConfirmChange(e.target.checked)}
-          className="mt-0.5 size-4 accent-[#0f49bd]"
+          disabled={isReadOnly}
+          className="mt-0.5 size-4 accent-[#0f49bd] disabled:opacity-50"
         />
         <span className="text-sm text-slate-700">
           Confirmo o envio de{' '}
@@ -1427,10 +1442,10 @@ export default function CampaignDetailPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {currentStep === 1 && (
-          <EmailEditorStep form={emailForm} onChange={setEmailForm} />
+          <EmailEditorStep form={emailForm} onChange={setEmailForm} isReadOnly={isReadOnly} />
         )}
         {currentStep === 2 && (
-          <AudienceStep filters={audienceFilters} onChange={setAudienceFilters} />
+          <AudienceStep filters={audienceFilters} onChange={setAudienceFilters} isReadOnly={isReadOnly} />
         )}
         {currentStep === 3 && campaign && (
           <SummaryStep
@@ -1448,6 +1463,7 @@ export default function CampaignDetailPage() {
             onConfirmChange={setSendConfirmed}
             sendLimit={sendLimit}
             onSendLimitChange={setSendLimit}
+            isReadOnly={isReadOnly}
           />
         )}
         {currentStep === 4 && sendResult && (
@@ -1478,7 +1494,7 @@ export default function CampaignDetailPage() {
                 <button
                   type="button"
                   onClick={() => saveEmailStep(false)}
-                  disabled={isSaving}
+                  disabled={isSaving || isReadOnly}
                   className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                 >
                   <Save className="size-4" />
@@ -1490,7 +1506,7 @@ export default function CampaignDetailPage() {
                 <button
                   type="button"
                   onClick={handleSendTest}
-                  disabled={isSendingTest || isSending || !selectedAccountId}
+                  disabled={isSendingTest || isSending || !selectedAccountId || isReadOnly}
                   className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                 >
                   <Mail className="size-4" />
@@ -1513,7 +1529,7 @@ export default function CampaignDetailPage() {
                   (currentStep === 2 && audienceFilters.totalCount === 0) ||
                   (currentStep === 3 && !summaryIsReady) ||
                   (currentStep === 4 && (!selectedAccountId || !sendConfirmed)) ||
-                  (currentStep === 4 && isReadOnly)
+                  isReadOnly
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
               >

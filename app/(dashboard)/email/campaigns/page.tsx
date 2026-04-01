@@ -249,8 +249,8 @@ export default function EmailCampaignsPage() {
                   {filteredCampaigns.map((campaign) => (
                     <tr
                       key={campaign.id}
-                      onClick={isReadOnly ? undefined : () => router.push(`/email/campaigns/${campaign.id}`)}
-                      className={`border-b border-slate-100 transition hover:bg-slate-50 ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                      onClick={() => router.push(`/email/campaigns/${campaign.id}`)}
+                      className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
                     >
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
