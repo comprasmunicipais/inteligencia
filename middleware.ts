@@ -7,6 +7,7 @@ export async function middleware(request: NextRequest) {
 
   // 🔓 rotas públicas — sem verificação de sessão
   if (
+    pathname.startsWith('/api/demo') ||
     pathname.startsWith('/api/pncp/sync') ||
     pathname.startsWith('/api/email/track') ||
     pathname.startsWith('/api/auth') ||
@@ -54,6 +55,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 🔒 modo demo — bloqueia escrita
+  const isWriteMethod = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method);
+  if (isWriteMethod && user.user_metadata?.is_demo === true) {
+    return NextResponse.json(
+      { error: 'Modo demonstração — escrita desabilitada.' },
+      { status: 403 }
+    );
   }
 
   // 🔐 rotas admin → exige platform_admin

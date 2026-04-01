@@ -11,6 +11,7 @@ interface CompanyContextType {
   companyId: string | null;
   role: UserRole | null;
   loading: boolean;
+  isDemo: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -71,8 +72,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const isDemo = user?.user_metadata?.is_demo === true;
+
   return (
-    <CompanyContext.Provider value={{ user, companyId, role, loading, signOut }}>
+    <CompanyContext.Provider value={{ user, companyId, role, loading, isDemo, signOut }}>
       {children}
     </CompanyContext.Provider>
   );

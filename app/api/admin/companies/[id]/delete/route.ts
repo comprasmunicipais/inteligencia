@@ -3,7 +3,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -19,7 +19,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   const supabase = await createAdminClient();
 
   // Delete in FK-safe order: profiles → subscriptions → companies
