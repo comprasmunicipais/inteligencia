@@ -224,7 +224,7 @@ export default function SettingsPage() {
       if (!res.ok) {
         setInviteError(data.error || 'Erro ao enviar convite.');
       } else {
-        toast.success('Convite enviado com sucesso!');
+        toast?.success('Convite enviado com sucesso!');
         setShowInviteForm(false);
         setInviteEmail('');
         setInviteRole('user');
