@@ -242,8 +242,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
     }
   }
 
-  useEffect(() => {
-    if (tab !== 'preview') return;
+  function writePreview() {
     const iframe = iframeRef.current;
     if (!iframe) return;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -254,6 +253,12 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
         '<p style="font-family:sans-serif;color:#94a3b8;padding:24px">Nenhum HTML para pré-visualizar.</p>',
     );
     doc.close();
+  }
+
+  useEffect(() => {
+    if (tab !== 'preview') return;
+    writePreview();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, form.html_content]);
 
   const set = (key: keyof EmailForm) =>
@@ -374,8 +379,8 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
             )}
             {htmlSubTab === 'raw' && (
               <textarea
-                value={form.html_content}
-                onChange={isReadOnly ? undefined : (e) => onChange({ ...form, html_content: e.target.value })}
+                value={form.html_content ?? ''}
+                onChange={isReadOnly ? undefined : set('html_content')}
                 readOnly={isReadOnly}
                 placeholder={HTML_PLACEHOLDER}
                 style={{ fontFamily: 'monospace', minHeight: '400px', resize: 'vertical' }}
@@ -388,14 +393,24 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
         {tab === 'preview' && (
           <div className="p-4">
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-500">
-                  <span className="font-medium text-slate-700">Assunto: </span>
-                  {form.subject || <span className="italic text-slate-400">(sem assunto)</span>}
-                </p>
-                {form.preheader && (
-                  <p className="mt-0.5 text-xs text-slate-400">{form.preheader}</p>
-                )}
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div>
+                  <p className="text-xs text-slate-500">
+                    <span className="font-medium text-slate-700">Assunto: </span>
+                    {form.subject || <span className="italic text-slate-400">(sem assunto)</span>}
+                  </p>
+                  {form.preheader && (
+                    <p className="mt-0.5 text-xs text-slate-400">{form.preheader}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={writePreview}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                >
+                  <RefreshCw className="size-3.5" />
+                  Atualizar Prévia
+                </button>
               </div>
               <iframe
                 ref={iframeRef}
