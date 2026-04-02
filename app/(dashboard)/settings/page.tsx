@@ -35,7 +35,7 @@ export default function SettingsPage() {
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState(false);
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<Record<string, 'PIX' | 'BOLETO' | 'CREDIT_CARD'>>({});
@@ -91,8 +91,8 @@ export default function SettingsPage() {
   }, []);
 
   const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
   };
 
   const getPaymentMethod = (planName: string): 'PIX' | 'BOLETO' | 'CREDIT_CARD' =>
@@ -224,7 +224,7 @@ export default function SettingsPage() {
       if (!res.ok) {
         setInviteError(data.error || 'Erro ao enviar convite.');
       } else {
-        toast?.success('Convite enviado com sucesso!');
+        toast.success('Convite enviado com sucesso!');
         setShowInviteForm(false);
         setInviteEmail('');
         setInviteRole('user');
@@ -649,12 +649,12 @@ export default function SettingsPage() {
 
   return (
     <>
-      {toast && (
+      {notification && (
         <div className={cn(
           'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold text-white transition-all',
-          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
         )}>
-          {toast.message}
+          {notification.message}
         </div>
       )}
 
@@ -682,16 +682,16 @@ export default function SettingsPage() {
                     const data = await res.json();
                     setShowCancelModal(false);
                     if (!res.ok) {
-                      setToast({ message: data.error || 'Erro ao cancelar.', type: 'error' });
+                      setNotification({ message: data.error || 'Erro ao cancelar.', type: 'error' });
                     } else {
-                      setToast({ message: 'Assinatura cancelada.', type: 'success' });
+                      setNotification({ message: 'Assinatura cancelada.', type: 'success' });
                       loadSubscription();
                     }
-                    setTimeout(() => setToast(null), 4000);
+                    setTimeout(() => setNotification(null), 4000);
                   } catch {
                     setShowCancelModal(false);
-                    setToast({ message: 'Erro de conexão. Tente novamente.', type: 'error' });
-                    setTimeout(() => setToast(null), 4000);
+                    setNotification({ message: 'Erro de conexão. Tente novamente.', type: 'error' });
+                    setTimeout(() => setNotification(null), 4000);
                   } finally {
                     setCancelling(false);
                   }
