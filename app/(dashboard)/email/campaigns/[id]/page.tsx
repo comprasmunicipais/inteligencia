@@ -243,6 +243,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
   }
 
   function writePreview() {
+    console.log('writePreview chamado, conteúdo:', form.html_content?.slice(0, 100));
     const iframe = iframeRef.current;
     if (!iframe) return;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -380,7 +381,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
             {htmlSubTab === 'raw' && (
               <textarea
                 value={form.html_content ?? ''}
-                onChange={isReadOnly ? undefined : set('html_content')}
+                onChange={isReadOnly ? undefined : (e) => { console.log('html_content atualizado:', e.target.value.slice(0, 100)); set('html_content')(e); }}
                 readOnly={isReadOnly}
                 placeholder={HTML_PLACEHOLDER}
                 style={{ fontFamily: 'monospace', minHeight: '400px', resize: 'vertical' }}
