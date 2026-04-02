@@ -46,6 +46,15 @@ const supabase = createClient(
 
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 type QuickFilterKey = 'all' | 'new_last_sync' | 'high_match' | 'expiring_soon' | 'converted';
+type EsferaKey = 'Todos' | 'Municipal' | 'Estadual' | 'Federal' | 'Outro';
+
+function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' | 'Outro' {
+  const up = (organ_name || '').toUpperCase();
+  if (up.includes('FEDERAL') || up.includes('MINISTERIO') || up.includes('CASA DA MOEDA') || up.includes('INSTITUTO FEDERAL')) return 'Federal';
+  if (up.includes('ESTADUAL') || up.includes('GOVERNO DO ESTADO') || up.includes('SEBRAE')) return 'Estadual';
+  if (up.includes('MUNICIPIO') || up.includes('PREFEITURA') || up.includes('CAMARA DE VEREADORES') || up.includes('FUNDO MUNICIPAL')) return 'Municipal';
+  return 'Outro';
+}
 
 export default function OpportunitiesPage() {
   const { companyId } = useCompany();
@@ -84,6 +93,7 @@ export default function OpportunitiesPage() {
     modality: '',
     minScore: 0,
   });
+  const [selectedEsfera, setSelectedEsfera] = useState<EsferaKey>('Todos');
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -325,10 +335,11 @@ export default function OpportunitiesPage() {
 
       const matchesScore = Number(opp.match_score || 0) >= filters.minScore;
       const matchesQuick = matchesQuickFilter(opp);
+      const matchesEsfera = selectedEsfera === 'Todos' || deriveEsfera(opp.organ_name || '') === selectedEsfera;
 
-      return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore && matchesQuick;
+      return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore && matchesQuick && matchesEsfera;
     });
-  }, [opps, activeTab, searchTerm, filters, quickFilter]);
+  }, [opps, activeTab, searchTerm, filters, quickFilter, selectedEsfera]);
 
   const iaSummary = useMemo(() => {
     const ordered = [...filteredOpps].sort(
@@ -1003,6 +1014,27 @@ export default function OpportunitiesPage() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Esfera</label>
+              <div className="flex gap-2 flex-wrap">
+                {(['Todos', 'Municipal', 'Estadual', 'Federal'] as const).map((esfera) => (
+                  <button
+                    key={esfera}
+                    type="button"
+                    onClick={() => setSelectedEsfera(esfera)}
+                    className={cn(
+                      'px-3 py-1 rounded-full text-xs font-bold border transition-all',
+                      selectedEsfera === esfera
+                        ? 'bg-[#0f49bd] text-white border-[#0f49bd]'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#0f49bd]/40'
+                    )}
+                  >
+                    {esfera}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">Localização (UF ou Cidade)</label>
               <input
                 className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
@@ -1049,6 +1081,7 @@ export default function OpportunitiesPage() {
             <button
               onClick={() => {
                 setFilters({ location: '', modality: '', minScore: 0 });
+                setSelectedEsfera('Todos');
                 setQuickFilter('all');
                 toast.info('Filtros limpos.');
               }}
