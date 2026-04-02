@@ -19,6 +19,17 @@ export default function DashboardLayout({
   // undefined = still loading | null = no plan | string = has plan
   const [planId, setPlanId] = useState<string | null | undefined>(undefined);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null | undefined>(undefined);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => setRole(data?.role ?? null));
+  }, [user, supabase]);
 
   useEffect(() => {
     if (!companyId) { setPlanId(undefined); setTrialEndsAt(undefined); return; }
@@ -35,10 +46,11 @@ export default function DashboardLayout({
 
   // Redirect only when there is no plan AND no active/expired trial to show
   useEffect(() => {
+    if (role === 'platform_admin') return;
     if (!loading && user && companyId && planId === null && trialEndsAt === null) {
       router.replace('/signup/plan?error=plan_required');
     }
-  }, [loading, user, companyId, planId, trialEndsAt, router]);
+  }, [loading, user, companyId, planId, trialEndsAt, role, router]);
 
   const isTrialExpired =
     !isDemo &&
@@ -48,7 +60,7 @@ export default function DashboardLayout({
     new Date(trialEndsAt) < new Date();
 
   // User authenticated but not linked to a company
-  if (!loading && user && !companyId) {
+  if (!loading && user && !companyId && role !== 'platform_admin') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f6f8] p-6">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
@@ -82,7 +94,7 @@ export default function DashboardLayout({
   }
 
   // Waiting for plan/trial check — render nothing to avoid flash before redirect
-  if (!loading && user && companyId && planId === undefined) {
+  if (!loading && user && companyId && planId === undefined && role !== 'platform_admin') {
     return null;
   }
 
