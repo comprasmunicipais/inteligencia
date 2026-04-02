@@ -20,15 +20,19 @@ export default function DashboardLayout({
   const [planId, setPlanId] = useState<string | null | undefined>(undefined);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setRoleLoading(false); return; }
     supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
-      .then(({ data }) => setRole(data?.role ?? null));
+      .then(({ data }) => {
+        setRole(data?.role ?? null);
+        setRoleLoading(false);
+      });
   }, [user, supabase]);
 
   useEffect(() => {
@@ -46,11 +50,11 @@ export default function DashboardLayout({
 
   // Redirect only when there is no plan AND no active/expired trial to show
   useEffect(() => {
-    if (role === 'platform_admin' || isDemo) return;
+    if (roleLoading || role === 'platform_admin' || isDemo) return;
     if (!loading && user && companyId && planId === null && trialEndsAt === null) {
       router.replace('/signup/plan?error=plan_required');
     }
-  }, [loading, user, companyId, planId, trialEndsAt, role, router]);
+  }, [loading, user, companyId, planId, trialEndsAt, role, roleLoading, router]);
 
   const isTrialExpired =
     !isDemo &&
@@ -60,7 +64,7 @@ export default function DashboardLayout({
     new Date(trialEndsAt) < new Date();
 
   // User authenticated but not linked to a company
-  if (!loading && user && !companyId && role !== 'platform_admin' && !isDemo) {
+  if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f6f8] p-6">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
@@ -94,7 +98,7 @@ export default function DashboardLayout({
   }
 
   // Waiting for plan/trial check — render nothing to avoid flash before redirect
-  if (!loading && user && companyId && planId === undefined && role !== 'platform_admin') {
+  if (!loading && !roleLoading && user && companyId && planId === undefined && role !== 'platform_admin') {
     return null;
   }
 
