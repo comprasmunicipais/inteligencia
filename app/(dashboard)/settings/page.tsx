@@ -204,8 +204,8 @@ export default function SettingsPage() {
       .select('id, email, role')
       .eq('company_id', companyId)
       .order('created_at', { ascending: true })
-      .then(({ data }) => setTeamMembers(data ?? []))
-      .finally(() => setLoadingTeam(false));
+      .then(({ data }) => { setTeamMembers(data ?? []); setLoadingTeam(false); })
+      .catch(() => setLoadingTeam(false));
   }, [activeTab, companyId]);
 
   const handleInvite = async () => {
