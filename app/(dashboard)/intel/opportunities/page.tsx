@@ -50,9 +50,29 @@ type EsferaKey = 'Todos' | 'Municipal' | 'Estadual' | 'Federal' | 'Outro';
 
 function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' | 'Outro' {
   const up = (organ_name || '').toUpperCase();
-  if (up.includes('FEDERAL') || up.includes('MINISTERIO') || up.includes('CASA DA MOEDA') || up.includes('INSTITUTO FEDERAL')) return 'Federal';
-  if (up.includes('ESTADUAL') || up.includes('GOVERNO DO ESTADO') || up.includes('SEBRAE')) return 'Estadual';
-  if (up.includes('MUNICIPIO') || up.includes('PREFEITURA') || up.includes('CAMARA DE VEREADORES') || up.includes('FUNDO MUNICIPAL')) return 'Municipal';
+  if (
+    up.includes('FEDERAL') || up.includes('MINISTERIO') || up.includes('CASA DA MOEDA') ||
+    up.includes('INSTITUTO FEDERAL') || up.includes('EXERCITO') || up.includes('MARINHA') ||
+    up.includes('AERONAUTICA') || up.includes('POLICIA FEDERAL') || up.includes('RECEITA FEDERAL') ||
+    up.includes('BANCO DO BRASIL') || up.includes('CAIXA ECONOMICA') || up.includes('CORREIOS') ||
+    up.includes('PETROBRAS') || up.includes('ELETROBRAS') || up.includes('FUNDACAO FEDERAL') ||
+    up.includes('AGENCIA NACIONAL')
+  ) return 'Federal';
+  if (
+    up.includes('ESTADUAL') || up.includes('GOVERNO DO ESTADO') || up.includes('SEBRAE') ||
+    up.includes('ASSEMBLEIA') || up.includes('TRIBUNAL') || up.includes('DETRAN') ||
+    up.includes('DENATRAN') || up.includes('SESI') || up.includes('SENAI') ||
+    up.includes('SENAR') || up.includes('SESC') || up.includes('SENAC') ||
+    up.includes('GOVERNO DO') || up.includes('SECRETARIA DE ESTADO') ||
+    up.includes('AGENCIA ESTADUAL') || up.includes('AUTARQUIA ESTADUAL')
+  ) return 'Estadual';
+  if (
+    up.includes('MUNICIPIO') || up.includes('PREFEITURA') || up.includes('CAMARA DE VEREADORES') ||
+    up.includes('FUNDO MUNICIPAL') || up.includes('CONSORCIO') || up.includes('CAMARA MUNICIPAL') ||
+    up.includes('SERVICO MUNICIPAL') || up.includes('AUTARQUIA MUNICIPAL') || up.includes('SAAE') ||
+    up.includes('SAAMA') || up.includes('SAMAE') || up.includes('FUNDO DE SAUDE') ||
+    up.includes('FUNDO DE EDUCACAO')
+  ) return 'Municipal';
   return 'Outro';
 }
 
