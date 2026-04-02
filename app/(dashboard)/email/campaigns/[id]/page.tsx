@@ -242,17 +242,20 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
     }
   }
 
+  function unescapeHtml(str: string): string {
+    return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  }
+
   function writePreview() {
-    console.log('writePreview chamado, conteúdo:', form.html_content?.slice(0, 100));
     const iframe = iframeRef.current;
     if (!iframe) return;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
+    const raw = form.html_content
+      ? unescapeHtml(form.html_content)
+      : '<p style="font-family:sans-serif;color:#94a3b8;padding:24px">Nenhum HTML para pré-visualizar.</p>';
     doc.open();
-    doc.write(
-      form.html_content ||
-        '<p style="font-family:sans-serif;color:#94a3b8;padding:24px">Nenhum HTML para pré-visualizar.</p>',
-    );
+    doc.write(raw);
     doc.close();
   }
 
@@ -381,7 +384,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
             {htmlSubTab === 'raw' && (
               <textarea
                 value={form.html_content ?? ''}
-                onChange={isReadOnly ? undefined : (e) => { console.log('html_content atualizado:', e.target.value.slice(0, 100)); set('html_content')(e); }}
+                onChange={isReadOnly ? undefined : set('html_content')}
                 readOnly={isReadOnly}
                 placeholder={HTML_PLACEHOLDER}
                 style={{ fontFamily: 'monospace', minHeight: '400px', resize: 'vertical' }}
@@ -416,7 +419,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               <iframe
                 ref={iframeRef}
                 title="Prévia do e-mail"
-                sandbox="allow-same-origin"
+                sandbox="allow-scripts allow-same-origin"
                 className="h-[480px] w-full border-0"
               />
             </div>
