@@ -219,6 +219,7 @@ function Stepper({ current }: { current: number }) {
 
 function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailForm; onChange: (f: EmailForm) => void; isReadOnly?: boolean }) {
   const [tab, setTab] = useState<EditorTab>('preview');
+  const [htmlSubTab, setHtmlSubTab] = useState<'visual' | 'raw'>('visual');
   const [isGenerating, setIsGenerating] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -344,11 +345,43 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
 
         {tab === 'html' && (
           <div className="p-4">
-            <RichEmailEditor
-              value={form.html_content}
-              onChange={isReadOnly ? () => {} : (html) => onChange({ ...form, html_content: html })}
-              onSwitchToText={() => setTab('text')}
-            />
+            <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+              <button
+                type="button"
+                onClick={() => setHtmlSubTab('visual')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                  htmlSubTab === 'visual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Visual
+              </button>
+              <button
+                type="button"
+                onClick={() => setHtmlSubTab('raw')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                  htmlSubTab === 'raw' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                HTML Raw
+              </button>
+            </div>
+            {htmlSubTab === 'visual' && (
+              <RichEmailEditor
+                value={form.html_content}
+                onChange={isReadOnly ? () => {} : (html) => onChange({ ...form, html_content: html })}
+                onSwitchToText={() => setTab('text')}
+              />
+            )}
+            {htmlSubTab === 'raw' && (
+              <textarea
+                value={form.html_content}
+                onChange={isReadOnly ? undefined : (e) => onChange({ ...form, html_content: e.target.value })}
+                readOnly={isReadOnly}
+                placeholder={HTML_PLACEHOLDER}
+                style={{ fontFamily: 'monospace', minHeight: '400px', resize: 'vertical' }}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800 outline-none transition focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/10 disabled:opacity-60"
+              />
+            )}
           </div>
         )}
 
