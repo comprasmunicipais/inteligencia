@@ -419,7 +419,8 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               <iframe
                 ref={iframeRef}
                 title="Prévia do e-mail"
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
+                referrerPolicy="no-referrer-when-downgrade"
                 className="h-[480px] w-full border-0"
               />
             </div>
