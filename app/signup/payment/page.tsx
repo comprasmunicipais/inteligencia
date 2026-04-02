@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
+
+const ASAAS_SCRIPT_URL =
+  process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
+    ? 'https://sandbox.asaas.com/assets/tokenizationLibrary.min.js'
+    : 'https://www.asaas.com/assets/tokenizationLibrary.min.js';
 
 type BillingCycle = 'monthly' | 'semiannual' | 'annual';
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD';
@@ -69,10 +75,12 @@ export default function SignupPaymentPage() {
 
   useEffect(() => {
     (async () => {
-      // 1. Check localStorage
-      const raw = typeof window !== 'undefined'
-        ? localStorage.getItem('cm_pending_plan')
-        : null;
+      // 1. Check cookie
+      const getCookie = (name: string) => {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : null;
+      };
+      const raw = typeof window !== 'undefined' ? getCookie('cm_pending_plan') : null;
 
       if (!raw) {
         router.replace('/signup/plan');
@@ -143,13 +151,30 @@ export default function SignupPaymentPage() {
       };
 
       if (billingType === 'CREDIT_CARD') {
-        body.creditCard = {
-          holderName: cardForm.holderName,
-          number: cardForm.number.replace(/\s/g, ''),
-          expiryMonth: cardForm.expiryMonth,
-          expiryYear: cardForm.expiryYear,
-          ccv: cardForm.ccv,
-        };
+        // Tokenize card data client-side — raw card numbers never reach our backend
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const AsaasTokenizer = (window as any).AsaasTokenizer;
+          if (!AsaasTokenizer) throw new Error('Tokenizador não carregado. Aguarde e tente novamente.');
+          const result = await AsaasTokenizer.tokenize({
+            holderName: cardForm.holderName,
+            number: cardForm.number.replace(/\s/g, ''),
+            expiryMonth: cardForm.expiryMonth,
+            expiryYear: cardForm.expiryYear,
+            ccv: cardForm.ccv,
+          });
+          const token: string = result.creditCardToken ?? result.token;
+          if (!token) throw new Error('Falha ao tokenizar cartão. Verifique os dados e tente novamente.');
+          body.creditCardToken = token;
+        } catch (tokenErr: unknown) {
+          setError(
+            tokenErr instanceof Error
+              ? tokenErr.message
+              : 'Erro ao tokenizar cartão. Verifique os dados e tente novamente.'
+          );
+          setSubmitting(false);
+          return;
+        }
         body.creditCardHolderInfo = {
           name: cardForm.holderName,
           email: userEmail,
@@ -175,7 +200,7 @@ export default function SignupPaymentPage() {
 
       // Success
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('cm_pending_plan');
+        document.cookie = 'cm_pending_plan=; path=/; max-age=0';
       }
       router.push('/dashboard?welcome=1');
     } catch {
@@ -199,6 +224,7 @@ export default function SignupPaymentPage() {
 
   return (
     <>
+      <Script src={ASAAS_SCRIPT_URL} strategy="afterInteractive" />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Outfit:wght@300;400;500;600&display=swap');
 

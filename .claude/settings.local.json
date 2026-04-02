@@ -19,7 +19,15 @@
       "Bash(find /c/Projetos/inteligencia/inteligencia/app -type f -path *signup* -o -path *register*)",
       "mcp__claude_ai_Supabase__list_migrations",
       "mcp__claude_ai_Supabase__apply_migration",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(find /c/Projetos/inteligencia/inteligencia/lib -type f -name *email* -o -name *resend*)",
+      "Bash(wc:*)",
+      "Bash(tail -300 /c/Projetos/inteligencia/inteligencia/app/\\\\\\(dashboard\\\\\\)/settings/page.tsx)",
+      "Bash(find /c/Projetos/inteligencia/inteligencia -name *.sql -o -name *.ts -path */migrations*)",
+      "WebSearch",
+      "WebFetch(domain:docs.asaas.com)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

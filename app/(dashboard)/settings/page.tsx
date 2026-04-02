@@ -11,7 +11,10 @@ import {
   CreditCard,
   HelpCircle,
   Loader2,
+  UserPlus,
+  Users,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -40,6 +43,16 @@ export default function SettingsPage() {
   const [cardModal, setCardModal] = useState<{ plan: any } | null>(null);
   const [cardForm, setCardForm] = useState({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
   const [submittingCard, setSubmittingCard] = useState(false);
+
+  // Team management state (Organização tab)
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; role: string }[]>([]);
+  const [loadingTeam, setLoadingTeam] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'user' | 'company_admin'>('user');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -70,6 +83,7 @@ export default function SettingsPage() {
           role: profile?.role ?? '',
           companyName,
         });
+        setCompanyId(profile?.company_id ?? null);
       } finally {
         setLoadingProfile(false);
       }
@@ -181,6 +195,55 @@ export default function SettingsPage() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== 'Organização' || !companyId) return;
+    const supabase = createClient();
+    setLoadingTeam(true);
+    supabase
+      .from('profiles')
+      .select('id, email, role')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setTeamMembers(data ?? []))
+      .finally(() => setLoadingTeam(false));
+  }, [activeTab, companyId]);
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) { setInviteError('Informe o e-mail.'); return; }
+    setInviting(true);
+    setInviteError('');
+    try {
+      const res = await fetch('/api/settings/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInviteError(data.error || 'Erro ao enviar convite.');
+      } else {
+        toast.success('Convite enviado com sucesso!');
+        setShowInviteForm(false);
+        setInviteEmail('');
+        setInviteRole('user');
+        // Reload team list
+        if (companyId) {
+          const supabase = createClient();
+          const { data: members } = await supabase
+            .from('profiles')
+            .select('id, email, role')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: true });
+          setTeamMembers(members ?? []);
+        }
+      }
+    } catch {
+      setInviteError('Erro de conexão. Tente novamente.');
+    } finally {
+      setInviting(false);
+    }
+  };
+
   const tabs = [
     { name: 'Perfil', icon: User },
     { name: 'Organização', icon: Globe },
@@ -266,22 +329,108 @@ export default function SettingsPage() {
 
       case 'Organização':
         return (
-          <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-900 mb-6">Preferências da Organização</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Moeda Padrão</p>
-                  <p className="text-xs text-gray-500">Real Brasileiro (BRL)</p>
+          <div className="space-y-6">
+            {/* Team members */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Users className="size-4 text-slate-500" />
+                  <h3 className="text-sm font-bold text-gray-900">Membros da equipe</h3>
                 </div>
-                <button className="text-xs font-bold text-[#0f49bd] hover:underline">Alterar</button>
+                {userProfile?.role === 'company_admin' || userProfile?.role === 'platform_admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => { setShowInviteForm((v) => !v); setInviteError(''); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f49bd] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#0c3c9c] transition"
+                  >
+                    <UserPlus className="size-3.5" />
+                    Convidar membro
+                  </button>
+                ) : null}
               </div>
-              <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Fuso Horário</p>
-                  <p className="text-xs text-gray-500">(GMT-03:00) Brasília</p>
+
+              {/* Invite form */}
+              {showInviteForm && (
+                <div className="px-6 py-4 border-b border-gray-100 bg-slate-50">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="email"
+                      placeholder="email@empresa.com.br"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+                    />
+                    <select
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as 'user' | 'company_admin')}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+                    >
+                      <option value="user">Membro</option>
+                      <option value="company_admin">Administrador</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleInvite}
+                      disabled={inviting}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-bold text-white hover:bg-[#0c3c9c] disabled:opacity-60 disabled:cursor-not-allowed transition"
+                    >
+                      {inviting && <Loader2 className="size-3.5 animate-spin" />}
+                      {inviting ? 'Enviando…' : 'Enviar convite'}
+                    </button>
+                  </div>
+                  {inviteError && (
+                    <p className="mt-2 text-xs text-red-600">{inviteError}</p>
+                  )}
                 </div>
-                <button className="text-xs font-bold text-[#0f49bd] hover:underline">Alterar</button>
+              )}
+
+              {/* Members list */}
+              {loadingTeam ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="size-5 text-[#0f49bd] animate-spin" />
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="px-6 py-10 text-center text-sm text-slate-500">
+                  Nenhum membro encontrado.
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {teamMembers.map((member) => (
+                    <li key={member.id} className="flex items-center justify-between px-6 py-3">
+                      <span className="text-sm text-slate-800">{member.email}</span>
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        member.role === 'company_admin' || member.role === 'platform_admin'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {member.role === 'company_admin' || member.role === 'platform_admin'
+                          ? 'Admin'
+                          : 'Membro'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Org preferences (kept as-is) */}
+            <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-6">Preferências da Organização</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Moeda Padrão</p>
+                    <p className="text-xs text-gray-500">Real Brasileiro (BRL)</p>
+                  </div>
+                  <button className="text-xs font-bold text-[#0f49bd] hover:underline">Alterar</button>
+                </div>
+                <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Fuso Horário</p>
+                    <p className="text-xs text-gray-500">(GMT-03:00) Brasília</p>
+                  </div>
+                  <button className="text-xs font-bold text-[#0f49bd] hover:underline">Alterar</button>
+                </div>
               </div>
             </div>
           </div>

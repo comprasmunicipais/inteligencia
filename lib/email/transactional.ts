@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = 'CM Pro <noreply@comprasmunicipais.com.br>';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.comprasmunicipais.com.br';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared HTML shell
@@ -91,7 +92,7 @@ export async function sendWelcomeEmail({
     <table cellpadding="0" cellspacing="0" width="100%">
       <tr>
         <td align="center">
-          <a href="https://inteligencia-sooty.vercel.app/dashboard"
+          <a href="${baseUrl}/dashboard"
              style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;">
             Acessar a Plataforma →
           </a>
@@ -161,7 +162,7 @@ export async function sendPaymentConfirmedEmail({
     <table cellpadding="0" cellspacing="0" width="100%">
       <tr>
         <td align="center">
-          <a href="https://inteligencia-sooty.vercel.app/dashboard"
+          <a href="${baseUrl}/dashboard"
              style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;">
             Acessar a Plataforma →
           </a>
@@ -225,7 +226,7 @@ export async function sendTrialExpiringEmail({
     <table cellpadding="0" cellspacing="0" width="100%">
       <tr>
         <td align="center">
-          <a href="https://inteligencia-sooty.vercel.app/signup/plan"
+          <a href="${baseUrl}/signup/plan"
              style="display:inline-block;padding:14px 32px;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;">
             Escolher meu plano →
           </a>
@@ -242,6 +243,129 @@ export async function sendTrialExpiringEmail({
     from: FROM,
     to: email,
     subject: `Seu período de avaliação termina ${urgency} — CM Pro`,
+    html,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendPaymentFailedEmail
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function sendPaymentFailedEmail({
+  to,
+  name,
+  planName,
+  retryUrl,
+}: {
+  to: string;
+  name: string;
+  planName: string;
+  retryUrl: string;
+}) {
+  const html = shell(`
+    <p style="margin:0 0 6px;font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.3px;">
+      Problema com seu pagamento
+    </p>
+    <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.6;">
+      Olá, <strong>${name}</strong>. Identificamos uma falha no pagamento da sua assinatura
+      do plano <strong>${planName}</strong> no CM Pro.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+      <tr>
+        <td style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 18px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#991b1b;">⚠ Pagamento não processado</p>
+          <p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.5;">
+            Seu acesso pode ser suspenso caso o pagamento não seja regularizado. Por favor,
+            atualize sua forma de pagamento o quanto antes.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center">
+          <a href="${retryUrl}"
+             style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;">
+            Atualizar forma de pagamento →
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:28px 0 0;font-size:13px;color:#94a3b8;text-align:center;">
+      Dúvidas? Responda este email e nossa equipe te ajuda.
+    </p>
+  `);
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: 'Problema com seu pagamento — CM Pro',
+    html,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendSubscriptionCancelledEmail
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function sendSubscriptionCancelledEmail({
+  to,
+  name,
+  planName,
+  accessUntil,
+}: {
+  to: string;
+  name: string;
+  planName: string;
+  accessUntil: string | null;
+}) {
+  const accessLine = accessUntil
+    ? `Seu acesso ao plano <strong>${planName}</strong> permanece ativo até <strong>${accessUntil}</strong>.`
+    : `Seu acesso ao plano <strong>${planName}</strong> permanece ativo até o fim do período já pago.`;
+
+  const html = shell(`
+    <p style="margin:0 0 6px;font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.3px;">
+      Assinatura cancelada
+    </p>
+    <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.6;">
+      Olá, <strong>${name}</strong>. Confirmamos o cancelamento da sua assinatura do CM Pro.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+      <tr>
+        <td style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#0f172a;">Plano cancelado: ${planName}</p>
+          <p style="margin:0;font-size:13px;color:#475569;line-height:1.5;">${accessLine}</p>
+          <p style="margin:8px 0 0;font-size:13px;color:#475569;line-height:1.5;">
+            Após essa data, seus dados ficam disponíveis por 30 dias antes de serem removidos.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td align="center">
+          <a href="${baseUrl}/signup/plan"
+             style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:0.02em;">
+            Reativar assinatura →
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:28px 0 0;font-size:13px;color:#94a3b8;text-align:center;">
+      Sentimos sua falta. Se quiser conversar, responda este email.
+    </p>
+  `);
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: 'Sua assinatura foi cancelada — CM Pro',
     html,
   });
 }

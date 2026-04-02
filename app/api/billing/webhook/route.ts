@@ -1,18 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendPaymentConfirmedEmail } from '@/lib/email/transactional'
+import { sendPaymentConfirmedEmail, sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from '@/lib/email/transactional'
+import { timingSafeEqual } from 'crypto'
 
 export async function POST(req: NextRequest) {
+  // Layer 1: header must be present
   const token = req.headers.get('asaas-access-token')
-  if (token !== process.env.ASAAS_WEBHOOK_TOKEN) {
+  if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const payload = await req.json()
+  // Layer 2: constant-time comparison to prevent timing attacks
+  const expected = process.env.ASAAS_WEBHOOK_TOKEN ?? ''
+  const tokenBuf = Buffer.from(token)
+  const expectedBuf = Buffer.from(expected)
+  const valid =
+    tokenBuf.length === expectedBuf.length &&
+    timingSafeEqual(tokenBuf, expectedBuf)
+  if (!valid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rawBody = await req.text()
+  const payload = JSON.parse(rawBody)
   const supabase = await createAdminClient()
   const event = payload.event
   const payment = payload.payment
 
+  // Idempotency: skip if this (event_type, asaas_event_id) was already processed.
+  // billing_events has no unique constraint, so we check before inserting.
+  if (payment?.id) {
+    const { data: existing } = await supabase
+      .from('billing_events')
+      .select('id')
+      .eq('asaas_event_id', payment.id)
+      .eq('event_type', event)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({ received: true })
+    }
+  }
+
+  // Record the event first so any retry arriving concurrently finds it.
   await supabase.from('billing_events').insert({
     event_type: event,
     asaas_event_id: payment?.id ?? null,
@@ -89,12 +119,91 @@ export async function POST(req: NextRequest) {
     await supabase.from('companies')
       .update({ status: 'past_due' })
       .eq('id', companyId)
+
+    // Send payment failed email (best-effort)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      const { data: company } = await supabase
+        .from('companies')
+        .select('plan_id')
+        .eq('id', companyId)
+        .single()
+
+      const { data: plan } = company?.plan_id
+        ? await supabase.from('plans').select('name').eq('id', company.plan_id).single()
+        : { data: null }
+
+      if (profile?.email) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.comprasmunicipais.com.br'
+        await sendPaymentFailedEmail({
+          to: profile.email,
+          name: profile.full_name || profile.email,
+          planName: plan?.name ?? 'CM Pro',
+          retryUrl: `${appUrl}/settings`,
+        })
+      }
+    } catch {
+      // non-blocking
+    }
   }
 
   if (event === 'SUBSCRIPTION_CANCELLED' || event === 'PAYMENT_DELETED') {
     await supabase.from('subscriptions')
       .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
       .eq('asaas_subscription_id', payment.subscriptionId)
+
+    // Send appropriate email (best-effort)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      const { data: company } = await supabase
+        .from('companies')
+        .select('plan_id')
+        .eq('id', companyId)
+        .single()
+
+      const { data: plan } = company?.plan_id
+        ? await supabase.from('plans').select('name').eq('id', company.plan_id).single()
+        : { data: null }
+
+      if (profile?.email) {
+        const accessUntil = payment?.dueDate
+          ? new Date(payment.dueDate).toLocaleDateString('pt-BR')
+          : null
+
+        if (event === 'PAYMENT_DELETED') {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.comprasmunicipais.com.br'
+          await sendPaymentFailedEmail({
+            to: profile.email,
+            name: profile.full_name || profile.email,
+            planName: plan?.name ?? 'CM Pro',
+            retryUrl: `${appUrl}/settings`,
+          })
+        } else {
+          await sendSubscriptionCancelledEmail({
+            to: profile.email,
+            name: profile.full_name || profile.email,
+            planName: plan?.name ?? 'CM Pro',
+            accessUntil,
+          })
+        }
+      }
+    } catch {
+      // non-blocking
+    }
   }
 
   return NextResponse.json({ received: true })

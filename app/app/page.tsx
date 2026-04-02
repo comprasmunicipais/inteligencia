@@ -432,8 +432,8 @@ export default function AppLandingPage() {
             O CM PRO identifica oportunidades, organiza sua operação comercial e te mostra onde focar para aumentar suas chances de fechar contratos.
           </p>
           <div style={s.heroBtns}>
-            <a href={WA} target="_blank" rel="noopener noreferrer" style={s.btnPrimary}>
-              Quero ver como funciona
+            <a href="/signup" style={s.btnPrimary}>
+              Começar gratuitamente
             </a>
             <a href={WA} target="_blank" rel="noopener noreferrer" style={s.btnGhost}>
               Falar com especialista
@@ -585,8 +585,8 @@ export default function AppLandingPage() {
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 1 usuário</li>
                 <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Ideal para começar</li>
               </ul>
-              <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtnGhost}>
-                Quero saber mais
+              <a href="/signup" style={s.planoBtnGhost}>
+                Criar conta grátis
               </a>
             </div>
 
@@ -599,8 +599,8 @@ export default function AppLandingPage() {
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> 3 usuários</li>
                 <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Para equipes em crescimento</li>
               </ul>
-              <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtn}>
-                Quero saber mais
+              <a href="/signup" style={s.planoBtn}>
+                Criar conta grátis
               </a>
             </div>
 
@@ -613,8 +613,8 @@ export default function AppLandingPage() {
                 <li style={s.planoFeature}><span style={{ color: '#9d7bff' }}>✓</span> Suporte prioritário</li>
                 <li style={s.planoFeature}><span style={{ color: 'rgba(255,255,255,0.4)' }}>→</span> Para operações de alto volume</li>
               </ul>
-              <a href={WA} target="_blank" rel="noopener noreferrer" style={s.planoBtnGhost}>
-                Quero saber mais
+              <a href="/signup" style={s.planoBtnGhost}>
+                Criar conta grátis
               </a>
             </div>
           </div>
@@ -628,8 +628,8 @@ export default function AppLandingPage() {
             O CM PRO não é um sistema. É uma forma organizada de vender para prefeituras.
           </h2>
           <div style={s.ctaBtns}>
-            <a href={WA} target="_blank" rel="noopener noreferrer" style={s.btnPrimary}>
-              Agendar demonstração
+            <a href="/signup" style={s.btnPrimary}>
+              Começar gratuitamente
             </a>
             <a href={WA} target="_blank" rel="noopener noreferrer" style={s.btnGhost}>
               Falar com especialista

@@ -53,6 +53,13 @@ export default function SignupPlanPage() {
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [error, setError] = useState('');
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [showPlanRequiredMsg, setShowPlanRequiredMsg] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'plan_required') setShowPlanRequiredMsg(true);
+  }, []);
 
   useEffect(() => {
     fetch('/api/plans')
@@ -67,7 +74,7 @@ export default function SignupPlanPage() {
 
   const handleSelectPlan = (plan: Plan) => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('cm_pending_plan', JSON.stringify({ planId: plan.id, billingCycle: cycle }));
+      document.cookie = `cm_pending_plan=${encodeURIComponent(JSON.stringify({ planId: plan.id, billingCycle: cycle }))}; path=/; max-age=3600; SameSite=Lax`;
     }
     router.push('/signup/payment');
   };
@@ -430,6 +437,73 @@ export default function SignupPlanPage() {
 
         .plan-footer a:hover { color: #60a5fa; }
 
+        .plan-card.selected {
+          border-color: rgba(37,99,235,0.60);
+          box-shadow: 0 4px 32px rgba(37,99,235,0.20);
+        }
+
+        .plan-btn-selected {
+          background: rgba(37,99,235,0.25);
+          border: 1px solid rgba(37,99,235,0.50);
+          color: #93c5fd;
+        }
+
+        .plan-continue-wrap {
+          margin-top: 28px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          z-index: 1;
+          animation: fadeInUp 0.5s ease both;
+          animation-delay: 0.22s;
+        }
+
+        .plan-continue-btn {
+          height: 50px;
+          padding: 0 52px;
+          background: linear-gradient(135deg, #1d4ed8, #2563eb);
+          border: none;
+          border-radius: 12px;
+          color: #fff;
+          font-family: 'Sora', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          box-shadow: 0 4px 24px rgba(37,99,235,0.30);
+          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .plan-continue-btn:hover:not(:disabled) {
+          opacity: 0.92;
+          box-shadow: 0 6px 32px rgba(37,99,235,0.40);
+          transform: translateY(-1px);
+        }
+
+        .plan-continue-btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+
+        .plan-required-banner {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 18px;
+          background: rgba(239,68,68,0.08);
+          border: 1px solid rgba(239,68,68,0.22);
+          border-radius: 12px;
+          font-size: 14px;
+          color: #fca5a5;
+          margin-bottom: 8px;
+          z-index: 1;
+          animation: fadeInUp 0.3s ease both;
+        }
+
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(14px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -439,6 +513,18 @@ export default function SignupPlanPage() {
       <div className="plan-root">
         <div className="plan-halo-top" />
         <div className="plan-halo-br" />
+
+        {/* Plan required error banner */}
+        {showPlanRequiredMsg && (
+          <div className="plan-required-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+              <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Escolha um plano para continuar
+          </div>
+        )}
 
         {/* Header */}
         <div className="plan-header">
@@ -487,7 +573,7 @@ export default function SignupPlanPage() {
               const usersLabel = plan.max_users === 0 ? 'Usuários ilimitados' : `${plan.max_users} usuário${plan.max_users > 1 ? 's' : ''}`;
 
               return (
-                <div key={plan.id} className={`plan-card${featured ? ' featured' : ''}`}>
+                <div key={plan.id} className={`plan-card${featured ? ' featured' : ''}${selectedPlan?.id === plan.id ? ' selected' : ''}`}>
                   <div className="plan-card-topbar" />
 
                   {featured && (
@@ -559,13 +645,10 @@ export default function SignupPlanPage() {
                   </ul>
 
                   <button
-                    className={`plan-btn ${featured ? 'plan-btn-featured' : 'plan-btn-default'}`}
-                    onClick={() => handleSelectPlan(plan)}
+                    className={`plan-btn ${selectedPlan?.id === plan.id ? 'plan-btn-selected' : (featured ? 'plan-btn-featured' : 'plan-btn-default')}`}
+                    onClick={() => setSelectedPlan(plan)}
                   >
-                    Assinar {plan.name}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                    {selectedPlan?.id === plan.id ? '✓ Selecionado' : `Selecionar ${plan.name}`}
                   </button>
                 </div>
               );
@@ -573,10 +656,31 @@ export default function SignupPlanPage() {
           </div>
         )}
 
+        {/* Continuar */}
+        {!loadingPlans && !error && (
+          <div className="plan-continue-wrap">
+            <button
+              className="plan-continue-btn"
+              disabled={!selectedPlan}
+              onClick={() => selectedPlan && handleSelectPlan(selectedPlan)}
+            >
+              Continuar
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {!selectedPlan && (
+              <p style={{ fontSize: 13, color: 'rgba(100,116,139,0.55)', margin: 0 }}>
+                Selecione um plano acima para continuar
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="plan-footer">
           <p>
-            <a href="/login">Já tenho conta</a> · <a href="#">Termos de Uso</a> · <a href="#">Privacidade</a>
+            <a href="/login">Já tenho conta</a> · <a href="/terms">Termos de Uso</a> · <a href="/privacy">Privacidade</a>
           </p>
         </div>
       </div>

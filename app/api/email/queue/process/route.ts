@@ -11,7 +11,7 @@ const BATCH_SIZE = 100;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
-  'https://inteligencia-sooty.vercel.app';
+  'https://app.comprasmunicipais.com.br';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWelcomeEmail } from '@/lib/email/transactional';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const { limited } = checkRateLimit(ip)
+  if (limited) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente em 15 minutos.' },
+      { status: 429, headers: { 'Retry-After': '900' } }
+    )
+  }
+
   try {
     const body = await request.json();
     const { name, email, password, company_name } = body ?? {};
