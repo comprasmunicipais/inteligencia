@@ -59,13 +59,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao realizar login');
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
 
       toast.success('Login realizado com sucesso!');
       router.push('/dashboard');
