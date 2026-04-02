@@ -199,13 +199,15 @@ export default function SettingsPage() {
     if (activeTab !== 'Organização' || !companyId) return;
     const supabase = createClient();
     setLoadingTeam(true);
-    supabase
-      .from('profiles')
-      .select('id, email, role')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => { setTeamMembers(data ?? []); setLoadingTeam(false); })
-      .catch(() => setLoadingTeam(false));
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, email, role')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true });
+      setTeamMembers(data ?? []);
+      setLoadingTeam(false);
+    })();
   }, [activeTab, companyId]);
 
   const handleInvite = async () => {
