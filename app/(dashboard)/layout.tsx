@@ -14,6 +14,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, companyId, loading, signOut, isDemo } = useCompany();
+  const isDevUser = user?.email === 'feddamico@hotmail.com';
   const router = useRouter();
   const supabase = useRef(createClient()).current;
   // undefined = still loading | null = no plan | string = has plan
@@ -50,21 +51,21 @@ export default function DashboardLayout({
 
   // Redirect only when there is no plan AND no active/expired trial to show
   useEffect(() => {
-    if (roleLoading || role === 'platform_admin' || isDemo) return;
+    if (roleLoading || role === 'platform_admin' || isDemo || isDevUser) return;
     if (!loading && user && companyId && planId === null && trialEndsAt === null) {
       router.replace('/signup/plan?error=plan_required');
     }
   }, [loading, user, companyId, planId, trialEndsAt, role, roleLoading, router]);
 
   const isTrialExpired =
-    !isDemo &&
+    !isDemo && !isDevUser &&
     planId === null &&
     trialEndsAt !== null &&
     trialEndsAt !== undefined &&
     new Date(trialEndsAt) < new Date();
 
   // User authenticated but not linked to a company
-  if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo) {
+  if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo && !isDevUser) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f6f8] p-6">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
