@@ -34,12 +34,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
 import { useIsReadOnly } from '@/hooks/useIsReadOnly';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createClient } from '@/lib/supabase/client';
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -64,6 +59,7 @@ const fileTypeLabel = (type: string) => {
 };
 
 export default function IntelProfilePage() {
+  const supabase = createClient();
   const { companyId } = useCompany();
   const isReadOnly = useIsReadOnly();
   const [profile, setProfile] = useState<CompanyIntelligenceProfile | null>(null);
