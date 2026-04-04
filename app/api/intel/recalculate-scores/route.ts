@@ -148,11 +148,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Perfil estratégico não encontrado.' }, { status: 404 });
     }
 
-    // Buscar todas as oportunidades da empresa
+    // Buscar todas as oportunidades globais (company_id nullable desde 2026-03-31)
     const { data: opportunities, error: oppsError } = await supabase
       .from('opportunities')
-      .select('id, title, description, organ_name, modality, state, estimated_value')
-      .eq('company_id', company_id);
+      .select('id, title, description, organ_name, modality, state, estimated_value');
 
     if (oppsError) {
       return NextResponse.json({ error: oppsError.message }, { status: 500 });
