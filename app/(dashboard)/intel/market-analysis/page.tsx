@@ -126,7 +126,7 @@ export default function MarketAnalysisPage() {
           const reason = profileData[i].match_reason || '';
           const match = reason.match(/Categoria de interesse identificada: ([^.]+)/);
           if (match) {
-            const cats = match[1].split(',').map(c => c.trim()).filter(Boolean);
+            const cats = match[1].split(',').map((c: string) => c.trim()).filter(Boolean);
             const vol = Number(opps[i]?.estimated_value || 0);
             for (const cat of cats) {
               const prev = catCountMap.get(cat) || { count: 0, volume: 0 };
