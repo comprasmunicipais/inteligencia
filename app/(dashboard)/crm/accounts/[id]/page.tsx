@@ -53,7 +53,7 @@ import {
   OpportunityDTO
 } from '@/lib/types/dtos';
 import { Region, DealStage, AccountStatus, ContactStatus } from '@/lib/types/enums';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
  
 type MunicipalityEmailDTO = {
   id: string;
@@ -63,10 +63,7 @@ type MunicipalityEmailDTO = {
   is_strategic: boolean | null;
 };
  
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient();
  
 export default function AccountDetailPage() {
   const params = useParams();
