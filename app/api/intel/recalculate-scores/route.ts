@@ -4,25 +4,63 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function normalize(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
+  const titleDesc = normalize(`${opportunity.title || ''} ${opportunity.description || ''}`);
+
+  // Gate de produto obrigatório
+  const targetCategories: string[] = (profile.target_categories || '')
+    .split(',')
+    .map((c: string) => normalize(c.trim()))
+    .filter(Boolean);
+
+  const positiveKeywords: string[] = (profile.positive_keywords || '')
+    .split(',')
+    .map((k: string) => normalize(k.trim()))
+    .filter(Boolean);
+
+  const categoryHit = targetCategories.some((c) => titleDesc.includes(c));
+  const keywordHit = positiveKeywords.some((k) => titleDesc.includes(k));
+
+  if (!categoryHit && !keywordHit) {
+    return { score: 0, reason: 'Produto/segmento da empresa não identificado na licitação.' };
+  }
+
   let score = 0;
   const reasons: string[] = [];
 
-  // 1. Estado (+15)
+  // 1. Categorias PNCP (+50)
+  const foundCategories = targetCategories.filter((c) => titleDesc.includes(c));
+  if (foundCategories.length > 0) {
+    score += 50;
+    reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
+  }
+
+  // 2. Keywords positivas (+20)
+  const foundPositive = positiveKeywords.filter((k) => titleDesc.includes(k));
+  if (foundPositive.length > 0) {
+    score += 20;
+    reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
+  }
+
+  // 3. Estado prioritário (+15)
   const targetStates: string[] = profile.target_states || [];
   if (targetStates.includes(opportunity.state) || targetStates.includes('Nacional')) {
     score += 15;
     reasons.push('Localização estratégica (Estado alvo).');
   }
 
-  // 2. Modalidade (+15)
+  // 4. Modalidade (+10)
   const targetModalities: string[] = profile.target_modalities || [];
-  if (targetModalities.some((m: string) => opportunity.modality?.toLowerCase().includes(m.toLowerCase()))) {
-    score += 15;
+  if (targetModalities.some((m: string) => normalize(opportunity.modality || '').includes(normalize(m)))) {
+    score += 10;
     reasons.push('Modalidade de contratação preferencial.');
   }
 
-  // 3. Valor dentro do ticket (+10)
+  // 5. Ticket no range (+10)
   const value = Number(opportunity.estimated_value || 0);
   const minTicket = Number(profile.min_ticket || 0);
   const maxTicket = Number(profile.max_ticket || 0);
@@ -35,64 +73,39 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     }
   }
 
-  // 4. Palavras-chave positivas (+25)
-  const positiveKeywords: string[] = (profile.positive_keywords || '')
+  // 6. Órgão prioritário (+10)
+  const preferredBuyers: string[] = (profile.preferred_buyers || '')
     .split(',')
-    .map((k: string) => k.trim().toLowerCase())
+    .map((b: string) => normalize(b.trim()))
     .filter(Boolean);
 
-  const titleDesc = `${opportunity.title || ''} ${opportunity.description || ''}`.toLowerCase();
-  const foundPositive = positiveKeywords.filter((k: string) => titleDesc.includes(k));
-  if (foundPositive.length > 0) {
-    score += 25;
-    reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
+  const organName = normalize(opportunity.organ_name || '');
+  if (preferredBuyers.some((b) => organName.includes(b))) {
+    score += 10;
+    reasons.push('Órgão comprador classificado como prioritário.');
   }
 
-  // 5. Palavras-chave negativas (-20)
+  // 7. Keywords negativas (-20)
   const negativeKeywords: string[] = (profile.negative_keywords || '')
     .split(',')
-    .map((k: string) => k.trim().toLowerCase())
+    .map((k: string) => normalize(k.trim()))
     .filter(Boolean);
 
-  const foundNegative = negativeKeywords.filter((k: string) => titleDesc.includes(k));
+  const foundNegative = negativeKeywords.filter((k) => titleDesc.includes(k));
   if (foundNegative.length > 0) {
     score -= 20;
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
   }
 
-  // 6. Órgãos prioritários (+10)
-  const preferredBuyers: string[] = (profile.preferred_buyers || '')
-    .split(',')
-    .map((b: string) => b.trim().toLowerCase())
-    .filter(Boolean);
-
-  const organName = (opportunity.organ_name || '').toLowerCase();
-  if (preferredBuyers.some((b: string) => organName.includes(b))) {
-    score += 10;
-    reasons.push('Órgão comprador classificado como prioritário.');
-  }
-
-  // 7. Órgãos excluídos (-30)
+  // 8. Órgão excluído (-30)
   const excludedBuyers: string[] = (profile.excluded_buyers || '')
     .split(',')
-    .map((b: string) => b.trim().toLowerCase())
+    .map((b: string) => normalize(b.trim()))
     .filter(Boolean);
 
-  if (excludedBuyers.some((b: string) => organName.includes(b))) {
+  if (excludedBuyers.some((b) => organName.includes(b))) {
     score -= 30;
     reasons.push('Órgão comprador na lista de exclusão.');
-  }
-
-  // 8. Categorias PNCP (+35)
-  const targetCategories: string[] = (profile.target_categories || '')
-    .split(',')
-    .map((c: string) => c.trim().toLowerCase())
-    .filter(Boolean);
-
-  const foundCategories = targetCategories.filter((c: string) => titleDesc.includes(c));
-  if (foundCategories.length > 0) {
-    score += 35;
-    reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
   }
 
   const finalScore = Math.max(0, Math.min(100, score));
