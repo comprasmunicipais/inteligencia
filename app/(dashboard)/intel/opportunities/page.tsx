@@ -144,7 +144,11 @@ export default function OpportunitiesPage() {
   }, [companyId]);
 
   useEffect(() => {
-    if (companyId) loadData();
+    if (companyId) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, [companyId, loadData]);
 
   const handleSync = async () => {

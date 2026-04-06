@@ -204,7 +204,13 @@ export default function ReportsPage() {
     setLoading(false);
   }, [companyId, period]);
 
-  useEffect(() => { if (companyId) load(); }, [companyId, period, load]);
+  useEffect(() => {
+    if (companyId) {
+      load();
+    } else {
+      setLoading(false);
+    }
+  }, [companyId, period, load]);
 
   const maxStageValue = Math.max(...stages.map(s => s.totalValue), 1);
 

@@ -95,7 +95,10 @@ export default function IntelProfilePage() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(DOCUMENT_CATEGORIES[0].id);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       setLoading(true);
       try {
@@ -130,7 +133,10 @@ export default function IntelProfilePage() {
   }, [companyId]);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoadingCatalogs(false);
+      return;
+    }
     const loadCatalogs = async () => {
       setLoadingCatalogs(true);
       try {
@@ -146,7 +152,10 @@ export default function IntelProfilePage() {
   }, [companyId]);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoadingDocuments(false);
+      return;
+    }
     const loadDocuments = async () => {
       setLoadingDocuments(true);
       try {
