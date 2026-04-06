@@ -9,6 +9,16 @@ function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+const partialMatch = (text: string, term: string): boolean => {
+  if (!term || term.length < 3) return false;
+  if (text.includes(term)) return true;
+  if (term.length >= 6) {
+    const stem = term.slice(0, Math.floor(term.length * 0.85));
+    return text.includes(stem);
+  }
+  return false;
+};
+
 export class MatchEngine {
   /**
    * Calculates match for a single opportunity
@@ -30,8 +40,8 @@ export class MatchEngine {
       .map((k: string) => normalize(k.trim()))
       .filter(Boolean);
 
-    const categoryHit = targetCategories.some((c: string) => titleDesc.includes(c));
-    const keywordHit = positiveKeywords.some((k: string) => titleDesc.includes(k));
+    const categoryHit = targetCategories.some((c: string) => partialMatch(titleDesc, c));
+    const keywordHit = positiveKeywords.some((k: string) => partialMatch(titleDesc, k));
 
     const flags: string[] = [];
     const now = new Date().toISOString();
@@ -55,14 +65,14 @@ export class MatchEngine {
     const reasons: string[] = [];
 
     // 1. Categorias PNCP (+50)
-    const foundCategories = targetCategories.filter((c: string) => titleDesc.includes(c));
+    const foundCategories = targetCategories.filter((c: string) => partialMatch(titleDesc, c));
     if (foundCategories.length > 0) {
       score += 50;
       reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
     }
 
     // 2. Keywords positivas (+20)
-    const foundPositive = positiveKeywords.filter((k: string) => titleDesc.includes(k));
+    const foundPositive = positiveKeywords.filter((k: string) => partialMatch(titleDesc, k));
     if (foundPositive.length > 0) {
       score += 20;
       reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
@@ -112,7 +122,7 @@ export class MatchEngine {
       .split(',')
       .map((k: string) => normalize(k.trim()))
       .filter(Boolean);
-    const foundNegative = negativeKeywords.filter((k: string) => titleDesc.includes(k));
+    const foundNegative = negativeKeywords.filter((k: string) => partialMatch(titleDesc, k));
     if (foundNegative.length > 0) {
       score -= 20;
       flags.push('negative_keywords');

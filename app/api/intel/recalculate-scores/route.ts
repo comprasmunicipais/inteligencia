@@ -8,6 +8,16 @@ function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+const partialMatch = (text: string, term: string): boolean => {
+  if (!term || term.length < 3) return false;
+  if (text.includes(term)) return true;
+  if (term.length >= 6) {
+    const stem = term.slice(0, Math.floor(term.length * 0.85));
+    return text.includes(stem);
+  }
+  return false;
+};
+
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
   const titleDesc = normalize(`${opportunity.title || ''} ${opportunity.description || ''}`);
 
@@ -22,8 +32,8 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     .map((k: string) => normalize(k.trim()))
     .filter(Boolean);
 
-  const categoryHit = targetCategories.some((c) => titleDesc.includes(c));
-  const keywordHit = positiveKeywords.some((k) => titleDesc.includes(k));
+  const categoryHit = targetCategories.some((c) => partialMatch(titleDesc, c));
+  const keywordHit = positiveKeywords.some((k) => partialMatch(titleDesc, k));
 
   if (!categoryHit && !keywordHit) {
     return { score: 0, reason: 'Produto/segmento da empresa não identificado na licitação.' };
@@ -33,14 +43,14 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   const reasons: string[] = [];
 
   // 1. Categorias PNCP (+50)
-  const foundCategories = targetCategories.filter((c) => titleDesc.includes(c));
+  const foundCategories = targetCategories.filter((c) => partialMatch(titleDesc, c));
   if (foundCategories.length > 0) {
     score += 50;
     reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
   }
 
   // 2. Keywords positivas (+20)
-  const foundPositive = positiveKeywords.filter((k) => titleDesc.includes(k));
+  const foundPositive = positiveKeywords.filter((k) => partialMatch(titleDesc, k));
   if (foundPositive.length > 0) {
     score += 20;
     reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
@@ -91,7 +101,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     .map((k: string) => normalize(k.trim()))
     .filter(Boolean);
 
-  const foundNegative = negativeKeywords.filter((k) => titleDesc.includes(k));
+  const foundNegative = negativeKeywords.filter((k) => partialMatch(titleDesc, k));
   if (foundNegative.length > 0) {
     score -= 20;
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
