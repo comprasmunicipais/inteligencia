@@ -245,7 +245,15 @@ export default function ReportsPage() {
               </button>
             ))}
             <button
-              onClick={() => window.print()}
+              onClick={() => {
+                const printWindow = window.open(
+                  `/intel/reports/print?period=${period}&company_id=${companyId}`,
+                  '_blank'
+                );
+                printWindow?.addEventListener('load', () => {
+                  setTimeout(() => printWindow.print(), 500);
+                });
+              }}
               className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-[#0f49bd] text-white hover:bg-[#0d3fa8] transition-colors"
             >
               <Download className="size-4" />
