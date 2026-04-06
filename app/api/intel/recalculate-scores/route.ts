@@ -184,33 +184,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, updated: 0, message: 'Nenhuma oportunidade encontrada.' });
     }
 
-    // Recalcular e salvar em lotes de 50
-    let updated = 0;
-    const batchSize = 50;
+    // Calcular scores em paralelo por batch de 50
+    const BATCH_SIZE = 50;
+    const results: { opportunity_id: string; match_score: number; match_reason: string }[] = [];
 
-    for (let i = 0; i < opportunities.length; i += batchSize) {
-      const batch = opportunities.slice(i, i + batchSize);
-
-      for (const opp of batch) {
-        const { score, reason } = calculateScore(opp, profile);
-
-        const { error: upsertError } = await supabase
-          .from('company_opportunity_scores')
-          .upsert({
-            company_id: company_id,
-            opportunity_id: opp.id,
-            match_score: score,
-            match_reason: reason,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'company_id,opportunity_id' });
-
-        if (!upsertError) updated++;
-      }
+    for (let i = 0; i < opportunities.length; i += BATCH_SIZE) {
+      const batch = opportunities.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (opp) => {
+          const { score, reason } = calculateScore(opp, profile);
+          return { opportunity_id: opp.id, match_score: score, match_reason: reason };
+        })
+      );
+      results.push(...batchResults);
     }
+
+    // Upsert único em lote
+    const upsertData = results.map(r => ({
+      company_id: company_id,
+      opportunity_id: r.opportunity_id,
+      match_score: r.match_score,
+      match_reason: r.match_reason,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: upsertError } = await supabase
+      .from('company_opportunity_scores')
+      .upsert(upsertData, { onConflict: 'company_id,opportunity_id' });
+
+    if (upsertError) throw upsertError;
 
     return NextResponse.json({
       ok: true,
-      updated,
+      updated: results.length,
       total: opportunities.length,
       recalculated_at: new Date().toISOString(),
     });
