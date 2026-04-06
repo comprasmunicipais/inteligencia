@@ -246,13 +246,123 @@ export default function ReportsPage() {
             ))}
             <button
               onClick={() => {
-                const printWindow = window.open(
-                  `/intel/reports/print?period=${period}&company_id=${companyId}`,
-                  '_blank'
-                );
-                printWindow?.addEventListener('load', () => {
-                  setTimeout(() => printWindow.print(), 500);
+                const hoje = new Date().toLocaleDateString('pt-BR', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit'
                 });
+                const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+                const pctStr = (n: number, d: number) => d ? `${Math.round((n / d) * 100)}%` : '—';
+                const avgTicket = results && results.contractCount ? fmtBRL(results.contractTotal / results.contractCount) : '—';
+                const winRate = results ? pctStr(results.contractCount, results.proposalCount) : '—';
+
+                const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório Estratégico — ${companyName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; color: #1a1a1a; padding: 40px; max-width: 900px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1e3a5f; }
+    .logo { font-size: 22px; font-weight: bold; color: #1e3a5f; }
+    .logo span { color: #2563eb; }
+    .company { text-align: right; font-size: 14px; color: #555; }
+    .company strong { display: block; font-size: 16px; color: #1a1a1a; }
+    h1 { font-size: 20px; color: #1e3a5f; margin-bottom: 4px; }
+    .meta { font-size: 13px; color: #666; margin-bottom: 32px; }
+    .section { margin-bottom: 32px; page-break-inside: avoid; }
+    .section-title { font-size: 15px; font-weight: bold; color: #1e3a5f; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #ddd; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+    .kpi-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-value { font-size: 24px; font-weight: bold; color: #1e3a5f; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #f1f5f9; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #555; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-green { background: #dcfce7; color: #16a34a; }
+    .badge-gray { background: #f1f5f9; color: #64748b; }
+    .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 11px; color: #999; text-align: center; }
+    @media print {
+      @page { margin: 1.5cm; size: A4; }
+      body { padding: 0; }
+      .section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">CM <span>PRO</span></div>
+    <div class="company"><strong>${companyName || 'Empresa'}</strong>comprasmunicipais.com.br</div>
+  </div>
+  <h1>Relatório Estratégico — Vendas a Governo</h1>
+  <div class="meta">Período: ${period} dias &nbsp;|&nbsp; Gerado em: ${hoje}</div>
+
+  <div class="section">
+    <div class="section-title">Oportunidades de Alta Aderência (score ≥ 80)</div>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">Score ≥ 80 no período</div><div class="kpi-value">${highMatchTotal}</div></div>
+      <div class="kpi"><div class="kpi-label">Viraram proposta</div><div class="kpi-value">${proposalCount}</div></div>
+      <div class="kpi"><div class="kpi-label">Taxa de aproveitamento</div><div class="kpi-value">${pctStr(proposalCount, highMatchOpps.length || highMatchTotal)}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Licitação</th><th>Score</th><th>Proposta</th></tr></thead>
+      <tbody>
+        ${highMatchOpps.map(o => `
+          <tr>
+            <td>${o.title}</td>
+            <td>${o.score}pts</td>
+            <td><span class="badge ${o.hasProposal ? 'badge-green' : 'badge-gray'}">${o.hasProposal ? 'Com proposta' : 'Sem proposta'}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Funil de Vendas</div>
+    <table>
+      <thead><tr><th>Etapa</th><th>Deals</th><th>Valor Total</th></tr></thead>
+      <tbody>
+        ${stages.map(s => `
+          <tr>
+            <td>${s.title}</td>
+            <td>${s.dealCount}</td>
+            <td>${fmtBRL(s.totalValue)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Atividade Comercial</div>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">Contatos criados</div><div class="kpi-value">${activity?.contacts ?? 0}</div></div>
+      <div class="kpi"><div class="kpi-label">Propostas enviadas</div><div class="kpi-value">${activity?.proposals ?? 0}</div></div>
+      <div class="kpi"><div class="kpi-label">Contratos iniciados</div><div class="kpi-value">${activity?.contracts ?? 0}</div></div>
+      <div class="kpi"><div class="kpi-label">Tarefas criadas</div><div class="kpi-value">${activity?.tasks ?? 0}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Resultados Comerciais</div>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">Contratos fechados</div><div class="kpi-value">${results?.contractCount ?? 0}</div></div>
+      <div class="kpi"><div class="kpi-label">Valor total</div><div class="kpi-value" style="font-size:16px">${fmtBRL(results?.contractTotal ?? 0)}</div></div>
+      <div class="kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value" style="font-size:16px">${avgTicket}</div></div>
+      <div class="kpi"><div class="kpi-label">Taxa de vitória</div><div class="kpi-value">${winRate}</div></div>
+    </div>
+  </div>
+
+  <div class="footer">CM Pro — Plataforma B2G &nbsp;|&nbsp; comprasmunicipais.com.br</div>
+
+  <script>window.onload = function() { setTimeout(function() { window.print(); }, 300); }<\/script>
+</body>
+</html>`;
+
+                const w = window.open('', '_blank');
+                if (w) { w.document.write(html); w.document.close(); }
               }}
               className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-[#0f49bd] text-white hover:bg-[#0d3fa8] transition-colors"
             >
