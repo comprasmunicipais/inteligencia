@@ -178,7 +178,11 @@ export default function PipelinePage() {
   }, [loadStages, loadDeals]);
 
   useEffect(() => {
-    if (companyId) initialize();
+    if (companyId) {
+      initialize();
+    } else {
+      setLoading(false);
+    }
   }, [companyId, initialize]);
 
   const onDragEnd = async (result: DropResult) => {

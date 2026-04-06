@@ -31,7 +31,10 @@ export default function MarketAnalysisPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     const supabase = createClient();
 
     const load = async () => {
