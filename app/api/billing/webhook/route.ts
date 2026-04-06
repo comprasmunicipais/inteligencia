@@ -73,6 +73,21 @@ export async function POST(req: NextRequest) {
       .update({ status: 'active' })
       .eq('id', companyId)
 
+    // Sincroniza plan_id na empresa com base na subscription ativa
+    const { data: activeSub } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .single()
+
+    if (activeSub?.plan_id) {
+      await supabase
+        .from('companies')
+        .update({ plan_id: activeSub.plan_id })
+        .eq('id', companyId)
+    }
+
     await supabase.from('billing_events')
       .update({ company_id: companyId })
       .eq('asaas_event_id', payment.id)
