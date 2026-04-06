@@ -42,12 +42,9 @@ import { DealDTO } from '@/lib/types/dtos';
 import { DealStage } from '@/lib/types/enums';
 import { formatCurrency } from '@/lib/utils/safe-helpers';
 import EmptyState from '@/components/shared/EmptyState';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createClient();
 
 const COLOR_OPTIONS = [
   { label: 'Cinza', value: 'bg-gray-400' },
