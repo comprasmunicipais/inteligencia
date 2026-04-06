@@ -8,34 +8,34 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   let score = 0;
   const reasons: string[] = [];
 
-  // 1. Estado (+25)
+  // 1. Estado (+15)
   const targetStates: string[] = profile.target_states || [];
   if (targetStates.includes(opportunity.state) || targetStates.includes('Nacional')) {
-    score += 25;
+    score += 15;
     reasons.push('Localização estratégica (Estado alvo).');
   }
 
-  // 2. Modalidade (+20)
+  // 2. Modalidade (+15)
   const targetModalities: string[] = profile.target_modalities || [];
   if (targetModalities.some((m: string) => opportunity.modality?.toLowerCase().includes(m.toLowerCase()))) {
-    score += 20;
+    score += 15;
     reasons.push('Modalidade de contratação preferencial.');
   }
 
-  // 3. Valor dentro do ticket (+20)
+  // 3. Valor dentro do ticket (+10)
   const value = Number(opportunity.estimated_value || 0);
   const minTicket = Number(profile.min_ticket || 0);
   const maxTicket = Number(profile.max_ticket || 0);
   if (value > 0 && minTicket > 0 && maxTicket > 0) {
     if (value >= minTicket && value <= maxTicket) {
-      score += 20;
+      score += 10;
       reasons.push('Valor estimado dentro da faixa de ticket ideal.');
     } else if (value > maxTicket) {
       reasons.push('Valor acima do ticket máximo definido.');
     }
   }
 
-  // 4. Palavras-chave positivas (+20)
+  // 4. Palavras-chave positivas (+25)
   const positiveKeywords: string[] = (profile.positive_keywords || '')
     .split(',')
     .map((k: string) => k.trim().toLowerCase())
@@ -44,7 +44,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   const titleDesc = `${opportunity.title || ''} ${opportunity.description || ''}`.toLowerCase();
   const foundPositive = positiveKeywords.filter((k: string) => titleDesc.includes(k));
   if (foundPositive.length > 0) {
-    score += 20;
+    score += 25;
     reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
   }
 
@@ -60,7 +60,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
   }
 
-  // 6. Órgãos prioritários (+15)
+  // 6. Órgãos prioritários (+10)
   const preferredBuyers: string[] = (profile.preferred_buyers || '')
     .split(',')
     .map((b: string) => b.trim().toLowerCase())
@@ -68,7 +68,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
 
   const organName = (opportunity.organ_name || '').toLowerCase();
   if (preferredBuyers.some((b: string) => organName.includes(b))) {
-    score += 15;
+    score += 10;
     reasons.push('Órgão comprador classificado como prioritário.');
   }
 
@@ -83,7 +83,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     reasons.push('Órgão comprador na lista de exclusão.');
   }
 
-  // 8. Categorias PNCP (+10)
+  // 8. Categorias PNCP (+35)
   const targetCategories: string[] = (profile.target_categories || '')
     .split(',')
     .map((c: string) => c.trim().toLowerCase())
@@ -91,7 +91,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
 
   const foundCategories = targetCategories.filter((c: string) => titleDesc.includes(c));
   if (foundCategories.length > 0) {
-    score += 10;
+    score += 35;
     reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
   }
 

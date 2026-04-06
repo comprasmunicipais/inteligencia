@@ -134,7 +134,7 @@ export const opportunityService = {
     }
 
     const total = data.length;
-    const highMatch = data.filter(o => Number(o.match_score || 0) >= 80).length;
+    const highMatch = data.filter(o => Number(o.match_score || 0) >= 70).length;
     const converted = data.filter(o => String(o.internal_status || '').startsWith('converted_')).length;
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const newLastSync = data.filter(o => o.created_at && o.created_at >= last24h).length;

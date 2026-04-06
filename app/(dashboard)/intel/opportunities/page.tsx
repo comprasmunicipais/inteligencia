@@ -297,7 +297,7 @@ export default function OpportunitiesPage() {
   };
 
   const isHighMatchOpportunity = (opp: OpportunityDTO) => {
-    return Number(opp.match_score || 0) >= 90;
+    return Number(opp.match_score || 0) >= 70;
   };
 
   const isNewLastSyncOpportunity = (opp: OpportunityDTO) => {
