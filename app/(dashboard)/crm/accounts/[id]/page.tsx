@@ -502,21 +502,6 @@ export default function AccountDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setEditData({ ...account });
-              setIsEditModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Edit className="size-4" /> Editar
-          </button>
-          <button
-            onClick={() => setIsDeleteModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-          >
-            <Trash2 className="size-4" /> Excluir
-          </button>
         </div>
       </div>
  
