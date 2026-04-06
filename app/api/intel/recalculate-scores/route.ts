@@ -184,16 +184,17 @@ export async function POST(request: Request) {
       for (const opp of batch) {
         const { score, reason } = calculateScore(opp, profile);
 
-        const { error: updateError } = await supabase
-          .from('opportunities')
-          .update({
+        const { error: upsertError } = await supabase
+          .from('company_opportunity_scores')
+          .upsert({
+            company_id: company_id,
+            opportunity_id: opp.id,
             match_score: score,
             match_reason: reason,
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', opp.id);
+          }, { onConflict: 'company_id,opportunity_id' });
 
-        if (!updateError) updated++;
+        if (!upsertError) updated++;
       }
     }
 

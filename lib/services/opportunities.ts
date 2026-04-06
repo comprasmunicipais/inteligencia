@@ -67,7 +67,20 @@ export const opportunityService = {
       throw error;
     }
 
-    return (data || []).map(mapOpportunityToDTO);
+    const { data: scores } = await supabase
+      .from('company_opportunity_scores')
+      .select('opportunity_id, match_score, match_reason')
+      .eq('company_id', companyId);
+
+    const scoresMap = new Map(scores?.map(s => [s.opportunity_id, s]) || []);
+
+    const merged = (data || []).map(opp => ({
+      ...opp,
+      match_score: scoresMap.get(opp.id)?.match_score ?? opp.match_score ?? 0,
+      match_reason: scoresMap.get(opp.id)?.match_reason ?? opp.match_reason,
+    }));
+
+    return merged.map(mapOpportunityToDTO);
   },
 
   async getByMunicipality(municipalityId: string): Promise<OpportunityDTO[]> {
@@ -126,21 +139,33 @@ export const opportunityService = {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('opportunities')
-      .select('internal_status, match_score, opening_date, created_at');
+      .select('id, internal_status, match_score, opening_date, created_at');
 
     if (error) {
       console.error('SUPABASE ERROR (opportunities.getStats):', error);
       throw error;
     }
 
-    const total = data.length;
-    const highMatch = data.filter(o => Number(o.match_score || 0) >= 70).length;
-    const converted = data.filter(o => String(o.internal_status || '').startsWith('converted_')).length;
+    const { data: scores } = await supabase
+      .from('company_opportunity_scores')
+      .select('opportunity_id, match_score')
+      .eq('company_id', companyId);
+
+    const scoresMap = new Map(scores?.map(s => [s.opportunity_id, s.match_score]) || []);
+
+    const merged = (data || []).map(o => ({
+      ...o,
+      match_score: scoresMap.has(o.id) ? scoresMap.get(o.id) : (o.match_score ?? 0),
+    }));
+
+    const total = merged.length;
+    const highMatch = merged.filter(o => Number(o.match_score || 0) >= 70).length;
+    const converted = merged.filter(o => String(o.internal_status || '').startsWith('converted_')).length;
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const newLastSync = data.filter(o => o.created_at && o.created_at >= last24h).length;
+    const newLastSync = merged.filter(o => o.created_at && o.created_at >= last24h).length;
     const nowIso = new Date().toISOString();
     const soon = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const expiringSoon = data.filter(
+    const expiringSoon = merged.filter(
       o => o.opening_date && o.opening_date <= soon && o.opening_date >= nowIso
     ).length;
 
