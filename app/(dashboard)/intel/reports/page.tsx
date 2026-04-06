@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/shared/Header';
-import { Target, BarChart2, Activity, Trophy, Loader2 } from 'lucide-react';
+import { Target, BarChart2, Activity, Trophy, Loader2, Download } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -38,7 +38,7 @@ function KpiCard({ label, value, sub }: { label: string; value: string | number;
 
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div className="print-card bg-white rounded-xl border border-gray-200 shadow-sm p-6">
       <div className="flex items-center gap-3 mb-5">
         <div className="p-2 bg-[#0f49bd]/8 rounded-lg">
           <Icon className="size-5 text-[#0f49bd]" />
@@ -72,6 +72,14 @@ export default function ReportsPage() {
   const { companyId } = useCompany();
   const [period, setPeriod] = useState<Period>(30);
   const [loading, setLoading] = useState(true);
+  const [companyName, setCompanyName] = useState<string>('');
+
+  useEffect(() => {
+    if (!companyId) return;
+    const supabase = createClient();
+    supabase.from('companies').select('name').eq('id', companyId).single()
+      .then(({ data }) => { if (data?.name) setCompanyName(data.name); });
+  }, [companyId]);
 
   const [highMatchOpps, setHighMatchOpps] = useState<HighMatchOpp[]>([]);
   const [highMatchTotal, setHighMatchTotal] = useState(0);
@@ -204,11 +212,28 @@ export default function ReportsPage() {
     <>
       <Header title="Relatórios Estratégicos" subtitle="Dados reais por empresa — aderência, funil, atividade e resultados comerciais." />
 
+      <style>{`
+        @media print {
+          nav, header, .no-print { display: none !important; }
+          body { background: white !important; color: black !important; }
+          .print-card { page-break-inside: avoid; }
+        }
+      `}</style>
+
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
         <div className="max-w-7xl mx-auto space-y-6">
 
+          {/* Cabeçalho de impressão */}
+          <div className="hidden print:block mb-6 border-b border-gray-300 pb-4">
+            <p className="text-xl font-black text-gray-900">{companyName || 'Empresa'}</p>
+            <p className="text-base font-bold text-gray-700">Relatório Estratégico — Vendas a Governo</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Período: {period} dias &nbsp;|&nbsp; Gerado em: {new Date().toLocaleDateString('pt-BR')}
+            </p>
+          </div>
+
           {/* Filtro de período */}
-          <div className="flex items-center gap-2">
+          <div className="no-print flex items-center gap-2">
             <span className="text-sm font-bold text-gray-500">Período:</span>
             {([30, 60, 90] as Period[]).map(d => (
               <button
@@ -219,6 +244,13 @@ export default function ReportsPage() {
                 {d} dias
               </button>
             ))}
+            <button
+              onClick={() => window.print()}
+              className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-[#0f49bd] text-white hover:bg-[#0d3fa8] transition-colors"
+            >
+              <Download className="size-4" />
+              Exportar PDF
+            </button>
           </div>
 
           {/* Relatório 1 */}
