@@ -76,7 +76,7 @@ export const opportunityService = {
 
     const merged = (data || []).map(opp => ({
       ...opp,
-      match_score: scoresMap.get(opp.id)?.match_score ?? opp.match_score ?? 0,
+      match_score: scoresMap.get(opp.id)?.match_score ?? (companyId ? 0 : opp.match_score ?? 0),
       match_reason: scoresMap.get(opp.id)?.match_reason ?? opp.match_reason,
     }));
 
