@@ -40,6 +40,8 @@ export default function SettingsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<Record<string, 'PIX' | 'BOLETO' | 'CREDIT_CARD'>>({});
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'semiannual' | 'annual'>('monthly');
+  const [extraPackPaymentMethod, setExtraPackPaymentMethod] = useState<'PIX' | 'BOLETO' | 'CREDIT_CARD'>('PIX');
+  const [loadingExtraCredits, setLoadingExtraCredits] = useState(false);
   const [cardModal, setCardModal] = useState<{ plan: any } | null>(null);
   const [cardForm, setCardForm] = useState({ holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '', cpfCnpj: '', postalCode: '', addressNumber: '', phone: '' });
   const [submittingCard, setSubmittingCard] = useState(false);
@@ -173,6 +175,27 @@ export default function SettingsPage() {
       showToast('Erro de conexão. Tente novamente.', 'error');
     } finally {
       setSubmittingCard(false);
+    }
+  };
+
+  const handleBuyExtraCredits = async () => {
+    setLoadingExtraCredits(true);
+    try {
+      const res = await fetch('/api/billing/extra-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billingType: extraPackPaymentMethod }),
+      });
+      const data = await res.json();
+      if (data.invoice_url) {
+        window.open(data.invoice_url, '_blank');
+      } else {
+        toast.error(data.error || 'Erro ao processar compra');
+      }
+    } catch {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setLoadingExtraCredits(false);
     }
   };
 
@@ -624,8 +647,29 @@ export default function SettingsPage() {
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-1">Pacote Extra de E-mails</h3>
               <p className="text-xs text-gray-500 mb-4">Precisa enviar mais e-mails este mês? Adquira um pacote adicional sem mudar de plano.</p>
-              <button className="px-5 py-2.5 rounded-lg text-sm font-bold border border-blue-600 text-blue-600 hover:bg-blue-50 transition-all">
-                Comprar 5.000 e-mails por R$ 80
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[11px] font-bold mb-3 w-fit">
+                {(['PIX', 'BOLETO', 'CREDIT_CARD'] as const).map((method) => {
+                  const label = method === 'CREDIT_CARD' ? 'Cartão' : method === 'BOLETO' ? 'Boleto' : 'PIX';
+                  const selected = extraPackPaymentMethod === method;
+                  return (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setExtraPackPaymentMethod(method)}
+                      className={cn('px-4 py-1.5 transition-all', selected ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50')}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleBuyExtraCredits}
+                disabled={loadingExtraCredits}
+                className="px-5 py-2.5 rounded-lg text-sm font-bold border border-blue-600 text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loadingExtraCredits && <Loader2 className="size-3.5 animate-spin" />}
+                {loadingExtraCredits ? 'Aguarde...' : 'Comprar 5.000 e-mails por R$ 80'}
               </button>
             </div>
           </div>
