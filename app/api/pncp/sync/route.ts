@@ -21,6 +21,22 @@ function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+function isOrgaoMunicipal(organName: string): boolean {
+  const upper = organName.toUpperCase();
+  if (upper.includes('ESTADUAL') || upper.includes('GOVERNO DO ESTADO') ||
+      upper.includes('TRIBUNAL') || upper.includes('DETRAN') ||
+      upper.includes('SUBSECRETARIA') || upper.includes('SECRETARIA DE ESTADO') ||
+      upper.includes('ASSEMBLEIA') || upper.includes('POLICIA') ||
+      upper.includes('BOMBEIRO') || upper.includes('UNIVERSIDADE ESTADUAL')) return false;
+  if (upper.includes('FEDERAL') || upper.includes('MINISTERIO') ||
+      upper.includes('EXERCITO') || upper.includes('MARINHA') ||
+      upper.includes('AERONAUTICA') || upper.includes('SENADO') ||
+      upper.includes('CAMARA DOS DEPUTADOS') || upper.includes('CORREIOS') ||
+      upper.includes('BANCO DO BRASIL') || upper.includes('PETROBRAS')) return false;
+  if (upper.includes('CONSELHO REGIONAL') || upper.includes('CONSELHO FEDERAL')) return false;
+  return true;
+}
+
 function normalizeText(value: string | null | undefined) {
   if (!value) return '';
   return value
@@ -317,7 +333,9 @@ async function syncOpportunities(
 
     let municipalityId: string | null = null;
 
-    if (city && state) {
+    const organName = item.orgaoEntidade?.razaoSocial || '';
+
+    if (city && state && isOrgaoMunicipal(organName)) {
       const cacheKey = state;
       if (!municipalityCache.has(cacheKey)) {
         const { data: municipalities } = await supabase
