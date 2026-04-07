@@ -85,6 +85,7 @@ const DEPARTMENT_OPTIONS = [
   'Compras / Licitação',
   'Administração',
   'Financeiro',
+  'Obras',
   'Prefeito',
   'Institucional',
 ];

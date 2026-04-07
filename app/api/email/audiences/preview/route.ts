@@ -70,6 +70,19 @@ const DEPARTMENT_RULES = [
     ],
   },
   {
+    label: 'Obras',
+    terms: [
+      'obras',
+      'engenharia',
+      'infra',
+      'infraestrutura',
+      'semob',
+      'semusp',
+      'urbanismo',
+      'seinfra',
+    ],
+  },
+  {
     label: 'Prefeito',
     terms: [
       'prefeito',
