@@ -69,6 +69,21 @@ const DEPARTMENT_RULES = [
       'tesouraria',
     ],
   },
+  {
+    label: 'Prefeito',
+    terms: [
+      'prefeito',
+      'viceprefeito',
+      'chefedegabinete',
+    ],
+  },
+  {
+    label: 'Institucional',
+    terms: [
+      'prefeitura',
+      'contato',
+    ],
+  },
 ];
 
 function getDepartmentTerms(department: string | null) {

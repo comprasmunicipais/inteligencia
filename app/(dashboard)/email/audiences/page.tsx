@@ -85,6 +85,8 @@ const DEPARTMENT_OPTIONS = [
   'Compras / Licitação',
   'Administração',
   'Financeiro',
+  'Prefeito',
+  'Institucional',
 ];
 
 const PAGE_SIZE = 50;
