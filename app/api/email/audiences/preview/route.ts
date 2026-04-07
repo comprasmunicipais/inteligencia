@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
 
     let baseCountQuery = supabase
       .from('municipality_emails')
-      .select('id, municipalities!inner(id, state, population_range)', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true });
 
     let baseDataQuery = supabase.from('municipality_emails').select(`
         id,
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         priority_score,
         is_strategic,
         source,
-        municipalities!inner:municipality_id (
+        municipalities:municipality_id (
           id,
           name,
           city,
@@ -145,13 +145,13 @@ export async function GET(request: NextRequest) {
       `);
 
     if (state) {
-      baseCountQuery = baseCountQuery.eq('municipalities.state', state);
-      baseDataQuery = baseDataQuery.eq('municipalities.state', state);
+      baseCountQuery = baseCountQuery.eq('state_source', state);
+      baseDataQuery = baseDataQuery.eq('state_source', state);
     }
 
     if (populationRange) {
-      baseCountQuery = baseCountQuery.eq('municipalities.population_range', populationRange);
-      baseDataQuery = baseDataQuery.eq('municipalities.population_range', populationRange);
+      baseCountQuery = baseCountQuery.eq('population_range', populationRange);
+      baseDataQuery = baseDataQuery.eq('population_range', populationRange);
     }
 
     if (municipalityId) {
