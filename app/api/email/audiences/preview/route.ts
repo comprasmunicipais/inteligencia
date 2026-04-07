@@ -123,47 +123,9 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let municipalityIds: string[] | null = null;
-
-    if (state || municipalityId || populationRange) {
-      let municipalityQuery = supabase.from('municipalities').select('id');
-
-      if (state) {
-        municipalityQuery = municipalityQuery.eq('state', state);
-      }
-
-      if (municipalityId) {
-        municipalityQuery = municipalityQuery.eq('id', municipalityId);
-      }
-
-      if (populationRange) {
-        municipalityQuery = municipalityQuery.eq('population_range', populationRange);
-      }
-
-      const { data: municipalityData, error: municipalityError } = await municipalityQuery;
-
-      if (municipalityError) {
-        return NextResponse.json({ error: municipalityError.message }, { status: 500 });
-      }
-
-      municipalityIds = (municipalityData || []).map((item) => item.id);
-
-      console.log('[AUDIENCES] populationRange recebido:', populationRange);
-      console.log('[AUDIENCES] municipalityIds encontrados:', municipalityIds?.length, municipalityIds?.slice(0, 3));
-
-      if (municipalityIds.length === 0) {
-        return NextResponse.json({
-          items: [],
-          total: 0,
-          page,
-          pageSize,
-        });
-      }
-    }
-
     let baseCountQuery = supabase
       .from('municipality_emails')
-      .select('id', { count: 'exact', head: true });
+      .select('id, municipalities!inner(id, state, population_range)', { count: 'exact', head: true });
 
     let baseDataQuery = supabase.from('municipality_emails').select(`
         id,
@@ -173,7 +135,7 @@ export async function GET(request: NextRequest) {
         priority_score,
         is_strategic,
         source,
-        municipalities:municipality_id (
+        municipalities!inner:municipality_id (
           id,
           name,
           city,
@@ -182,9 +144,19 @@ export async function GET(request: NextRequest) {
         )
       `);
 
-    if (municipalityIds) {
-      baseCountQuery = baseCountQuery.in('municipality_id', municipalityIds);
-      baseDataQuery = baseDataQuery.in('municipality_id', municipalityIds);
+    if (state) {
+      baseCountQuery = baseCountQuery.eq('municipalities.state', state);
+      baseDataQuery = baseDataQuery.eq('municipalities.state', state);
+    }
+
+    if (populationRange) {
+      baseCountQuery = baseCountQuery.eq('municipalities.population_range', populationRange);
+      baseDataQuery = baseDataQuery.eq('municipalities.population_range', populationRange);
+    }
+
+    if (municipalityId) {
+      baseCountQuery = baseCountQuery.eq('municipality_id', municipalityId);
+      baseDataQuery = baseDataQuery.eq('municipality_id', municipalityId);
     }
 
     if (strategic === 'yes') {
@@ -223,8 +195,6 @@ export async function GET(request: NextRequest) {
     }
 
     const { count, error: countError } = await baseCountQuery;
-
-    console.log('[AUDIENCES] count result:', count, 'error:', countError?.message);
 
     if (countError) {
       return NextResponse.json({ error: countError.message }, { status: 500 });
