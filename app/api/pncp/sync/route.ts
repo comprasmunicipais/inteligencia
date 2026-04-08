@@ -436,30 +436,30 @@ async function scrapeManualSources(): Promise<{ processed: number; inserted: num
 
     let licitacoes: any[] = [];
     try {
-      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY!,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          messages: [
-            {
-              role: 'user',
-              content: `Analise o HTML abaixo e extraia todas as licitações publicadas. Retorne APENAS JSON válido, sem texto adicional, no formato exato:\n{"licitacoes":[{"titulo":"","modalidade":"","valor_estimado":0,"data_abertura":"","data_publicacao":"","url_licitacao":""}]}\n\nSe não houver licitações, retorne: {"licitacoes":[]}\n\nHTML:\n${html}`,
-            },
-          ],
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
+      const aiResponse = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GOOGLE_API_KEY! },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Analise o HTML abaixo e extraia todas as licitações publicadas. Retorne APENAS JSON válido, sem texto adicional, no formato exato:\n{"licitacoes":[{"titulo":"","modalidade":"","valor_estimado":0,"data_abertura":"","data_publicacao":"","url_licitacao":""}]}\n\nSe não houver licitações, retorne: {"licitacoes":[]}\n\nHTML:\n${html}`,
+                  },
+                ],
+              },
+            ],
+          }),
+          signal: AbortSignal.timeout(30000),
+        }
+      );
 
-      if (!aiResponse.ok) throw new Error(`Anthropic API HTTP ${aiResponse.status}`);
+      if (!aiResponse.ok) throw new Error(`Gemini API HTTP ${aiResponse.status}`);
 
       const aiJson = await aiResponse.json();
-      const text: string = aiJson?.content?.[0]?.text || '';
+      const text: string = aiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const parsed = JSON.parse(text);
       licitacoes = parsed?.licitacoes || [];
     } catch (err) {
