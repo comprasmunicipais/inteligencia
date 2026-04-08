@@ -13,7 +13,7 @@ export function DemoBanner() {
         Você está no modo demonstração — navegação liberada, edições desabilitadas.
       </span>
       <a
-        href="/contato"
+        href="/signup"
         className="shrink-0 text-amber-900 font-bold underline underline-offset-2 hover:text-amber-700 transition-colors"
       >
         Quero contratar →
