@@ -117,7 +117,7 @@ export default function EmailCampaignsPage() {
           company_id: companyId,
           name,
           objective: formData.objective,
-          status: formData.status,
+          status: 'Ativa',
           description: description || null,
         })
         .select('*')
@@ -241,7 +241,6 @@ export default function EmailCampaignsPage() {
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Campanha</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Objetivo</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Descrição</th>
                   </tr>
                 </thead>
@@ -254,15 +253,6 @@ export default function EmailCampaignsPage() {
                     >
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
-                      <td className="px-4 py-4 text-sm">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                          campaign.status === 'Ativa'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {campaign.status}
-                        </span>
-                      </td>
                       <td className="px-4 py-4 text-sm text-slate-600">{campaign.description || '-'}</td>
                     </tr>
                   ))}
@@ -317,17 +307,6 @@ export default function EmailCampaignsPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Status inicial</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as CampaignStatus }))}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
-                >
-                  <option value="Rascunho">Rascunho</option>
-                  <option value="Ativa">Ativa</option>
-                </select>
-              </div>
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">Descrição</label>
