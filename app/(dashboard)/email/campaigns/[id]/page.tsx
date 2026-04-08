@@ -1028,13 +1028,13 @@ function SendStep({
             <div>
               <p className="text-xs text-slate-500">Limite/hora</p>
               <p className="mt-0.5 text-sm font-medium text-slate-900">
-                {selected.hourly_limit.toLocaleString('pt-BR')}
+                {(selected.hourly_limit ?? 0).toLocaleString('pt-BR')}
               </p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Limite/dia</p>
               <p className="mt-0.5 text-sm font-medium text-slate-900">
-                {selected.daily_limit.toLocaleString('pt-BR')}
+                {(selected.daily_limit ?? 0).toLocaleString('pt-BR')}
               </p>
             </div>
           </div>
@@ -1155,7 +1155,7 @@ function SendResultScreen({
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-600">Enviados</p>
           <p className="mt-2 text-3xl font-bold text-emerald-700">
-            {result.sent.toLocaleString('pt-BR')}
+            {(result.sent ?? 0).toLocaleString('pt-BR')}
           </p>
         </div>
         <div className={`rounded-xl border p-5 ${
@@ -1169,7 +1169,7 @@ function SendResultScreen({
           <p className={`mt-2 text-3xl font-bold ${
             result.failed > 0 ? 'text-red-700' : 'text-slate-400'
           }`}>
-            {result.failed.toLocaleString('pt-BR')}
+            {(result.failed ?? 0).toLocaleString('pt-BR')}
           </p>
         </div>
       </div>
@@ -1400,8 +1400,8 @@ export default function CampaignDetailPage() {
         return;
       }
       if (!res.ok) throw new Error(json.error || 'Erro ao enviar campanha.');
-      setSendResult(json as SendResult);
       toast.success(`Campanha enviada! ${json.sent} e-mails disparados.`);
+      router.push('/email/campaigns');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao enviar campanha.');
     } finally {
