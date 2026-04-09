@@ -114,9 +114,7 @@ async function syncOpportunities(
   items: any[],
   municipalityCache: Map<string, any[]>
 ): Promise<{ inserted: number; updated: number; errors: any[] }> {
-  let inserted = 0;
-  let updated = 0;
-  const errors: any[] = [];
+  const oportunidades: any[] = [];
 
   for (const item of items) {
     const externalId =
@@ -149,13 +147,7 @@ async function syncOpportunities(
       municipalityId = matchedMunicipality?.id ?? null;
     }
 
-    const { data: existingRecord } = await supabase
-      .from('opportunities')
-      .select('id')
-      .eq('external_id', externalIdString)
-      .maybeSingle();
-
-    const oportunidade = {
+    oportunidades.push({
       external_id: externalIdString,
       source: 'PNCP',
       title: item.objetoCompra || 'Objeto não informado',
@@ -179,21 +171,20 @@ async function syncOpportunities(
       internal_status: 'new',
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from('opportunities')
-      .upsert(oportunidade, { onConflict: 'external_id' });
-
-    if (error) {
-      errors.push({ external_id: externalIdString, message: error.message, details: error.details, hint: error.hint });
-    } else {
-      if (existingRecord) updated++;
-      else inserted++;
-    }
+    });
   }
 
-  return { inserted, updated, errors };
+  if (oportunidades.length === 0) return { inserted: 0, updated: 0, errors: [] };
+
+  const { error } = await supabase
+    .from('opportunities')
+    .upsert(oportunidades, { onConflict: 'external_id' });
+
+  if (error) {
+    return { inserted: 0, updated: 0, errors: [{ message: error.message, details: error.details, hint: error.hint }] };
+  }
+
+  return { inserted: oportunidades.length, updated: 0, errors: [] };
 }
 
 
