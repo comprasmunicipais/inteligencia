@@ -62,7 +62,7 @@ async function fetchPNCPPage(
   try {
     response = await fetch(
       `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`,
-      { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(45000) }
+      { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(20000) }
     );
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
