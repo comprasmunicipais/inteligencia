@@ -603,6 +603,20 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 
 ## Changelog
 
+### Sessão 2026-04-09
+
+- **Rastreamento de abertura e cliques por contato** — painel de detalhes em Estatísticas (`app/(dashboard)/email/estatisticas/page.tsx`): botão "Ver detalhes" abre tabela com todos os eventos `open`/`click` por e-mail, link clicado e data/hora; API `GET /api/email/tracking-stats?campaign_id=` retorna eventos individuais da `email_events`
+- **Filtro de Região em Audiências** — `app/(dashboard)/email/audiences/page.tsx` e `app/api/email/audiences/preview/route.ts`: select com Norte, Nordeste, Centro-Oeste, Sudeste, Sul antes do filtro de Estado; limpa Estado ao trocar região; backend aplica `.in('state_source', states)` quando `region` é passado sem `state`
+- **Filtro de Região no fluxo de Campanhas** — `app/(dashboard)/email/campaigns/[id]/page.tsx`: mesmo comportamento da página de Audiências; `AudienceFilters` e `DEFAULT_AUDIENCE` atualizados com campo `region`; `filteredMunicipalities` e params da API atualizados
+- **Filtro de Departamento sincronizado** — `DEPARTMENT_OPTIONS` em `app/(dashboard)/email/campaigns/[id]/page.tsx` atualizado com as opções completas: Saúde, Educação, Compras / Licitação, Administração, Financeiro, Obras, Prefeito, Institucional
+- **Melhoria no prompt de geração de proposta** (`app/api/intel/generate-proposal/route.ts`): `maxOutputTokens` 4096; linguagem formal Lei 14.133/2021; seção 4 de qualificação técnica argumentativa com base no perfil consolidado; seção 5 com valor unitário/total, prazo e condições de pagamento; fetch do edital via `official_url` (strip HTML, 3000 chars, `AbortSignal.timeout(10000)`, falha silenciosa)
+- **Fix: disparo imediato de emails** (`app/api/email/campaigns/[id]/send/route.ts`): após inserir jobs na fila, dispara `fetch` fire-and-forget para `/api/email/queue/process` com `Authorization: Bearer CRON_SECRET`; não bloqueia a resposta ao usuário
+- **Fix: cron de fila de email** (`vercel.json`): `/api/email/queue/process` agendado a cada 5 minutos (`*/5 * * * *`)
+- **Fix: runtime nodejs no processador de fila** (`app/api/email/queue/process/route.ts`): adicionados `export const runtime = 'nodejs'` e `export const dynamic = 'force-dynamic'` — sem isso o Vercel executava como Edge Function e nodemailer falhava
+- **Sync PNCP via GitHub Actions** — `.github/workflows/sync.yml`: matrix com modalidades [6, 8, 1]; loop de paginação até 20 páginas; fetch direto da API PNCP no runner; POST para `/api/pncp/ingest`; job `recalcular-scores` encadeado
+- **Rota `/api/pncp/ingest`** — POST autenticado via Bearer; aceita array de itens PNCP; batch upsert com `ON CONFLICT (external_id)`
+- **Rotas `/api/pncp/sync`, `/api/pncp/scrape`, `/api/pncp/scores`** separadas com `maxDuration=60` cada; sync suporta `?modalidade=`, `?data_inicial=`, `?data_final=`
+
 ### Sessão 2026-04-01
 
 - **Auditoria RLS — 12 tabelas protegidas**: `supabase/migrations/20260401_rls_missing_tables.sql` aplicado no Supabase
