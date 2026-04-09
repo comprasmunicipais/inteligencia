@@ -43,7 +43,7 @@ jobs:
           INGEST=$(curl -s -X POST \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Content-Type: application/json" \
-            -d "$RESPONSE" \
+            -d "$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("data",[])))')" \
             "https://inteligencia-sooty.vercel.app/api/pncp/ingest")
 
           echo "Resultado ingest: $INGEST"
