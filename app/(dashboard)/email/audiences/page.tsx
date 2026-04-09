@@ -49,6 +49,14 @@ type AudiencePreviewResponse = {
 
 const supabase = createClient();
 
+const REGIONS: Record<string, string[]> = {
+  Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+  'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+  Sul: ['PR', 'RS', 'SC'],
+};
+
 const BRAZILIAN_STATES = [
   'AC',
   'AL',
@@ -134,6 +142,7 @@ export default function EmailAudiencesPage() {
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
 
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
   const [selectedPopulationRange, setSelectedPopulationRange] = useState('');
@@ -199,6 +208,10 @@ export default function EmailAudiencesPage() {
 
       const params = new URLSearchParams();
 
+      if (selectedRegion) {
+        params.set('region', selectedRegion);
+      }
+
       if (selectedState) {
         params.set('state', selectedState);
       }
@@ -257,6 +270,7 @@ export default function EmailAudiencesPage() {
   useEffect(() => {
     loadAudiencePreview();
   }, [
+    selectedRegion,
     selectedState,
     selectedMunicipalityId,
     selectedPopulationRange,
@@ -267,18 +281,27 @@ export default function EmailAudiencesPage() {
   ]);
 
   useEffect(() => {
+    setSelectedState('');
+    setSelectedMunicipalityId('');
+  }, [selectedRegion]);
+
+  useEffect(() => {
     setSelectedMunicipalityId('');
   }, [selectedState]);
 
   const filteredMunicipalities = useMemo(() => {
-    if (!selectedState) {
-      return municipalities;
+    if (selectedState) {
+      return municipalities.filter((item) => item.state === selectedState);
     }
-
-    return municipalities.filter((item) => item.state === selectedState);
-  }, [municipalities, selectedState]);
+    if (selectedRegion) {
+      const regionStates = REGIONS[selectedRegion] ?? [];
+      return municipalities.filter((item) => regionStates.includes(item.state));
+    }
+    return municipalities;
+  }, [municipalities, selectedRegion, selectedState]);
 
   function clearFilters() {
+    setSelectedRegion('');
     setSelectedState('');
     setSelectedMunicipalityId('');
     setSelectedPopulationRange('');
@@ -323,6 +346,26 @@ export default function EmailAudiencesPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-2">
+              <label htmlFor="region" className="text-sm font-medium text-slate-700">
+                Região
+              </label>
+              <select
+                id="region"
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todas as regiões</option>
+                {Object.keys(REGIONS).map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
               <label htmlFor="state" className="text-sm font-medium text-slate-700">
                 Estado
               </label>
@@ -334,7 +377,7 @@ export default function EmailAudiencesPage() {
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
               >
                 <option value="">Todos os estados</option>
-                {BRAZILIAN_STATES.map((state) => (
+                {(selectedRegion ? (REGIONS[selectedRegion] ?? []) : BRAZILIAN_STATES).map((state) => (
                   <option key={state} value={state}>
                     {state}
                   </option>

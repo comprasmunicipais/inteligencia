@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
 
+    const region = searchParams.get('region') || '';
     const state = searchParams.get('state') || '';
     const municipalityId = searchParams.get('municipalityId') || '';
     const populationRange = searchParams.get('populationRange') || '';
@@ -130,6 +131,15 @@ export async function GET(request: NextRequest) {
     const emailSearch = searchParams.get('emailSearch') || '';
     const pageRaw = searchParams.get('page') || '1';
     const pageSizeRaw = searchParams.get('pageSize') || '50';
+
+    const REGIONS: Record<string, string[]> = {
+      Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+      Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+      'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+      Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+      Sul: ['PR', 'RS', 'SC'],
+    };
+    const regionStates = region ? (REGIONS[region] ?? []) : [];
 
     const page = Math.max(Number(pageRaw) || 1, 1);
     const pageSize = Math.min(Math.max(Number(pageSizeRaw) || 50, 1), 200);
@@ -160,6 +170,9 @@ export async function GET(request: NextRequest) {
     if (state) {
       baseCountQuery = baseCountQuery.eq('state_source', state);
       baseDataQuery = baseDataQuery.eq('state_source', state);
+    } else if (regionStates.length > 0) {
+      baseCountQuery = baseCountQuery.in('state_source', regionStates);
+      baseDataQuery = baseDataQuery.in('state_source', regionStates);
     }
 
     if (populationRange) {
