@@ -106,6 +106,7 @@ export default function AccountDetailPage() {
  
   const [editData, setEditData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'opportunities' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
+  const [emailSearch, setEmailSearch] = useState('');
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
  
@@ -767,9 +768,38 @@ export default function AccountDetailPage() {
                 {activeTab === 'emails' && (
                   <div className="space-y-8">
                     <div>
+                      <input
+                        type="text"
+                        value={emailSearch}
+                        onChange={(e) => setEmailSearch(e.target.value)}
+                        placeholder="Buscar por e-mail ou departamento..."
+                        className="w-full px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] bg-white"
+                      />
+                    </div>
+                    <div>
                       <h3 className="font-bold text-gray-900 mb-4">Contatos Estratégicos</h3>
                       <div className="space-y-3">
-                        {strategicEmails.length > 0 ? strategicEmails.map((emailRow) => (
+                        {(() => {
+                          const term = emailSearch.trim().toLowerCase();
+                          const filtered = term
+                            ? strategicEmails.filter(r =>
+                                r.email.toLowerCase().includes(term) ||
+                                (r.department_label || 'geral').toLowerCase().includes(term) ||
+                                'estratégico'.includes(term) ||
+                                'estrategico'.includes(term)
+                              )
+                            : strategicEmails;
+                          if (filtered.length === 0 && term) return (
+                            <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                              Nenhum e-mail encontrado para este termo.
+                            </div>
+                          );
+                          if (filtered.length === 0) return (
+                            <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                              Nenhum e-mail estratégico encontrado para esta prefeitura.
+                            </div>
+                          );
+                          return filtered.map((emailRow) => (
                           <div
                             key={emailRow.id}
                             className="flex items-center justify-between p-4 bg-green-50/40 rounded-xl border border-green-100"
@@ -805,18 +835,34 @@ export default function AccountDetailPage() {
                               </a>
                             </div>
                           </div>
-                        )) : (
-                          <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
-                            Nenhum e-mail estratégico encontrado para esta prefeitura.
-                          </div>
-                        )}
+                          ));
+                        })()}
                       </div>
                     </div>
- 
+
                     <div>
                       <h3 className="font-bold text-gray-900 mb-4">Todos os E-mails</h3>
                       <div className="space-y-3">
-                        {unifiedEmails.length > 0 ? unifiedEmails.map((emailRow) => (
+                        {(() => {
+                          const term = emailSearch.trim().toLowerCase();
+                          const filtered = term
+                            ? unifiedEmails.filter(r =>
+                                r.email.toLowerCase().includes(term) ||
+                                (r.department_label || 'geral').toLowerCase().includes(term) ||
+                                (r.is_strategic && ('estratégico'.includes(term) || 'estrategico'.includes(term)))
+                              )
+                            : unifiedEmails;
+                          if (filtered.length === 0 && term) return (
+                            <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                              Nenhum e-mail encontrado para este termo.
+                            </div>
+                          );
+                          if (filtered.length === 0) return (
+                            <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                              Nenhum e-mail encontrado para esta prefeitura.
+                            </div>
+                          );
+                          return filtered.map((emailRow) => (
                           <div
                             key={emailRow.id}
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100"
@@ -854,11 +900,8 @@ export default function AccountDetailPage() {
                               </a>
                             </div>
                           </div>
-                        )) : (
-                          <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
-                            Nenhum e-mail encontrado para esta prefeitura.
-                          </div>
-                        )}
+                          ));
+                        })()}
                       </div>
                     </div>
                   </div>

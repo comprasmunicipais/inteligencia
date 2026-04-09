@@ -652,3 +652,11 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 - **lib/fetch-client.ts** — `fetchWithAuth` com interceptação de 401 → redirect `/login?error=session_expired`
 - **Admin: gestão de usuários** — convite, criação manual, reset de senha, edição de permissões
 - **Admin: Ver Detalhes da Empresa** + `POST /api/admin/update-plan` — gestão de plano e suspensão
+
+---
+
+## Git Commits
+
+- Never add "Co-Authored-By" tags in commit messages. Commits must have only one author.
+- Do not include any Anthropic or Claude references in git commits.
+- Never trigger `git push` or deploy directly — only make the code changes and commit locally.
