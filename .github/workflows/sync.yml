@@ -8,12 +8,8 @@ on:
     - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
-      data_inicial:
-        description: 'Data inicial YYYYMMDD'
-        required: false
-        default: ''
       data_final:
-        description: 'Data final YYYYMMDD'
+        description: 'Data final YYYYMMDD (opcional)'
         required: false
         default: ''
 
@@ -23,37 +19,42 @@ jobs:
     strategy:
       matrix:
         modalidade: [6, 8, 1]
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Buscar e ingerir modalidade ${{ matrix.modalidade }}
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           DATA_FINAL=$(date +%Y%m%d)
-          DATA_INICIAL=$(date -d '7 days ago' +%Y%m%d)
-
-          if [ -n "${{ github.event.inputs.data_inicial }}" ]; then
-            DATA_INICIAL="${{ github.event.inputs.data_inicial }}"
-          fi
           if [ -n "${{ github.event.inputs.data_final }}" ]; then
             DATA_FINAL="${{ github.event.inputs.data_final }}"
           fi
 
-          echo "Buscando modalidade ${{ matrix.modalidade }} de $DATA_INICIAL a $DATA_FINAL"
+          echo "Buscando modalidade ${{ matrix.modalidade }} com dataFinal=$DATA_FINAL"
 
-          RESPONSE=$(curl -s "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=1&tamanhoPagina=500&dataFinal=$DATA_FINAL&codigoModalidadeContratacao=${{ matrix.modalidade }}")
+          RESPONSE=$(curl -s \
+            -H "Accept: application/json" \
+            "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=1&tamanhoPagina=500&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
 
-          echo "Itens recebidos do PNCP: $(echo $RESPONSE | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo 0)"
+          TOTAL=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo "erro ao parsear")
+          echo "Itens recebidos do PNCP: $TOTAL"
 
-          curl -s -X POST "https://inteligencia-sooty.vercel.app/api/pncp/ingest" \
-            -H "Authorization: Bearer $CRON_SECRET" \
+          INGEST=$(curl -s -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Content-Type: application/json" \
-            -d "$RESPONSE"
+            -d "$RESPONSE" \
+            "https://inteligencia-sooty.vercel.app/api/pncp/ingest")
+
+          echo "Resultado ingest: $INGEST"
 
   recalcular-scores:
     runs-on: ubuntu-latest
     needs: sync-pncp
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Recalcular scores
         run: |
-          curl -s -X GET "https://inteligencia-sooty.vercel.app/api/pncp/scores" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          RESULT=$(curl -s -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://inteligencia-sooty.vercel.app/api/pncp/scores")
+          echo "Resultado scores: $RESULT"
