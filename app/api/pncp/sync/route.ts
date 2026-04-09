@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const MODALITIES = [6, 8, 1]; // Pregão Eletrônico, Dispensa, Concorrência
+const VALID_MODALITIES = [6, 8, 1]; // Pregão Eletrônico, Dispensa, Concorrência
 const MAX_PAGES = 1;
 const PAGE_SIZE = 100;
 
@@ -76,12 +76,12 @@ async function fetchPNCPPage(
   return { items, hasMore };
 }
 
-async function fetchAllPNCPItems(dataInicial: string, dataFinal: string): Promise<{ items: any[]; byModalidade: Record<number, number> }> {
+async function fetchAllPNCPItems(dataInicial: string, dataFinal: string, modalidade: number): Promise<{ items: any[]; byModalidade: Record<number, number> }> {
   // Mapa de deduplicação por numeroControlePNCP
   const seen = new Map<string, any>();
   const byModalidade: Record<number, number> = {};
 
-  for (const modalidade of MODALITIES) {
+  {
     let pagina = 1;
     let hasMore = true;
     let modalidadeCount = 0;
@@ -107,6 +107,7 @@ async function fetchAllPNCPItems(dataInicial: string, dataFinal: string): Promis
   }
 
   return { items: Array.from(seen.values()), byModalidade };
+
 }
 
 async function syncOpportunities(
@@ -235,8 +236,13 @@ export async function GET(request: Request) {
     const dataInicial = formatDateToPNCP(dataInicialDate);
     const dataFinal = formatDateToPNCP(now);
 
-    // Buscar todos os itens do PNCP (todas as modalidades, todas as páginas)
-    const { items, byModalidade } = await fetchAllPNCPItems(dataInicial, dataFinal);
+    // Modalidade via query param (6=Pregão, 8=Dispensa, 1=Concorrência) — padrão: 6
+    const requestUrl = new URL(request.url);
+    const modalidadeParam = Number(requestUrl.searchParams.get('modalidade') || '6');
+    const modalidade = VALID_MODALITIES.includes(modalidadeParam) ? modalidadeParam : 6;
+
+    // Buscar itens do PNCP para a modalidade selecionada
+    const { items, byModalidade } = await fetchAllPNCPItems(dataInicial, dataFinal, modalidade);
 
     // Upsert global — sem company_id
     const municipalityCache = new Map<string, any[]>();
