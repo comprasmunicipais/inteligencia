@@ -197,6 +197,8 @@ export async function GET(request: Request) {
   }
 
   try {
+    const start = Date.now();
+
     // Arquivar oportunidades cujo prazo já passou
     await supabase
       .from('opportunities')
@@ -233,16 +235,22 @@ export async function GET(request: Request) {
     const modalidade = VALID_MODALITIES.includes(modalidadeParam) ? modalidadeParam : 6;
 
     // Buscar itens do PNCP para a modalidade selecionada
+    console.log('FETCH_START', Date.now() - start, 'ms');
     const { items, byModalidade } = await fetchAllPNCPItems(dataInicial, dataFinal, modalidade);
+    console.log('FETCH_END', Date.now() - start, 'ms');
 
     // Upsert global — sem company_id
     const municipalityCache = new Map<string, any[]>();
+    console.log('SYNC_START', Date.now() - start, 'ms');
     const { inserted, updated, errors } = await syncOpportunities(items, municipalityCache);
+    console.log('SYNC_END', Date.now() - start, 'ms');
 
     // Salvar controle de sincronização
+    console.log('CONTROL_START', Date.now() - start, 'ms');
     await supabase
       .from('sync_control')
       .upsert({ source: 'PNCP', last_sync: now.toISOString() }, { onConflict: 'source' });
+    console.log('CONTROL_END', Date.now() - start, 'ms');
 
     return NextResponse.json({
       ok: true,
