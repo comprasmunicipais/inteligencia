@@ -11,8 +11,8 @@ const supabase = createClient(
 );
 
 const MODALITIES = [6, 8, 1]; // Pregão Eletrônico, Dispensa, Concorrência
-const MAX_PAGES = 5;
-const PAGE_SIZE = 500;
+const MAX_PAGES = 1;
+const PAGE_SIZE = 100;
 
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
