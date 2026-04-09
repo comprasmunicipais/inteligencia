@@ -25,6 +25,8 @@ jobs:
         modalidade: [6, 8, 1]
     steps:
       - name: Buscar e ingerir modalidade ${{ matrix.modalidade }}
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           DATA_FINAL=$(date +%Y%m%d)
           DATA_INICIAL=$(date -d '7 days ago' +%Y%m%d)
@@ -43,7 +45,7 @@ jobs:
           echo "Itens recebidos do PNCP: $(echo $RESPONSE | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo 0)"
 
           curl -s -X POST "https://inteligencia-sooty.vercel.app/api/pncp/ingest" \
-            -H 'Authorization: Bearer ${{ secrets.CRON_SECRET }}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             -d "$RESPONSE"
 
