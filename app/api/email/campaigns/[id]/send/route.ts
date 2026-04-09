@@ -309,6 +309,13 @@ export async function POST(
       })
       .eq('id', campaignId);
 
+    // ── 8. Kick off queue processor immediately (fire and forget) ─────────────
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://inteligencia-sooty.vercel.app';
+    fetch(`${appUrl}/api/email/queue/process`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
+    }).catch(() => {});
+
     return NextResponse.json({ queued: rows.length, total: rows.length });
   } catch (error: any) {
     console.error('[campaign-send] Erro interno:', error);

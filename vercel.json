@@ -4,6 +4,7 @@
     { "path": "/api/pncp/sync", "schedule": "0 6 * * *" },
     { "path": "/api/pncp/scrape", "schedule": "0 7 * * *" },
     { "path": "/api/pncp/scores", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/trial-expiring", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/trial-expiring", "schedule": "0 9 * * *" },
+    { "path": "/api/email/queue/process", "schedule": "*/5 * * * *" }
   ]
 }
