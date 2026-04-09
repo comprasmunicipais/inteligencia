@@ -46,6 +46,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type AudienceFilters = {
+  region: string;
   state: string;
   municipalityId: string;
   populationRange: string;
@@ -121,6 +122,7 @@ const STEPS = [
 ] as const;
 
 const DEFAULT_AUDIENCE: AudienceFilters = {
+  region: '',
   state: '',
   municipalityId: '',
   populationRange: '',
@@ -143,7 +145,18 @@ const DEPARTMENT_OPTIONS = [
   'Compras / Licitação',
   'Administração',
   'Financeiro',
+  'Obras',
+  'Prefeito',
+  'Institucional',
 ];
+
+const REGIONS: Record<string, string[]> = {
+  Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+  'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+  Sul: ['PR', 'RS', 'SC'],
+};
 
 const POPULATION_ORDER = [
   'Menor que 15.000',
@@ -534,6 +547,7 @@ function AudienceStep({
       try {
         setLoadingCount(true);
         const params = new URLSearchParams();
+        if (filters.region) params.set('region', filters.region);
         if (filters.state) params.set('state', filters.state);
         if (filters.municipalityId) params.set('municipalityId', filters.municipalityId);
         if (filters.populationRange) params.set('populationRange', filters.populationRange);
@@ -561,6 +575,7 @@ function AudienceStep({
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    filters.region,
     filters.state,
     filters.municipalityId,
     filters.populationRange,
@@ -570,17 +585,18 @@ function AudienceStep({
     filters.emailSearch,
   ]);
 
-  const filteredMunicipalities = useMemo(
-    () =>
-      filters.state
-        ? municipalities.filter((m) => m.state === filters.state)
-        : municipalities,
-    [municipalities, filters.state],
-  );
+  const filteredMunicipalities = useMemo(() => {
+    if (filters.state) return municipalities.filter((m) => m.state === filters.state);
+    if (filters.region) {
+      const regionStates = REGIONS[filters.region] ?? [];
+      return municipalities.filter((m) => regionStates.includes(m.state));
+    }
+    return municipalities;
+  }, [municipalities, filters.state, filters.region]);
 
   const set = <K extends keyof AudienceFilters>(key: K, value: AudienceFilters[K]) => {
     const next = { ...filters, [key]: value };
-    // clear municipalityId when state changes
+    if (key === 'region') { next.state = ''; next.municipalityId = ''; }
     if (key === 'state') next.municipalityId = '';
     onChange(next);
   };
@@ -614,6 +630,21 @@ function AudienceStep({
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="flex flex-col gap-2">
+            <label className={labelClass}>Região</label>
+            <select
+              value={filters.region}
+              onChange={(e) => set('region', e.target.value)}
+              disabled={loadingFilters || isReadOnly}
+              className={selectClass}
+            >
+              <option value="">Todas as regiões</option>
+              {Object.keys(REGIONS).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2">
             <label className={labelClass}>Estado</label>
             <select
               value={filters.state}
@@ -622,7 +653,7 @@ function AudienceStep({
               className={selectClass}
             >
               <option value="">Todos os estados</option>
-              {BRAZILIAN_STATES.map((s) => (
+              {(filters.region ? (REGIONS[filters.region] ?? []) : BRAZILIAN_STATES).map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -766,6 +797,7 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
 
   // Build active audience filter tags
   const audienceTags: string[] = [];
+  if (audienceFilters.region) audienceTags.push(`Região: ${audienceFilters.region}`);
   if (audienceFilters.state) audienceTags.push(`Estado: ${audienceFilters.state}`);
   if (audienceFilters.municipalityId) audienceTags.push('1 município específico');
   if (audienceFilters.populationRange) audienceTags.push(`Pop.: ${audienceFilters.populationRange}`);
