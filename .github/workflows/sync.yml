@@ -33,7 +33,7 @@ jobs:
 
           RESPONSE=$(curl -s \
             -H "Accept: application/json" \
-            "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=1&tamanhoPagina=500&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
+            "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=1&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
 
           echo "Primeiros 200 chars do PNCP: ${RESPONSE:0:200}"
 
