@@ -1,4 +1,4 @@
-name: CM Pro Sync
+name: CM Pro Sync PNCP
 
 on:
   schedule:
@@ -7,30 +7,51 @@ on:
     - cron: '0 12 * * *'
     - cron: '0 18 * * *'
   workflow_dispatch:
+    inputs:
+      data_inicial:
+        description: 'Data inicial YYYYMMDD'
+        required: false
+        default: ''
+      data_final:
+        description: 'Data final YYYYMMDD'
+        required: false
+        default: ''
 
 jobs:
   sync-pncp:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        modalidade: [6, 8, 1]
     steps:
-      - name: Sync PNCP
+      - name: Buscar e ingerir modalidade ${{ matrix.modalidade }}
         run: |
-          curl -f -X GET "https://inteligencia-sooty.vercel.app/api/pncp/sync" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          DATA_FINAL=$(date +%Y%m%d)
+          DATA_INICIAL=$(date -d '7 days ago' +%Y%m%d)
 
-  scrape-fontes:
-    runs-on: ubuntu-latest
-    needs: sync-pncp
-    steps:
-      - name: Scrape fontes manuais
-        run: |
-          curl -f -X GET "https://inteligencia-sooty.vercel.app/api/pncp/scrape" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          if [ -n "${{ github.event.inputs.data_inicial }}" ]; then
+            DATA_INICIAL="${{ github.event.inputs.data_inicial }}"
+          fi
+          if [ -n "${{ github.event.inputs.data_final }}" ]; then
+            DATA_FINAL="${{ github.event.inputs.data_final }}"
+          fi
+
+          echo "Buscando modalidade ${{ matrix.modalidade }} de $DATA_INICIAL a $DATA_FINAL"
+
+          RESPONSE=$(curl -s "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?pagina=1&tamanhoPagina=500&dataInicial=$DATA_INICIAL&dataFinal=$DATA_FINAL&codigoModalidadeContratacao=${{ matrix.modalidade }}")
+
+          echo "Itens recebidos do PNCP: $(echo $RESPONSE | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo 0)"
+
+          curl -s -X POST "https://inteligencia-sooty.vercel.app/api/pncp/ingest" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$RESPONSE"
 
   recalcular-scores:
     runs-on: ubuntu-latest
-    needs: scrape-fontes
+    needs: sync-pncp
     steps:
       - name: Recalcular scores
         run: |
-          curl -f -X GET "https://inteligencia-sooty.vercel.app/api/pncp/scores" \
+          curl -s -X GET "https://inteligencia-sooty.vercel.app/api/pncp/scores" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
