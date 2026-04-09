@@ -58,10 +58,19 @@ async function fetchPNCPPage(
     codigoModalidadeContratacao: String(modalidade),
   });
 
-  const response = await fetch(
-    `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`,
-    { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?${params.toString()}`,
+      { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(45000) }
+    );
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error(`PNCP modalidade ${modalidade} pág ${pagina}: timeout após 45s`);
+      return { items: [], hasMore: false };
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     console.error(`PNCP modalidade ${modalidade} pág ${pagina}: HTTP ${response.status}`);
@@ -223,7 +232,7 @@ export async function GET(request: Request) {
 
     const now = new Date();
     const defaultStart = new Date();
-    defaultStart.setDate(defaultStart.getDate() - 1);
+    defaultStart.setDate(defaultStart.getDate() - 30);
 
     const dataInicialDate = lastSyncData?.last_sync ? new Date(lastSyncData.last_sync) : defaultStart;
     const dataInicial = formatDateToPNCP(dataInicialDate);
