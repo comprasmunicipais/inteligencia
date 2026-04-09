@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   const authClient = await createClient();
 
   const {
@@ -26,7 +26,39 @@ export async function GET() {
     return NextResponse.json({ error: 'Empresa não identificada.' }, { status: 403 });
   }
 
-  // Fetch campaign IDs for this company
+  const supabase = await createAdminClient();
+
+  // ── Modo detalhe: ?campaign_id=<id> ──────────────────────────────────────
+  const { searchParams } = new URL(request.url);
+  const campaignId = searchParams.get('campaign_id');
+
+  if (campaignId) {
+    // Verifica que a campanha pertence à empresa do usuário
+    const { data: camp, error: campError } = await authClient
+      .from('email_campaigns')
+      .select('id')
+      .eq('id', campaignId)
+      .eq('company_id', profile.company_id)
+      .maybeSingle();
+
+    if (campError || !camp) {
+      return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 });
+    }
+
+    const { data: events, error: eventsError } = await supabase
+      .from('email_events')
+      .select('id, recipient_email, event_type, link_url, tracked_at, ip_address, user_agent')
+      .eq('campaign_id', campaignId)
+      .order('tracked_at', { ascending: false });
+
+    if (eventsError) {
+      return NextResponse.json({ error: eventsError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ events: events ?? [] });
+  }
+
+  // ── Modo agregado: retorna totais por campanha ────────────────────────────
   const { data: campaigns, error: campaignsError } = await authClient
     .from('email_campaigns')
     .select('id')
@@ -42,9 +74,6 @@ export async function GET() {
     return NextResponse.json({ stats: {} });
   }
 
-  // Use admin client to read email_events (table may have no SELECT RLS policy yet)
-  const supabase = await createAdminClient();
-
   const { data: events, error: eventsError } = await supabase
     .from('email_events')
     .select('campaign_id, event_type, recipient_email')
@@ -52,15 +81,6 @@ export async function GET() {
 
   if (eventsError) {
     return NextResponse.json({ error: eventsError.message }, { status: 500 });
-  }
-
-  // Aggregate unique opens and clicks per campaign in JS
-  const stats: Record<string, { opens: number; clicks: number }> = {};
-
-  for (const event of events ?? []) {
-    if (!stats[event.campaign_id]) {
-      stats[event.campaign_id] = { opens: 0, clicks: 0 };
-    }
   }
 
   // Group by campaign → event_type → unique emails

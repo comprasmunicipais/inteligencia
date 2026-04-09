@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { ArrowRight, BarChart2, Eye, MousePointer, TrendingUp } from 'lucide-react';
+import { ArrowRight, BarChart2, Eye, MousePointer, TrendingUp, X, ExternalLink } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -30,6 +30,16 @@ type SentCampaign = {
 };
 
 type TrackingStats = Record<string, { opens: number; clicks: number }>;
+
+type TrackingEvent = {
+  id: string;
+  recipient_email: string;
+  event_type: 'open' | 'click';
+  link_url: string | null;
+  tracked_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -96,6 +106,9 @@ export default function EmailEstatisticasPage() {
   const [campaigns, setCampaigns] = useState<SentCampaign[]>([]);
   const [tracking, setTracking] = useState<TrackingStats>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedCampaign, setSelectedCampaign] = useState<SentCampaign | null>(null);
+  const [campaignEvents, setCampaignEvents] = useState<TrackingEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -126,6 +139,23 @@ export default function EmailEstatisticasPage() {
       }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Detail panel ───────────────────────────────────────────────────────────
+  async function loadCampaignEvents(campaign: SentCampaign) {
+    setSelectedCampaign(campaign);
+    setCampaignEvents([]);
+    setLoadingEvents(true);
+    try {
+      const res = await fetch(`/api/email/tracking-stats?campaign_id=${campaign.id}`);
+      if (!res.ok) throw new Error('Erro ao carregar eventos');
+      const json = await res.json();
+      setCampaignEvents(json.events ?? []);
+    } catch {
+      toast.error('Erro ao carregar detalhes da campanha.');
+    } finally {
+      setLoadingEvents(false);
+    }
+  }
 
   // ── Aggregates ─────────────────────────────────────────────────────────────
   const totalSent = campaigns.reduce((s, c) => s + (c.sent_count ?? 0), 0);
@@ -333,10 +363,10 @@ export default function EmailEstatisticasPage() {
                           <td className="px-5 py-4 text-right">
                             <button
                               type="button"
-                              onClick={() => router.push(`/email/campaigns/${campaign.id}`)}
+                              onClick={() => loadCampaignEvents(campaign)}
                               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-[#0f49bd]"
                             >
-                              Ver
+                              Ver detalhes
                               <ArrowRight className="size-3.5" />
                             </button>
                           </td>
@@ -349,6 +379,98 @@ export default function EmailEstatisticasPage() {
             </div>
           </>
         )}
+
+        {/* Detail panel */}
+        {selectedCampaign && (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  Detalhes — {selectedCampaign.name}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Eventos de abertura e clique registrados para esta campanha.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/email/campaigns/${selectedCampaign.id}`)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-[#0f49bd]"
+                >
+                  Abrir campanha
+                  <ExternalLink className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedCampaign(null); setCampaignEvents([]); }}
+                  className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {loadingEvents ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                Carregando eventos...
+              </div>
+            ) : campaignEvents.length === 0 ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                Nenhum evento registrado para esta campanha ainda.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">E-mail</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Evento</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Link clicado</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Data/hora</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaignEvents.map((ev) => (
+                      <tr key={ev.id} className="border-b border-slate-100 last:border-0">
+                        <td className="px-5 py-3 text-sm text-slate-900">{ev.recipient_email}</td>
+                        <td className="px-5 py-3">
+                          {ev.event_type === 'open' ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                              <Eye className="size-3" /> Abertura
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                              <MousePointer className="size-3" /> Clique
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-xs text-slate-500 max-w-xs truncate">
+                          {ev.link_url ? (
+                            <a
+                              href={ev.link_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#0f49bd] hover:underline"
+                            >
+                              {ev.link_url}
+                            </a>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-sm text-slate-600">
+                          {formatDate(ev.tracked_at)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
