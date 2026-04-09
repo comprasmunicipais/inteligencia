@@ -66,7 +66,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Oportunidade não encontrada.' }, { status: 404 });
     }
 
-    const prompt = `Você é um redator especialista em propostas comerciais para licitações públicas brasileiras.
+    // Tentar buscar conteúdo do edital via official_url
+    let editalText = '';
+    if (opportunity.official_url) {
+      try {
+        const editalResponse = await fetch(opportunity.official_url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CMPro-Bot/1.0)' },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (editalResponse.ok) {
+          const html = await editalResponse.text();
+          // Remover scripts, estilos e tags HTML
+          const stripped = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+            .replace(/<header[\s\S]*?<\/header>/gi, '')
+            .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          editalText = stripped.slice(0, 3000);
+        }
+      } catch {
+        // Falha silenciosa — continua sem o edital
+      }
+    }
+
+    const prompt = `Você é um redator especialista em propostas comerciais para licitações públicas brasileiras. Use linguagem técnica formal adequada a licitações públicas brasileiras (Lei 14.133/2021).
 
 INSTRUÇÕES CRÍTICAS — SIGA EXATAMENTE:
 - Gere APENAS o documento formal da proposta
@@ -94,7 +121,10 @@ DADOS DA LICITAÇÃO:
 - Data de Publicação: ${opportunity.publication_date ? new Date(opportunity.publication_date).toLocaleDateString('pt-BR') : 'A informar'}
 - Data de Abertura: ${opportunity.opening_date ? new Date(opportunity.opening_date).toLocaleDateString('pt-BR') : 'A informar'}
 - Descrição: ${opportunity.description || opportunity.title}
-
+${editalText ? `
+EDITAL (primeiros 3000 caracteres do conteúdo público):
+${editalText}
+` : ''}
 ESTRUTURA OBRIGATÓRIA DO DOCUMENTO:
 
 PROPOSTA COMERCIAL
@@ -114,10 +144,10 @@ DATA: [data atual]
 [descrição do que está sendo ofertado]
 [linha em branco]
 4. QUALIFICAÇÃO TÉCNICA
-[como a empresa atende os requisitos técnicos]
+[Usando os dados do perfil consolidado da empresa acima, argumente especificamente por que a empresa está qualificada para atender o objeto desta licitação — cite experiências, capacidades técnicas e diferenciais relevantes para o objeto "${opportunity.title}"]
 [linha em branco]
 5. PROPOSTA COMERCIAL
-[valor, condições e prazo]
+[Inclua: valor unitário por item (se aplicável), valor total da proposta, prazo de entrega ou execução, e condições de pagamento propostas]
 [linha em branco]
 6. HABILITAÇÃO JURÍDICA E REGULARIDADE FISCAL
 [declaração de regularidade]
@@ -137,7 +167,7 @@ DATA: [data atual]
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096,
           },
         }),
       }
