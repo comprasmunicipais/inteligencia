@@ -223,25 +223,36 @@ export async function GET(request: Request) {
       .eq('internal_status', 'expired')
       .lt('opening_date', cutoff);
 
-    // Janela de sincronização via sync_control
-    const { data: lastSyncData } = await supabase
-      .from('sync_control')
-      .select('last_sync')
-      .eq('source', 'PNCP')
-      .maybeSingle();
-
-    const now = new Date();
-    const defaultStart = new Date();
-    defaultStart.setDate(defaultStart.getDate() - 30);
-
-    const dataInicialDate = lastSyncData?.last_sync ? new Date(lastSyncData.last_sync) : defaultStart;
-    const dataInicial = formatDateToPNCP(dataInicialDate);
-    const dataFinal = formatDateToPNCP(now);
-
-    // Modalidade via query param (6=Pregão, 8=Dispensa, 1=Concorrência) — padrão: 6
+    // Parâmetros de query opcionais
     const requestUrl = new URL(request.url);
     const modalidadeParam = Number(requestUrl.searchParams.get('modalidade') || '6');
     const modalidade = VALID_MODALITIES.includes(modalidadeParam) ? modalidadeParam : 6;
+    const queryDataInicial = requestUrl.searchParams.get('data_inicial');
+    const queryDataFinal = requestUrl.searchParams.get('data_final');
+    const usandoQueryParams = !!(queryDataInicial && queryDataFinal);
+
+    const now = new Date();
+    let dataInicial: string;
+    let dataFinal: string;
+
+    if (usandoQueryParams) {
+      dataInicial = queryDataInicial!;
+      dataFinal = queryDataFinal!;
+    } else {
+      // Janela de sincronização via sync_control
+      const { data: lastSyncData } = await supabase
+        .from('sync_control')
+        .select('last_sync')
+        .eq('source', 'PNCP')
+        .maybeSingle();
+
+      const defaultStart = new Date();
+      defaultStart.setDate(defaultStart.getDate() - 30);
+
+      const dataInicialDate = lastSyncData?.last_sync ? new Date(lastSyncData.last_sync) : defaultStart;
+      dataInicial = formatDateToPNCP(dataInicialDate);
+      dataFinal = formatDateToPNCP(now);
+    }
 
     // Buscar itens do PNCP para a modalidade selecionada
     console.log('FETCH_START', Date.now() - start, 'ms');
@@ -254,11 +265,13 @@ export async function GET(request: Request) {
     const { inserted, updated, errors } = await syncOpportunities(items, municipalityCache);
     console.log('SYNC_END', Date.now() - start, 'ms');
 
-    // Salvar controle de sincronização
+    // Salvar controle de sincronização apenas se não foram passadas datas manuais
     console.log('CONTROL_START', Date.now() - start, 'ms');
-    await supabase
-      .from('sync_control')
-      .upsert({ source: 'PNCP', last_sync: now.toISOString() }, { onConflict: 'source' });
+    if (!usandoQueryParams) {
+      await supabase
+        .from('sync_control')
+        .upsert({ source: 'PNCP', last_sync: now.toISOString() }, { onConflict: 'source' });
+    }
     console.log('CONTROL_END', Date.now() - start, 'ms');
 
     return NextResponse.json({
