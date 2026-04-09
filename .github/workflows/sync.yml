@@ -31,22 +31,46 @@ jobs:
 
           echo "Buscando modalidade ${{ matrix.modalidade }} com dataFinal=$DATA_FINAL"
 
-          RESPONSE=$(curl -s \
-            -H "Accept: application/json" \
-            "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=1&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
+          PAGINA=1
+          MAX_PAGINAS=20
+          HAS_MORE=true
 
-          echo "Primeiros 200 chars do PNCP: ${RESPONSE:0:200}"
+          while [ "$HAS_MORE" = "true" ] && [ "$PAGINA" -le "$MAX_PAGINAS" ]; do
+            echo "--- Página $PAGINA ---"
 
-          TOTAL=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo "erro ao parsear")
-          echo "Itens recebidos do PNCP: $TOTAL"
+            RESPONSE=$(curl -s \
+              -H "Accept: application/json" \
+              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=${PAGINA}&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
 
-          INGEST=$(curl -s -X POST \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("data",[])))')" \
-            "https://inteligencia-sooty.vercel.app/api/pncp/ingest")
+            echo "Primeiros 200 chars do PNCP: ${RESPONSE:0:200}"
 
-          echo "Resultado ingest: $INGEST"
+            TOTAL=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo 0)
+            echo "Itens recebidos na página $PAGINA: $TOTAL"
+
+            if [ "$TOTAL" = "0" ] || [ "$TOTAL" = "erro ao parsear" ]; then
+              echo "Sem dados, encerrando loop."
+              break
+            fi
+
+            INGEST=$(curl -s -X POST \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              -H "Content-Type: application/json" \
+              -d "$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("data",[])))')" \
+              "https://inteligencia-sooty.vercel.app/api/pncp/ingest")
+
+            echo "Resultado ingest página $PAGINA: $INGEST"
+
+            PAGINAS_RESTANTES=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("paginasRestantes", 0))' 2>/dev/null || echo 0)
+            echo "Páginas restantes: $PAGINAS_RESTANTES"
+
+            if [ "$PAGINAS_RESTANTES" = "0" ] || [ "$PAGINAS_RESTANTES" = "" ]; then
+              HAS_MORE=false
+            fi
+
+            PAGINA=$((PAGINA + 1))
+          done
+
+          echo "Loop encerrado após $((PAGINA - 1)) página(s)."
 
   recalcular-scores:
     runs-on: ubuntu-latest
