@@ -247,7 +247,7 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       const defaultStart = new Date();
-      defaultStart.setDate(defaultStart.getDate() - 30);
+      defaultStart.setDate(defaultStart.getDate() - 7);
 
       const dataInicialDate = lastSyncData?.last_sync ? new Date(lastSyncData.last_sync) : defaultStart;
       dataInicial = formatDateToPNCP(dataInicialDate);
