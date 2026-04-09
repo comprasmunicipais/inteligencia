@@ -9,6 +9,8 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/api/demo') ||
     pathname.startsWith('/api/pncp/sync') ||
+    pathname.startsWith('/api/pncp/ingest') ||
+    pathname.startsWith('/api/pncp/scores') ||
     pathname.startsWith('/api/email/track') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/plans') ||
