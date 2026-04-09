@@ -115,6 +115,7 @@ async function syncOpportunities(
 export async function POST(request: Request) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  console.log('TOKEN_LENGTH:', token?.length, 'SECRET_LENGTH:', process.env.CRON_SECRET?.length);
 
   if (!token || token !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
