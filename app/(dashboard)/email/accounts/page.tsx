@@ -20,6 +20,9 @@ type SendingAccount = {
   last_tested_at: string | null;
   last_test_status: string | null;
   last_test_error: string | null;
+  spf_status: boolean | null;
+  dkim_status: boolean | null;
+  dkim_selector: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -203,19 +206,35 @@ export default function EmailAccountsPage() {
 
   async function handleTestConnection(accountId: string) {
     setTestingId(accountId);
-    const toastId = toast.loading('Testando conexão SMTP...');
+    const toastId = toast.loading('Testando SMTP e DNS...');
     try {
-      const response = await fetch('/api/email/test-connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accountId }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Falha ao testar conexão.');
-      toast.success('Conexão SMTP validada com sucesso!', { id: toastId });
+      const [smtpRes, dnsRes] = await Promise.all([
+        fetch('/api/email/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId }),
+        }),
+        fetch(`/api/email/check-dns?account_id=${accountId}`),
+      ]);
+
+      const smtpResult = await smtpRes.json();
+      if (!smtpRes.ok) throw new Error(smtpResult.error || 'Falha ao testar conexão SMTP.');
+
+      const dnsResult = dnsRes.ok ? await dnsRes.json() : null;
+      const dnsMsg = dnsResult
+        ? dnsResult.spf && dnsResult.dkim
+          ? 'SPF e DKIM OK.'
+          : !dnsResult.spf && !dnsResult.dkim
+          ? 'SPF e DKIM não encontrados.'
+          : !dnsResult.spf
+          ? 'SPF não encontrado.'
+          : 'DKIM não encontrado.'
+        : '';
+
+      toast.success(`SMTP OK. ${dnsMsg}`, { id: toastId });
       await loadAccounts();
     } catch (err: any) {
-      toast.error(err.message || 'Falha ao testar conexão SMTP.', { id: toastId });
+      toast.error(err.message || 'Falha ao testar.', { id: toastId });
       await loadAccounts();
     } finally {
       setTestingId(null);
@@ -300,7 +319,7 @@ export default function EmailAccountsPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">SMTP</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Limites</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Último teste</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Saúde</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Ações</th>
                 </tr>
               </thead>
@@ -333,21 +352,50 @@ export default function EmailAccountsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">
-                      {account.last_test_status === 'success' && (
-                        <div>
-                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">OK</span>
-                          <div className="text-xs text-slate-400 mt-1">{formatTestedAt(account.last_tested_at)}</div>
+                      <div className="flex flex-col gap-1">
+                        {/* SMTP */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-10 text-xs text-slate-400">SMTP</span>
+                          {account.last_test_status === 'success' && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">OK</span>
+                          )}
+                          {account.last_test_status === 'error' && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">Falhou</span>
+                          )}
+                          {!account.last_test_status && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">?</span>
+                          )}
                         </div>
-                      )}
-                      {account.last_test_status === 'error' && (
-                        <div>
-                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">Falhou</span>
-                          <div className="text-xs text-slate-400 mt-1">{formatTestedAt(account.last_tested_at)}</div>
+                        {/* SPF */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-10 text-xs text-slate-400">SPF</span>
+                          {account.spf_status === true && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">OK</span>
+                          )}
+                          {account.spf_status === false && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">Ausente</span>
+                          )}
+                          {account.spf_status === null && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">?</span>
+                          )}
                         </div>
-                      )}
-                      {!account.last_test_status && (
-                        <span className="text-xs text-slate-400">Não testado</span>
-                      )}
+                        {/* DKIM */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-10 text-xs text-slate-400">DKIM</span>
+                          {account.dkim_status === true && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700" title={account.dkim_selector ? `selector: ${account.dkim_selector}` : undefined}>OK</span>
+                          )}
+                          {account.dkim_status === false && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">Ausente</span>
+                          )}
+                          {account.dkim_status === null && (
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">?</span>
+                          )}
+                        </div>
+                        {account.last_tested_at && (
+                          <div className="text-xs text-slate-400 mt-0.5">{formatTestedAt(account.last_tested_at)}</div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-sm">
                       <div className="flex items-center gap-2">
@@ -460,6 +508,47 @@ export default function EmailAccountsPage() {
                   </label>
                 </div>
               </div>
+
+              {/* DNS status section — only when editing */}
+              {isEditing && editingAccount && (
+                <div className="md:col-span-2 mt-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-700">Configuração DNS</h3>
+                  <div className="mb-3 flex flex-wrap gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">SPF</span>
+                      {editingAccount.spf_status === true && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Configurado</span>}
+                      {editingAccount.spf_status === false && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Não encontrado</span>}
+                      {editingAccount.spf_status === null && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Não verificado</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">DKIM</span>
+                      {editingAccount.dkim_status === true && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Configurado {editingAccount.dkim_selector ? `(selector: ${editingAccount.dkim_selector})` : ''}</span>}
+                      {editingAccount.dkim_status === false && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Não encontrado</span>}
+                      {editingAccount.dkim_status === null && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Não verificado</span>}
+                    </div>
+                  </div>
+                  {(editingAccount.spf_status === false || editingAccount.dkim_status === false) && (
+                    <div className="space-y-2 text-xs text-slate-600">
+                      {editingAccount.spf_status === false && (
+                        <div>
+                          <p className="font-medium text-slate-700">Como configurar SPF:</p>
+                          <p>Adicione um registro <code className="rounded bg-slate-200 px-1">TXT</code> no DNS do domínio <strong>{editingAccount.sender_email.split('@')[1]}</strong>:</p>
+                          <code className="mt-1 block rounded bg-slate-200 px-2 py-1 font-mono">v=spf1 include:meuprovedor.com.br ~all</code>
+                          <p className="mt-1 text-slate-500">Substitua pelo include correto do seu provedor SMTP.</p>
+                        </div>
+                      )}
+                      {editingAccount.dkim_status === false && (
+                        <div className="mt-2">
+                          <p className="font-medium text-slate-700">Como configurar DKIM:</p>
+                          <p>Acesse o painel do seu provedor de e-mail, copie a chave pública DKIM e adicione:</p>
+                          <code className="mt-1 block rounded bg-slate-200 px-2 py-1 font-mono">TXT default._domainkey.{editingAccount.sender_email.split('@')[1]}</code>
+                          <p className="mt-1 text-slate-500">O valor será fornecido pelo seu provedor. Clique em &ldquo;Testar&rdquo; para verificar após configurar.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-6 flex justify-end gap-3">
                 <button type="button" onClick={closeModal} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">

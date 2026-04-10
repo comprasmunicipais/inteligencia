@@ -101,6 +101,8 @@ type SendingAccount = {
   daily_limit: number;
   is_active: boolean;
   last_test_status: string | null;
+  spf_status: boolean | null;
+  dkim_status: boolean | null;
 };
 
 type SendResult = {
@@ -1044,6 +1046,19 @@ function SendStep({
               </option>
             ))}
           </select>
+        )}
+
+        {/* SPF/DKIM warning */}
+        {selected && (selected.spf_status === false || selected.dkim_status === false) && (
+          <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <p className="text-sm text-amber-800">
+              <strong>Atenção:</strong> o domínio desta conta não possui{' '}
+              {[selected.spf_status === false && 'SPF', selected.dkim_status === false && 'DKIM'].filter(Boolean).join(' e ')}{' '}
+              configurados. Isso pode reduzir a entregabilidade dos seus e-mails.{' '}
+              <a href="/email/accounts" className="font-medium underline">Configurar agora</a>
+            </p>
+          </div>
         )}
 
         {/* Account detail card */}
