@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Mail, Plus, Search, Filter, X } from 'lucide-react';
+import { Mail, Plus, Search, MoreVertical, Pencil, Copy, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCompany } from '@/components/providers/CompanyProvider';
 import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
-type CampaignStatus = 'Rascunho' | 'Ativa';
+type CampaignStatus = 'Rascunho' | 'Agendada' | 'Ativa' | 'Enviada' | 'Pausada';
 
 type CampaignObjective =
   | 'Prospecção'
@@ -23,9 +23,45 @@ type Campaign = {
   objective: CampaignObjective;
   status: CampaignStatus;
   description: string | null;
+  sent_count: number | null;
+  sent_at: string | null;
+  subject: string | null;
+  preheader: string | null;
+  html_content: string | null;
+  text_content: string | null;
+  audience_filters: unknown;
   created_at: string;
   updated_at: string;
 };
+
+const STATUS_CONFIG: Record<CampaignStatus, { label: string; className: string }> = {
+  Rascunho: { label: 'Rascunho', className: 'bg-slate-100 text-slate-600' },
+  Agendada: { label: 'Agendada', className: 'bg-amber-100 text-amber-700' },
+  Ativa:    { label: 'Ativa',    className: 'bg-green-100 text-green-700' },
+  Enviada:  { label: 'Enviada',  className: 'bg-blue-100 text-blue-700' },
+  Pausada:  { label: 'Pausada',  className: 'bg-orange-100 text-orange-700' },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status as CampaignStatus] ?? STATUS_CONFIG.Rascunho;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+const STATUS_FILTER_OPTIONS = ['Todos', 'Rascunho', 'Agendada', 'Ativa', 'Enviada', 'Pausada'] as const;
+type StatusFilterOption = typeof STATUS_FILTER_OPTIONS[number];
 
 export default function EmailCampaignsPage() {
   const supabase = createClient();
@@ -35,9 +71,12 @@ export default function EmailCampaignsPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterOption>('Todos');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -46,36 +85,29 @@ export default function EmailCampaignsPage() {
     description: '',
   });
 
+  // Close dropdown when clicking anywhere outside
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => setOpenMenuId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMenuId]);
+
   const resetForm = () => {
-    setFormData({
-      name: '',
-      objective: '',
-      status: 'Rascunho',
-      description: '',
-    });
+    setFormData({ name: '', objective: '', status: 'Rascunho', description: '' });
   };
 
-  const handleOpenCreateModal = () => {
-    resetForm();
-    setIsCreateModalOpen(true);
-  };
-
-  const handleCloseCreateModal = () => {
-    setIsCreateModalOpen(false);
-    resetForm();
-  };
+  const handleOpenCreateModal = () => { resetForm(); setIsCreateModalOpen(true); };
+  const handleCloseCreateModal = () => { setIsCreateModalOpen(false); resetForm(); };
 
   const loadCampaigns = async () => {
     try {
       setIsLoading(true);
-
       const { data, error } = await supabase
         .from('email_campaigns')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-
       setCampaigns((data ?? []) as Campaign[]);
     } catch (error) {
       console.error('Erro ao carregar campanhas:', error);
@@ -93,24 +125,12 @@ export default function EmailCampaignsPage() {
     const name = formData.name.trim();
     const description = formData.description.trim();
 
-    if (!name) {
-      toast.error('Preencha o nome da campanha.');
-      return;
-    }
-
-    if (!formData.objective) {
-      toast.error('Selecione o objetivo da campanha.');
-      return;
-    }
-
-    if (!companyId) {
-      toast.error('Empresa não identificada.');
-      return;
-    }
+    if (!name) { toast.error('Preencha o nome da campanha.'); return; }
+    if (!formData.objective) { toast.error('Selecione o objetivo da campanha.'); return; }
+    if (!companyId) { toast.error('Empresa não identificada.'); return; }
 
     try {
       setIsSaving(true);
-
       const { data, error } = await supabase
         .from('email_campaigns')
         .insert({
@@ -122,9 +142,7 @@ export default function EmailCampaignsPage() {
         })
         .select('*')
         .single();
-
       if (error) throw error;
-
       const created = data as Campaign;
       setCampaigns((prev) => [created, ...prev]);
       toast.success('Campanha criada. Configure o e-mail.');
@@ -138,19 +156,67 @@ export default function EmailCampaignsPage() {
     }
   };
 
+  const handleDuplicate = async (campaign: Campaign) => {
+    if (!companyId) return;
+    try {
+      const { data, error } = await supabase
+        .from('email_campaigns')
+        .insert({
+          company_id: companyId,
+          name: `Cópia de ${campaign.name}`,
+          objective: campaign.objective,
+          status: 'Rascunho',
+          description: campaign.description,
+          subject: campaign.subject,
+          preheader: campaign.preheader,
+          html_content: campaign.html_content,
+          text_content: campaign.text_content,
+          audience_filters: campaign.audience_filters,
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      setCampaigns((prev) => [data as Campaign, ...prev]);
+      toast.success('Campanha duplicada.');
+    } catch {
+      toast.error('Erro ao duplicar campanha.');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteId) return;
+    try {
+      const { error } = await supabase.from('email_campaigns').delete().eq('id', deleteId);
+      if (error) throw error;
+      setCampaigns((prev) => prev.filter((c) => c.id !== deleteId));
+      toast.success('Campanha excluída.');
+    } catch {
+      toast.error('Erro ao excluir campanha.');
+    } finally {
+      setDeleteId(null);
+    }
+  };
+
   const filteredCampaigns = useMemo(() => {
+    let list = campaigns;
+    if (statusFilter !== 'Todos') {
+      list = list.filter((c) => c.status === statusFilter);
+    }
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return campaigns;
-    return campaigns.filter((campaign) =>
-      campaign.name.toLowerCase().includes(term) ||
-      campaign.objective.toLowerCase().includes(term) ||
-      campaign.status.toLowerCase().includes(term) ||
-      (campaign.description ?? '').toLowerCase().includes(term)
-    );
-  }, [campaigns, searchTerm]);
+    if (term) {
+      list = list.filter((c) =>
+        c.name.toLowerCase().includes(term) ||
+        c.objective.toLowerCase().includes(term) ||
+        c.status.toLowerCase().includes(term) ||
+        (c.description ?? '').toLowerCase().includes(term),
+      );
+    }
+    return list;
+  }, [campaigns, searchTerm, statusFilter]);
 
   const activeCampaignsCount = campaigns.filter((c) => c.status === 'Ativa').length;
   const draftCampaignsCount = campaigns.filter((c) => c.status === 'Rascunho').length;
+  const sentCampaignsCount = campaigns.filter((c) => c.status === 'Ativa' || c.status === 'Enviada').length;
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
@@ -162,6 +228,7 @@ export default function EmailCampaignsPage() {
           </p>
         </div>
 
+        {/* KPI cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Campanhas Ativas</p>
@@ -173,7 +240,7 @@ export default function EmailCampaignsPage() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Enviadas</p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">{sentCampaignsCount}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Taxa de Resposta</p>
@@ -182,6 +249,7 @@ export default function EmailCampaignsPage() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          {/* Toolbar */}
           <div className="flex flex-col gap-4 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-1 items-center gap-3">
               <div className="relative w-full max-w-md">
@@ -194,13 +262,6 @@ export default function EmailCampaignsPage() {
                   className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
               </div>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <Filter className="size-4" />
-                Filtrar
-              </button>
             </div>
             <div className="flex items-center gap-3">
               {isReadOnly && (
@@ -218,6 +279,24 @@ export default function EmailCampaignsPage() {
                 Nova Campanha
               </button>
             </div>
+          </div>
+
+          {/* Status filter chips */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-100 px-4 py-3">
+            {STATUS_FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setStatusFilter(opt)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  statusFilter === opt
+                    ? 'bg-[#0f49bd] text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
 
           {isLoading ? (
@@ -241,7 +320,10 @@ export default function EmailCampaignsPage() {
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Campanha</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Objetivo</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Descrição</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Contatos</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Data Envio</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -253,7 +335,63 @@ export default function EmailCampaignsPage() {
                     >
                       <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
-                      <td className="px-4 py-4 text-sm text-slate-600">{campaign.description || '-'}</td>
+                      <td className="px-4 py-4"><StatusBadge status={campaign.status} /></td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{campaign.sent_count ?? 0}</td>
+                      <td className="px-4 py-4 text-sm text-slate-600">{formatDate(campaign.sent_at)}</td>
+                      <td
+                        className="px-4 py-4 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="relative inline-block">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(openMenuId === campaign.id ? null : campaign.id);
+                            }}
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                          >
+                            <MoreVertical className="size-4" />
+                          </button>
+                          {openMenuId === campaign.id && (
+                            <div
+                              className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  router.push(`/email/campaigns/${campaign.id}`);
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                              >
+                                <Pencil className="size-4" /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  handleDuplicate(campaign);
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                              >
+                                <Copy className="size-4" /> Duplicar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  setDeleteId(campaign.id);
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="size-4" /> Excluir
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -263,6 +401,7 @@ export default function EmailCampaignsPage() {
         </div>
       </div>
 
+      {/* Create modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
@@ -307,7 +446,6 @@ export default function EmailCampaignsPage() {
                 </select>
               </div>
 
-
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">Descrição</label>
                 <textarea
@@ -335,6 +473,36 @@ export default function EmailCampaignsPage() {
                 className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? 'Salvando...' : 'Criar Campanha'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+            <div className="px-6 py-6">
+              <h2 className="text-lg font-semibold text-slate-900">Excluir campanha</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Esta ação não pode ser desfeita. Todos os dados da campanha serão removidos.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setDeleteId(null)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+              >
+                Excluir
               </button>
             </div>
           </div>
