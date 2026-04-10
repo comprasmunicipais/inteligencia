@@ -603,6 +603,26 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 
 ## Changelog
 
+### Sessão 2026-04-10
+
+- **Rastreamento de abertura e cliques por contato** — painel de detalhes em Estatísticas (`app/(dashboard)/email/estatisticas/page.tsx`): botão "Ver detalhes" abre tabela com todos os eventos `open`/`click` por e-mail, link clicado e data/hora; API `GET /api/email/tracking-stats?campaign_id=` retorna eventos individuais da `email_events`
+- **Filtro de Região em Audiências e Campanhas** — `app/(dashboard)/email/audiences/page.tsx` e `app/(dashboard)/email/campaigns/[id]/page.tsx`: select com Norte, Nordeste, Centro-Oeste, Sudeste, Sul antes do filtro de Estado; limpa Estado ao trocar região; backend aplica `.in('state_source', states)` quando `region` é passado sem `state`
+- **Filtro de Departamento sincronizado** — `DEPARTMENT_OPTIONS` atualizado nas duas telas com opções completas: Saúde, Educação, Compras / Licitação, Administração, Financeiro, Obras, Prefeito, Institucional
+- **Melhoria no prompt de geração de proposta** (`app/api/intel/generate-proposal/route.ts`): `maxOutputTokens` 4096; linguagem formal Lei 14.133/2021; seção 4 de qualificação técnica argumentativa; seção 5 com valor unitário/total, prazo e condições de pagamento; fetch do edital via `official_url` (strip HTML, 3000 chars, `AbortSignal.timeout(10000)`, falha silenciosa)
+- **Fix: rotas de cron adicionadas à lista pública do middleware** — `middleware.ts`: `/api/email/queue/process`, `/api/cron/trial-expiring`, `/api/pncp/scrape`, `/api/pncp/scores` adicionados ao bypass de autenticação
+- **Fix: disparo imediato de emails** (`app/api/email/campaigns/[id]/send/route.ts`): após inserir jobs na fila, dispara `fetch` fire-and-forget para `/api/email/queue/process` com `Authorization: Bearer CRON_SECRET`; cron ajustado para plano Hobby (`0 6 * * *` em `vercel.json`)
+- **Fix: runtime nodejs no processador de fila** (`app/api/email/queue/process/route.ts`): adicionados `export const runtime = 'nodejs'` e `export const dynamic = 'force-dynamic'` — sem isso o Vercel executava como Edge Function e nodemailer falhava
+- **Fix: filtros de região e departamento na rota de disparo** (`app/api/email/campaigns/[id]/send/route.ts`): query de disparo alinhada com preview — filtros diretos, ordenação consistente
+- **Fix: constraint `internal_status` atualizado** — migration `supabase/migrations/20260410_add_expired_to_internal_status_check.sql`: `'expired'` adicionado ao CHECK; resolvia PATCH 400 no `archiveExpiredOpportunities` do sync PNCP
+- **Validação SPF/DKIM nas contas de envio** — novo endpoint `GET /api/email/check-dns`; coluna "Saúde" na listagem de contas (`app/(dashboard)/email/accounts/page.tsx`) com badges SPF/DKIM; alerta no passo de disparo de campanha; fix no SELECT das rotas GET e PATCH de `sending-accounts` para incluir `spf_status`, `dkim_status`, `dkim_selector`
+- **Melhorias na listagem de campanhas** — exibe status, contagem de contatos, data de envio, ações e filtro por status
+- **Campo Anotações em contatos** — migration `supabase/migrations/20260410_add_notes_to_contacts.sql`: `ADD COLUMN notes text NULL`; campo adicionado nos modais de criar e editar em `contacts/page.tsx` e `accounts/[id]/page.tsx`; exibido nos cards de contato com `line-clamp-2`
+- **Fix: mapper de contatos** (`lib/mappers/contacts.ts`): campo `notes` adicionado ao mapper — sem isso era descartado silenciosamente antes de chegar à UI
+- **Fix: `.limit(6000)` nas queries de prefeituras** — aplicado em `lib/services/municipalities.ts` (`getAllForSelect`) e diretamente em `email/audiences/page.tsx` e `email/campaigns/[id]/page.tsx`; ordenação padronizada para `.order('city', { ascending: true })`
+- **Fix: `max_rows` do Supabase ajustado para 10000** via SQL no dashboard (`ALTER ROLE authenticator SET pgrst.db_max_rows = '10000'` + `NOTIFY pgrst, 'reload config'`)
+- **Gmail cadastrado como conta de envio SMTP** — `smtp.gmail.com` porta 587 (STARTTLS); requer senha de app do Google
+- **Webhook GitHub/Vercel recriado manualmente** — deploy automático restaurado via Settings → Git → Deploy Hooks no painel Vercel
+
 ### Sessão 2026-04-09
 
 - **Rastreamento de abertura e cliques por contato** — painel de detalhes em Estatísticas (`app/(dashboard)/email/estatisticas/page.tsx`): botão "Ver detalhes" abre tabela com todos os eventos `open`/`click` por e-mail, link clicado e data/hora; API `GET /api/email/tracking-stats?campaign_id=` retorna eventos individuais da `email_events`
