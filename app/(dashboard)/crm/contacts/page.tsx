@@ -338,6 +338,12 @@ export default function ContactsPage() {
                         <span>{contact.whatsapp}</span>
                       </div>
                     )}
+                    {contact.notes && (
+                      <div className="flex items-start gap-3 text-sm text-gray-600">
+                        <FileText className="size-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <span className="line-clamp-2">{contact.notes}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between">
