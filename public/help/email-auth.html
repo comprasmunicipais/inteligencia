@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autenticacao de E-mail — Central de Ajuda | CM Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue-900: #0a1628;
+      --blue-800: #0f2240;
+      --blue-700: #153060;
+      --blue-600: #1a3d7a;
+      --blue-500: #1d4ed8;
+      --blue-400: #3b82f6;
+      --blue-300: #93c5fd;
+      --blue-100: #dbeafe;
+      --blue-50:  #eff6ff;
+      --green-600: #16a34a;
+      --green-500: #22c55e;
+      --green-100: #dcfce7;
+      --amber-500: #f59e0b;
+      --amber-100: #fef3c7;
+      --red-500: #ef4444;
+      --red-100: #fee2e2;
+      --gray-900: #111827;
+      --gray-700: #374151;
+      --gray-500: #6b7280;
+      --gray-300: #d1d5db;
+      --gray-100: #f3f4f6;
+      --gray-50:  #f9fafb;
+      --white: #ffffff;
+      --font: 'Sora', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--gray-50);
+      color: var(--gray-900);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--blue-900);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-icon { width: 32px; height: 32px; background: var(--blue-500); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg { width: 18px; height: 18px; fill: white; }
+    .logo-text { font-size: 1rem; font-weight: 700; color: var(--white); letter-spacing: -0.02em; }
+    .logo-badge { font-size: 0.6rem; font-weight: 600; color: var(--blue-300); background: rgba(59,130,246,0.18); border: 1px solid rgba(93,165,246,0.25); padding: 2px 7px; border-radius: 20px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .header-back { font-size: 0.8rem; color: var(--blue-300); text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+    .header-back:hover { color: white; }
+    .header-back svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
+
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, var(--blue-900) 0%, var(--blue-700) 60%, var(--blue-600) 100%);
+      padding: 3.5rem 2rem 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle at 80% 50%, rgba(59,130,246,0.15) 0%, transparent 60%), radial-gradient(circle at 20% 80%, rgba(29,78,216,0.2) 0%, transparent 50%);
+    }
+    .hero-inner { max-width: 860px; margin: 0 auto; position: relative; }
+    .hero-breadcrumb { font-size: 0.75rem; color: var(--blue-300); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+    .hero-breadcrumb span { opacity: 0.5; }
+    .hero h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; color: var(--white); line-height: 1.2; letter-spacing: -0.03em; margin-bottom: 0.9rem; }
+    .hero h1 em { font-style: normal; color: var(--blue-300); }
+    .hero p { font-size: 0.95rem; color: rgba(255,255,255,0.72); max-width: 620px; line-height: 1.7; }
+    .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1.5rem; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; }
+    .chip-blue { background: rgba(59,130,246,0.2); color: var(--blue-300); border: 1px solid rgba(59,130,246,0.3); }
+    .chip-green { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
+    .chip-amber { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
+
+    /* LAYOUT */
+    .page-wrapper { max-width: 860px; margin: 0 auto; padding: 2.5rem 2rem 5rem; }
+
+    /* FLOW BANNER */
+    .flow-banner {
+      background: white;
+      border: 1px solid var(--gray-300);
+      border-radius: 14px;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .flow-banner h3 { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-500); margin-bottom: 1rem; }
+    .flow-steps { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+    .flow-step { display: flex; align-items: center; gap: 8px; }
+    .flow-arrow { color: var(--gray-300); font-size: 1rem; margin: 0 6px; }
+    .flow-num { width: 26px; height: 26px; border-radius: 50%; background: var(--blue-500); color: white; font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .flow-step-label { font-size: 0.82rem; font-weight: 600; color: var(--gray-700); }
+    .flow-step-sub { font-size: 0.72rem; color: var(--gray-500); }
+
+    /* SECTION HEADERS */
+    .section-heading { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; padding-top: 1rem; }
+    .section-num { width: 38px; height: 38px; background: var(--blue-500); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 800; color: white; flex-shrink: 0; margin-top: 2px; }
+    .section-heading-text h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--gray-900); margin-bottom: 0.2rem; }
+    .section-heading-text p { font-size: 0.85rem; color: var(--gray-500); }
+
+    /* CARD */
+    .card { background: white; border: 1px solid var(--gray-300); border-radius: 14px; padding: 1.6rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.04); animation: fadeUp 0.35s ease both; }
+
+    /* CALLOUT */
+    .callout { display: flex; gap: 12px; padding: 1rem 1.2rem; border-radius: 10px; margin: 1.2rem 0; font-size: 0.85rem; line-height: 1.6; }
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .callout.info { background: var(--blue-50); border: 1px solid var(--blue-100); color: var(--blue-700); }
+    .callout.warn { background: var(--amber-100); border: 1px solid #fde68a; color: #92400e; }
+    .callout.success { background: var(--green-100); border: 1px solid #bbf7d0; color: #166534; }
+    .callout.danger { background: var(--red-100); border: 1px solid #fecaca; color: #991b1b; }
+
+    /* STEPS */
+    .steps { counter-reset: step; }
+    .step { display: flex; gap: 1rem; margin-bottom: 1.3rem; position: relative; }
+    .step:not(:last-child)::before { content: ''; position: absolute; left: 15px; top: 32px; bottom: -1.3rem; width: 2px; background: var(--gray-300); }
+    .step-bullet { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-50); border: 2px solid var(--blue-500); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: var(--blue-500); flex-shrink: 0; z-index: 1; }
+    .step-content { padding-top: 4px; }
+    .step-content h4 { font-size: 0.9rem; font-weight: 600; color: var(--gray-900); margin-bottom: 0.3rem; }
+    .step-content p { font-size: 0.85rem; color: var(--gray-700); line-height: 1.65; }
+
+    /* CODE BLOCKS */
+    .code-block { background: var(--blue-900); border: 1px solid var(--blue-700); border-radius: 10px; padding: 1rem 1.2rem; margin: 0.8rem 0; position: relative; overflow: hidden; }
+    .code-block::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--blue-500), var(--blue-300)); }
+    .code-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--blue-300); font-family: var(--mono); margin-bottom: 0.5rem; opacity: 0.7; }
+    .code-block code { font-family: var(--mono); font-size: 0.8rem; color: #e2e8f0; word-break: break-all; display: block; line-height: 1.6; }
+    .code-block code .hl { color: #93c5fd; }
+    .code-block code .hl-green { color: #86efac; }
+    .code-block code .hl-amber { color: #fcd34d; }
+
+    /* SELECTOR PILLS */
+    .selector-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.8rem 0; }
+    .selector-pill { font-family: var(--mono); font-size: 0.78rem; background: var(--blue-900); color: var(--blue-300); border: 1px solid var(--blue-700); padding: 4px 10px; border-radius: 6px; }
+
+    /* DNS TABLE */
+    .dns-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0.8rem 0; }
+    .dns-table th { background: var(--gray-100); color: var(--gray-700); font-weight: 600; text-align: left; padding: 0.6rem 0.8rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--gray-300); }
+    .dns-table th:first-child { border-radius: 8px 0 0 0; }
+    .dns-table th:last-child { border-radius: 0 8px 0 0; }
+    .dns-table td { padding: 0.65rem 0.8rem; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); vertical-align: top; }
+    .dns-table td code { font-family: var(--mono); font-size: 0.78rem; background: var(--gray-100); padding: 2px 6px; border-radius: 4px; color: var(--blue-700); word-break: break-all; }
+    .dns-table tr:last-child td { border-bottom: none; }
+
+    /* PROVIDER TABS */
+    .tabs { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--gray-300); background: white; font-family: var(--font); font-size: 0.78rem; font-weight: 600; color: var(--gray-700); cursor: pointer; transition: all 0.15s; }
+    .tab-btn:hover { border-color: var(--blue-400); color: var(--blue-600); }
+    .tab-btn.active { background: var(--blue-500); color: white; border-color: var(--blue-500); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* BADGE */
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border-radius: 20px; margin-left: 8px; vertical-align: middle; }
+    .badge-required { background: #fee2e2; color: #991b1b; }
+    .badge-recommended { background: var(--blue-100); color: var(--blue-700); }
+
+    /* STATUS BADGES */
+    .status-demo { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+    .status-ok { background: var(--green-100); color: var(--green-600); }
+    .status-warn { background: var(--amber-100); color: #92400e; }
+    .status-err { background: var(--red-100); color: #991b1b; }
+
+    /* SECTION SEP */
+    .section-sep { display: flex; align-items: center; gap: 12px; margin: 2.5rem 0 1.5rem; }
+    .section-sep::before, .section-sep::after { content: ''; flex: 1; height: 1px; background: var(--gray-300); }
+    .section-sep span { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gray-500); white-space: nowrap; }
+
+    /* CHECKLIST */
+    .checklist { list-style: none; }
+    .checklist li { display: flex; align-items: flex-start; gap: 10px; padding: 0.6rem 0; font-size: 0.88rem; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
+    .checklist li:last-child { border-bottom: none; }
+    .check-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .check-icon.ok { background: var(--green-100); color: var(--green-500); font-size: 0.7rem; }
+    .check-icon.warn { background: var(--amber-100); color: var(--amber-500); font-size: 0.7rem; }
+
+    /* BUTTONS */
+    .btn-primary { display: inline-flex; align-items: center; gap: 8px; background: var(--blue-500); color: white; border: none; padding: 10px 20px; border-radius: 9px; font-family: var(--font); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background 0.15s, transform 0.1s; }
+    .btn-primary:hover { background: var(--blue-600); }
+    .btn-ghost { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--blue-500); border: 1.5px solid var(--blue-400); padding: 9px 18px; border-radius: 9px; font-family: var(--font); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.15s; }
+    .btn-ghost:hover { background: var(--blue-50); }
+
+    /* FINAL CTA */
+    .final-cta { background: linear-gradient(135deg, var(--blue-900), var(--blue-700)); border-radius: 16px; padding: 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin-top: 2.5rem; }
+    .final-cta-text h3 { font-size: 1.1rem; font-weight: 700; color: white; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+    .final-cta-text p { font-size: 0.83rem; color: rgba(255,255,255,0.65); }
+    .final-cta-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    /* DIVIDER */
+    .divider { height: 1px; background: var(--gray-300); margin: 1.5rem 0; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 640px) {
+      .flow-steps { gap: 8px; }
+      .flow-arrow { display: none; }
+      .dns-table { font-size: 0.75rem; }
+      .dns-table td, .dns-table th { padding: 0.5rem; }
+      .final-cta { text-align: center; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="#" class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <span class="logo-text">CM Pro</span>
+    <span class="logo-badge">Central de Ajuda</span>
+  </a>
+  <a href="/dashboard" class="header-back">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Voltar ao painel
+  </a>
+</header>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-breadcrumb">
+      Central de Ajuda <span>›</span> E-mail Marketing <span>›</span> Autenticacao de Dominio
+    </div>
+    <h1>Configure SPF, DKIM e DMARC<br>e <em>garanta a entregabilidade</em> das suas campanhas</h1>
+    <p>O CM Pro usa o seu proprio servidor SMTP para disparar campanhas. Esses registros DNS provam para o Gmail, Outlook e Yahoo que voce e o remetente legitimo, evitando spam e bloqueios.</p>
+    <div class="hero-chips">
+      <span class="chip chip-blue">15 min para configurar</span>
+      <span class="chip chip-green">Obrigatorio para disparos em massa</span>
+      <span class="chip chip-amber">Propagacao em ate 48h</span>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrapper">
+
+  <!-- FLUXO GERAL -->
+  <div class="flow-banner">
+    <h3>Como funciona no CM Pro</h3>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div>
+          <div class="flow-step-label">Configure o DNS</div>
+          <div class="flow-step-sub">SPF, DKIM e DMARC</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div>
+          <div class="flow-step-label">Cadastre a conta SMTP</div>
+          <div class="flow-step-sub">Em E-mail > Contas de envio</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div>
+          <div class="flow-step-label">Clique em "Testar"</div>
+          <div class="flow-step-sub">SMTP + SPF + DKIM automatico</div>
+        </div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div>
+          <div class="flow-step-label">Badges verdes</div>
+          <div class="flow-step-sub">Campanha liberada</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <span class="callout-icon">ℹ️</span>
+    <div>
+      <strong>O CM Pro usa o seu proprio SMTP.</strong> Ao contrario de plataformas que possuem servidor proprio, aqui voce cadastra suas credenciais (Google Workspace, Microsoft 365, Locaweb, etc.). Por isso, o SPF e o DKIM precisam estar configurados no dominio do qual esse SMTP faz parte.
+    </div>
+  </div>
+
+  <!-- SECAO 1: SPF -->
+  <div class="section-heading">
+    <div class="section-num">1</div>
+    <div class="section-heading-text">
+      <h2>Registro SPF <span class="badge badge-required">Obrigatorio</span></h2>
+      <p>Autoriza quais servidores podem enviar e-mails pelo seu dominio</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:0.88rem;color:var(--gray-700);margin-bottom:1rem;">
+      O <strong>SPF (Sender Policy Framework)</strong> e um registro TXT no DNS que lista quais servidores de e-mail estao autorizados a enviar mensagens em nome do seu dominio. O CM Pro verifica se o registro SPF existe e e valido no dominio da conta cadastrada.
+    </p>
+
+    <div class="callout warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Regra critica:</strong> seu dominio so pode ter <strong>um unico registro SPF</strong>. Se ja existir um comecar com <code style="font-family:var(--mono);font-size:0.82rem;">v=spf1</code>, edite-o em vez de criar outro. Dois registros SPF se anulam.</div>
+    </div>
+
+    <h3 style="font-size:0.95rem;font-weight:700;margin:1.2rem 0 0.8rem;">Passo a passo</h3>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-bullet">1</div>
+        <div class="step-content">
+          <h4>Acesse o painel DNS do seu dominio</h4>
+          <p>Faca login no provedor onde seu dominio esta registrado (Locaweb, Registro.br, Cloudflare, GoDaddy, etc.) e abra as configuracoes de DNS.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-bullet">2</div>
+        <div class="step-content">
+          <h4>Verifique se ja existe um registro SPF</h4>
+          <p>Procure por registros do tipo <strong>TXT</strong> na raiz do dominio (<code style="font-family:var(--mono);font-size:0.8rem;background:var(--gray-100);padding:1px 5px;border-radius:4px;">@</code>). Se encontrar um valor comecando com <code style="font-family:var(--mono);font-size:0.8rem;background:var(--gray-100);padding:1px 5px;border-radius:4px;">v=spf1</code>, edite esse registro.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-bullet">3</div>
+        <div class="step-content">
+          <h4>Adicione ou edite o registro SPF</h4>
+          <p>O valor correto depende do provedor de e-mail que voce usa. Selecione abaixo:</p>
+
+          <div class="tabs" style="margin-top:0.8rem;">
+            <button class="tab-btn active" onclick="switchTab(this,'spf')">Google Workspace</button>
+            <button class="tab-btn" onclick="switchTab(this,'spf')">Microsoft 365</button>
+            <button class="tab-btn" onclick="switchTab(this,'spf')">Locaweb</button>
+            <button class="tab-btn" onclick="switchTab(this,'spf')">Outro</button>
+          </div>
+
+          <div class="tab-panel active">
+            <div class="code-block">
+              <div class="code-label">TXT — Google Workspace</div>
+              <code>v=spf1 <span class="hl">include:_spf.google.com</span> ~all</code>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <div class="code-block">
+              <div class="code-label">TXT — Microsoft 365</div>
+              <code>v=spf1 <span class="hl">include:spf.protection.outlook.com</span> ~all</code>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <div class="code-block">
+              <div class="code-label">TXT — Locaweb</div>
+              <code>v=spf1 <span class="hl">include:spf.locaweb.com.br</span> ~all</code>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <div class="code-block">
+              <div class="code-label">TXT — Generico</div>
+              <code>v=spf1 <span class="hl">include:VALOR-DO-SEU-PROVEDOR</span> ~all</code>
+            </div>
+            <p style="font-size:0.82rem;color:var(--gray-500);margin-top:0.5rem;">Consulte a documentacao do seu provedor de e-mail para obter o valor correto do <code style="font-family:var(--mono);font-size:0.78rem;">include:</code>.</p>
+          </div>
+
+          <p style="font-size:0.82rem;color:var(--gray-500);margin-top:0.8rem;">Se voce usa <strong>mais de um provedor</strong>, inclua todos no mesmo registro:</p>
+          <div class="code-block">
+            <div class="code-label">Multiplos provedores</div>
+            <code>v=spf1 <span class="hl">include:_spf.google.com</span> <span class="hl-green">include:spf.protection.outlook.com</span> ~all</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">4</div>
+        <div class="step-content">
+          <h4>Configure os campos no painel DNS</h4>
+          <table class="dns-table">
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody>
+              <tr><td>Tipo</td><td><code>TXT</code></td></tr>
+              <tr><td>Nome / Host</td><td><code>@</code> (ou deixe em branco)</td></tr>
+              <tr><td>Valor / Conteudo</td><td><code>v=spf1 include:SEU-PROVEDOR ~all</code></td></tr>
+              <tr><td>TTL</td><td><code>3600</code> (1 hora) ou o padrao do provedor</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">5</div>
+        <div class="step-content">
+          <h4>Salve e aguarde a propagacao</h4>
+          <p>Alteracoes de DNS levam entre <strong>30 minutos e 48 horas</strong> para propagar globalmente.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <span class="callout-icon">✅</span>
+      <div>O <code style="font-family:var(--mono);font-size:0.82rem;">~all</code> no final significa "softfail": e-mails de servidores nao listados ainda chegam ao destinatario, mas sinalizados como suspeitos. E o recomendado durante a configuracao inicial. Nao use <code style="font-family:var(--mono);font-size:0.82rem;">-all</code> (rejeicao total) a menos que tenha certeza absoluta sobre todos os servidores que disparam em nome do seu dominio.</div>
+    </div>
+  </div>
+
+  <!-- SECAO 2: DKIM -->
+  <div class="section-sep"><span>Proximo passo</span></div>
+
+  <div class="section-heading">
+    <div class="section-num">2</div>
+    <div class="section-heading-text">
+      <h2>Registro DKIM <span class="badge badge-required">Obrigatorio</span></h2>
+      <p>Assina digitalmente cada e-mail enviado, comprovando autenticidade</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:0.88rem;color:var(--gray-700);margin-bottom:1rem;">
+      O <strong>DKIM (DomainKeys Identified Mail)</strong> usa criptografia de chave publica para assinar seus e-mails. O servidor destinatario consulta o registro DKIM no seu DNS para verificar que o e-mail nao foi alterado em transito.
+    </p>
+
+    <div class="callout info">
+      <span class="callout-icon">ℹ️</span>
+      <div>
+        <strong>Deteccao automatica de seletor.</strong> O CM Pro tenta os seletores DKIM mais comuns automaticamente ao clicar em "Testar". Voce nao precisa informar o seletor manualmente. Os seletores verificados sao:
+        <div class="selector-list" style="margin-top:0.8rem;">
+          <span class="selector-pill">default</span>
+          <span class="selector-pill">mail</span>
+          <span class="selector-pill">smtp</span>
+          <span class="selector-pill">s1</span>
+          <span class="selector-pill">s2</span>
+          <span class="selector-pill">google</span>
+          <span class="selector-pill">locaweb</span>
+        </div>
+        <p style="margin-top:0.6rem;font-size:0.82rem;">Se o seletor do seu provedor nao estiver nessa lista, o check retornara negativo mesmo com DKIM configurado corretamente. Nesse caso, entre em contato com o suporte informando o nome do seletor.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:0.95rem;font-weight:700;margin:1.2rem 0 0.8rem;">Passo a passo</h3>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-bullet">1</div>
+        <div class="step-content">
+          <h4>Gere as chaves DKIM no seu provedor de e-mail</h4>
+
+          <div class="tabs" style="margin-top:0.8rem;">
+            <button class="tab-btn active" onclick="switchTab(this,'dkim')">Google Workspace</button>
+            <button class="tab-btn" onclick="switchTab(this,'dkim')">Microsoft 365</button>
+            <button class="tab-btn" onclick="switchTab(this,'dkim')">Locaweb</button>
+            <button class="tab-btn" onclick="switchTab(this,'dkim')">Outro Provedor</button>
+          </div>
+
+          <div class="tab-panel active">
+            <ol style="font-size:0.84rem;color:var(--gray-700);padding-left:1.2rem;line-height:2.1;">
+              <li>Acesse o <strong>Google Admin Console</strong> (admin.google.com)</li>
+              <li>Va em <strong>Apps → Google Workspace → Gmail</strong></li>
+              <li>Clique em <strong>Autenticar e-mail</strong></li>
+              <li>Selecione seu dominio e clique em <strong>Gerar novo registro</strong></li>
+              <li>Copie o <strong>Nome do host DNS</strong> (ex: <code style="font-family:var(--mono);font-size:0.78rem;">google._domainkey</code>) e o <strong>Valor TXT</strong></li>
+              <li>Apos adicionar no DNS, retorne aqui e clique em <strong>Iniciar autenticacao</strong></li>
+            </ol>
+            <div class="callout info" style="margin-top:0.8rem;">
+              <span class="callout-icon">ℹ️</span>
+              <div>O Google Workspace usa o seletor <code style="font-family:var(--mono);font-size:0.8rem;">google</code>, que ja e verificado automaticamente pelo CM Pro.</div>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <ol style="font-size:0.84rem;color:var(--gray-700);padding-left:1.2rem;line-height:2.1;">
+              <li>Acesse o <strong>Centro de administracao do Microsoft 365</strong></li>
+              <li>Va em <strong>Configuracoes → Dominios</strong> e selecione seu dominio</li>
+              <li>Acesse a aba <strong>DNS records</strong> e procure a entrada DKIM</li>
+              <li>Ou va em <strong>Exchange Online → Protecao → DKIM</strong></li>
+              <li>Clique em <strong>Ativar</strong> e copie os registros CNAME ou TXT gerados</li>
+            </ol>
+            <div class="callout warn" style="margin-top:0.8rem;">
+              <span class="callout-icon">⚠️</span>
+              <div>O Microsoft 365 pode usar seletores como <code style="font-family:var(--mono);font-size:0.8rem;">selector1</code> ou <code style="font-family:var(--mono);font-size:0.8rem;">selector2</code>, que <strong>nao estao na lista de deteccao automatica</strong> do CM Pro. Se o badge DKIM ficar negativo, informe o suporte com o seletor exato.</div>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <ol style="font-size:0.84rem;color:var(--gray-700);padding-left:1.2rem;line-height:2.1;">
+              <li>Acesse o <strong>Painel de Controle Locaweb</strong></li>
+              <li>Va em <strong>E-mail → Configuracoes avancadas</strong></li>
+              <li>Procure por <strong>DKIM</strong> ou <strong>DomainKeys</strong> e ative</li>
+              <li>Copie o registro TXT gerado (seletor <code style="font-family:var(--mono);font-size:0.8rem;">locaweb</code>)</li>
+            </ol>
+            <div class="callout success" style="margin-top:0.8rem;">
+              <span class="callout-icon">✅</span>
+              <div>O seletor <code style="font-family:var(--mono);font-size:0.8rem;">locaweb</code> ja e verificado automaticamente pelo CM Pro.</div>
+            </div>
+          </div>
+          <div class="tab-panel">
+            <p style="font-size:0.84rem;color:var(--gray-700);">Acesse as configuracoes de seguranca ou autenticacao de e-mail do seu provedor. Procure por "DKIM", "DomainKeys" ou "Assinatura de dominio". Apos gerar as chaves, anote o nome do seletor utilizado e confira se ele esta na lista de deteccao automatica do CM Pro acima.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">2</div>
+        <div class="step-content">
+          <h4>Adicione o registro DKIM ao DNS do seu dominio</h4>
+          <table class="dns-table" style="margin-bottom:0.8rem;">
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody>
+              <tr><td>Tipo</td><td><code>TXT</code></td></tr>
+              <tr><td>Nome / Host</td><td><code>SELETOR._domainkey</code> (ex: <code>google._domainkey</code>)</td></tr>
+              <tr><td>Valor / Conteudo</td><td><code>v=DKIM1; k=rsa; p=SUA-CHAVE-PUBLICA</code></td></tr>
+              <tr><td>TTL</td><td><code>3600</code></td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            <span class="callout-icon">⚠️</span>
+            <div>Cole o valor da chave <strong>exatamente como gerado</strong>, sem adicionar ou remover espacos. Qualquer alteracao invalida a assinatura.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">3</div>
+        <div class="step-content">
+          <h4>Ative o DKIM no painel do seu provedor</h4>
+          <p>Apos adicionar o registro ao DNS e aguardar a propagacao (ate 48h), retorne ao painel do provedor (ex: Google Admin Console) e clique em <strong>"Iniciar autenticacao"</strong> ou <strong>"Ativar DKIM"</strong>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-block" style="margin-top:1rem;">
+      <div class="code-label">Exemplo de registro DKIM (estrutura)</div>
+      <code><span class="hl">google._domainkey.seudominio.com.br</span> IN TXT<br>"<span class="hl-green">v=DKIM1; k=rsa;</span> <span class="hl-amber">p=MIIBIjAN...SUA-CHAVE...AQUI</span>"</code>
+    </div>
+  </div>
+
+  <!-- SECAO 3: DMARC -->
+  <div class="section-sep"><span>Proximo passo</span></div>
+
+  <div class="section-heading">
+    <div class="section-num">3</div>
+    <div class="section-heading-text">
+      <h2>Registro DMARC <span class="badge badge-required">Obrigatorio</span></h2>
+      <p>Define a politica de tratamento de e-mails que falham na autenticacao</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:0.88rem;color:var(--gray-700);margin-bottom:1rem;">
+      O <strong>DMARC</strong> instrui os servidores destinatarios sobre o que fazer com e-mails que falham nas verificacoes SPF e/ou DKIM. Tambem gera relatorios automaticos sobre o uso do seu dominio.
+    </p>
+
+    <div class="callout danger">
+      <span class="callout-icon">🚨</span>
+      <div>
+        <strong>Obrigatorio para disparos em massa.</strong> Desde fevereiro de 2024, Gmail e Yahoo exigem DMARC para remetentes que enviam mais de 5.000 e-mails/dia. Sem DMARC, suas campanhas serao bloqueadas ou encaminhadas para spam por esses provedores.
+        <br><br>
+        <a href="https://support.google.com/mail/answer/81126" target="_blank" rel="noopener" style="color:#991b1b;font-weight:600;font-size:0.82rem;">Ver requisitos do Google para bulk senders →</a>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <span class="callout-icon">⚠️</span>
+      <div>Configure o DMARC <strong>somente apos</strong> SPF e DKIM estarem ativos ha pelo menos 48 horas. Aplicar antes pode bloquear e-mails legitimos.</div>
+    </div>
+
+    <h3 style="font-size:0.95rem;font-weight:700;margin:1.2rem 0 0.8rem;">Passo a passo</h3>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-bullet">1</div>
+        <div class="step-content">
+          <h4>Crie um e-mail dedicado para relatorios DMARC</h4>
+          <p>Crie uma caixa separada como <code style="font-family:var(--mono);font-size:0.8rem;background:var(--gray-100);padding:1px 5px;border-radius:4px;">dmarc@seudominio.com.br</code> para receber relatorios automaticos enviados pelos provedores. Esses relatorios permitem monitorar tentativas de uso indevido do seu dominio.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">2</div>
+        <div class="step-content">
+          <h4>Adicione o registro DMARC ao DNS</h4>
+          <table class="dns-table" style="margin-bottom:0.8rem;">
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody>
+              <tr><td>Tipo</td><td><code>TXT</code></td></tr>
+              <tr><td>Nome / Host</td><td><code>_dmarc</code></td></tr>
+              <tr><td>Valor</td><td><em>veja abaixo</em></td></tr>
+              <tr><td>TTL</td><td><code>3600</code></td></tr>
+            </tbody>
+          </table>
+
+          <div class="code-block">
+            <div class="code-label">Politica inicial recomendada (monitoramento)</div>
+            <code>v=DMARC1; <span class="hl-amber">p=none</span>; rua=mailto:<span class="hl">dmarc@seudominio.com.br</span></code>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Politica avancada (apos estabilizacao — 30 dias)</div>
+            <code>v=DMARC1; <span class="hl-green">p=quarantine</span>; rua=mailto:<span class="hl">dmarc@seudominio.com.br</span></code>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-bullet">3</div>
+        <div class="step-content">
+          <h4>Evolucao das politicas</h4>
+          <table class="dns-table">
+            <thead><tr><th>Politica</th><th>O que faz</th><th>Quando usar</th></tr></thead>
+            <tbody>
+              <tr><td><code>p=none</code></td><td>Monitora sem bloquear. E-mails chegam normalmente.</td><td>Primeiros 30 dias</td></tr>
+              <tr><td><code>p=quarantine</code></td><td>E-mails suspeitos vao para spam do destinatario.</td><td>Apos confirmar SPF e DKIM OK</td></tr>
+              <tr><td><code>p=reject</code></td><td>E-mails nao autenticados sao rejeitados.</td><td>Protecao maxima (dominios maduros)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECAO 4: VERIFICACAO NO CM PRO -->
+  <div class="section-sep"><span>Verificacao final</span></div>
+
+  <div class="section-heading">
+    <div class="section-num">4</div>
+    <div class="section-heading-text">
+      <h2>Verifique no CM Pro</h2>
+      <p>Cadastre a conta SMTP e execute o teste de saude para confirmar os badges</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="font-size:0.88rem;color:var(--gray-700);margin-bottom:1.2rem;">
+      Apos configurar SPF, DKIM e DMARC no DNS e aguardar a propagacao (ate 48h), faca o teste dentro do CM Pro:
+    </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-bullet">1</div>
+        <div class="step-content">
+          <h4>Acesse E-mail → Contas de envio</h4>
+          <p>No menu lateral do CM Pro, va em <strong>E-mail → Contas de envio</strong> e cadastre ou selecione a conta que deseja testar.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-bullet">2</div>
+        <div class="step-content">
+          <h4>Clique em "Testar" na conta</h4>
+          <p>O sistema executa dois testes em paralelo: conexao SMTP e lookup DNS (SPF + DKIM). Aguarde alguns segundos.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-bullet">3</div>
+        <div class="step-content">
+          <h4>Verifique os badges de saude</h4>
+          <p style="margin-bottom:0.8rem;">Cada conta exibe tres badges na coluna "Saude":</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.8rem;">
+            <span class="status-demo status-ok">SMTP ✓</span>
+            <span class="status-demo status-ok">SPF ✓</span>
+            <span class="status-demo status-ok">DKIM ✓</span>
+          </div>
+          <p style="font-size:0.82rem;color:var(--gray-500);">Se algum badge aparecer como negativo apos a propagacao do DNS, confira a secao de problemas comuns abaixo.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-bullet">4</div>
+        <div class="step-content">
+          <h4>Alerta no passo 4 da campanha</h4>
+          <p>Se a conta selecionada em uma campanha tiver SPF ou DKIM negativos, o CM Pro exibe um alerta amarelo no passo 4 antes do disparo. Resolva as pendencias antes de continuar.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:0.8rem;">Ferramentas externas de verificacao (opcional)</h3>
+    <ul class="checklist">
+      <li>
+        <div class="check-icon ok">→</div>
+        <div><strong>MXToolbox</strong> — mxtoolbox.com/SuperTool.aspx<br><span style="font-size:0.8rem;color:var(--gray-500);">Verifica SPF, DKIM e DMARC. Pesquise "SPF:" + seu dominio.</span></div>
+      </li>
+      <li>
+        <div class="check-icon ok">→</div>
+        <div><strong>Google Admin Toolbox</strong> — toolbox.googleapps.com/apps/checkmx<br><span style="font-size:0.8rem;color:var(--gray-500);">Ferramenta oficial do Google para checar configuracoes de e-mail.</span></div>
+      </li>
+      <li>
+        <div class="check-icon ok">→</div>
+        <div><strong>Mail Tester</strong> — mail-tester.com<br><span style="font-size:0.8rem;color:var(--gray-500);">Envie um e-mail de teste e receba uma pontuacao completa de entregabilidade.</span></div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- TROUBLESHOOTING -->
+  <div class="card" style="border-left: 3px solid var(--amber-500);">
+    <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:8px;">
+      <span>⚠️</span> Problemas comuns e solucoes
+    </h3>
+    <ul class="checklist">
+      <li>
+        <div class="check-icon warn">!</div>
+        <div>
+          <strong>Badge SPF negativo mesmo com registro configurado</strong><br>
+          <span style="font-size:0.82rem;color:var(--gray-600);">Verifique se existe apenas um registro SPF no dominio. Dois registros se anulam. Use o MXToolbox para confirmar o conteudo exato publicado.</span>
+        </div>
+      </li>
+      <li>
+        <div class="check-icon warn">!</div>
+        <div>
+          <strong>Badge DKIM negativo mesmo com DKIM configurado no provedor</strong><br>
+          <span style="font-size:0.82rem;color:var(--gray-600);">O seletor do seu provedor pode nao estar na lista de deteccao automatica do CM Pro. Seletores verificados: <code style="font-family:var(--mono);font-size:0.78rem;">default, mail, smtp, s1, s2, google, locaweb</code>. Se o seu provedor usa outro seletor (ex: <code style="font-family:var(--mono);font-size:0.78rem;">selector1</code> do Microsoft 365), entre em contato com o suporte informando o seletor correto.</span>
+        </div>
+      </li>
+      <li>
+        <div class="check-icon warn">!</div>
+        <div>
+          <strong>Registro ainda nao propagou</strong><br>
+          <span style="font-size:0.82rem;color:var(--gray-600);">Aguarde ate 48 horas apos salvar o registro DNS. Voce pode checar a propagacao com o comando <code style="font-family:var(--mono);font-size:0.78rem;">nslookup -type=TXT seudominio.com.br</code> no terminal.</span>
+        </div>
+      </li>
+      <li>
+        <div class="check-icon warn">!</div>
+        <div>
+          <strong>E-mails ainda vao para spam apos configurar tudo</strong><br>
+          <span style="font-size:0.82rem;color:var(--gray-600);">SPF, DKIM e DMARC sao necessarios, mas nao suficientes. E preciso tambem fazer o aquecimento gradual do dominio (warm-up) e manter boa reputacao de envio — sem altas taxas de rejeicao ou spam. Consulte nosso guia de aquecimento de dominio.</span>
+        </div>
+      </li>
+      <li>
+        <div class="check-icon warn">!</div>
+        <div>
+          <strong>Meu provedor de e-mail nao tem painel DKIM</strong><br>
+          <span style="font-size:0.82rem;color:var(--gray-600);">Planos basicos de hospedagem podem nao oferecer DKIM. Nesse caso, considere migrar para um plano que suporte ou usar um servico transacional como Brevo ou SendGrid, que incluem DKIM proprio.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div class="final-cta">
+    <div class="final-cta-text">
+      <h3>Configuracao concluida?</h3>
+      <p>Cadastre sua conta SMTP no CM Pro, execute o teste e comece a disparar com maxima entregabilidade.</p>
+    </div>
+    <div class="final-cta-btns">
+      <a href="/dashboard/email/accounts" class="btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Ir para Contas de Envio
+      </a>
+      <a href="https://wa.me/551132807010" target="_blank" rel="noopener" class="btn-ghost" style="background:transparent;color:#93c5fd;border-color:rgba(147,197,253,0.4);">
+        Falar com suporte
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(btn, group) {
+    var container = btn.closest('.step-content');
+    var tabs = container.querySelectorAll('.tab-btn');
+    var panels = container.querySelectorAll('.tab-panel');
+    var idx = Array.from(tabs).indexOf(btn);
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    panels.forEach(function(p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    if (panels[idx]) panels[idx].classList.add('active');
+  }
+</script>
+</body>
+</html>
