@@ -503,7 +503,8 @@ function AudienceStep({
           supabase
             .from('municipalities')
             .select('id, city, state')
-            .order('city', { ascending: true }),
+            .order('city', { ascending: true })
+            .limit(6000),
           supabase
             .from('municipalities')
             .select('population_range')

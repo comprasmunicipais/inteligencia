@@ -162,8 +162,8 @@ export default function EmailAudiencesPage() {
         supabase
           .from('municipalities')
           .select('id, city, state')
-          .order('state', { ascending: true })
-          .order('city', { ascending: true }),
+          .order('city', { ascending: true })
+          .limit(6000),
         supabase
           .from('municipalities')
           .select('population_range')
