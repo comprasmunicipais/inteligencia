@@ -7,6 +7,7 @@ import { checkCompanyAccess } from '@/lib/billing-guard';
 // ─────────────────────────────────────────────────────────────────────────────
 
 type AudienceFilters = {
+  region?: string;
   state?: string;
   municipalityId?: string;
   populationRange?: string;
@@ -51,7 +52,27 @@ const DEPARTMENT_RULES = [
     label: 'Financeiro',
     terms: ['sefin', 'financas', 'fazenda', 'financeiro', 'arrecadacao', 'tributos', 'contabilidade', 'tesouraria'],
   },
+  {
+    label: 'Obras',
+    terms: ['obras', 'engenharia', 'infra', 'infraestrutura', 'semob', 'semusp', 'urbanismo', 'seinfra'],
+  },
+  {
+    label: 'Prefeito',
+    terms: ['prefeito', 'viceprefeito', 'chefedegabinete'],
+  },
+  {
+    label: 'Institucional',
+    terms: ['prefeitura', 'contato'],
+  },
 ];
+
+const REGIONS: Record<string, string[]> = {
+  Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+  'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+  Sul: ['PR', 'RS', 'SC'],
+};
 
 function getDepartmentTerms(department: string): string[] {
   const rule = DEPARTMENT_RULES.find((r) => r.label === department);
@@ -241,6 +262,14 @@ export async function POST(
 
     if (filters.strategic === 'yes') emailQuery = emailQuery.eq('is_strategic', true);
     if (filters.strategic === 'no') emailQuery = emailQuery.eq('is_strategic', false);
+
+    // Region filter: only applied when state is not set (mirrors audiences/preview logic)
+    if (!filters.state && filters.region) {
+      const regionStates = REGIONS[filters.region] ?? [];
+      if (regionStates.length > 0) {
+        emailQuery = emailQuery.in('state_source', regionStates);
+      }
+    }
 
     if (filters.minScore?.trim() && !Number.isNaN(Number(filters.minScore))) {
       emailQuery = emailQuery.gte('priority_score', Number(filters.minScore));
