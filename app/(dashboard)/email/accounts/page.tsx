@@ -281,7 +281,15 @@ export default function EmailAccountsPage() {
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-bold text-[#0f172a]">Contas de envio</h1>
             <p className="text-sm text-slate-600">
-              Cadastre e gerencie as contas SMTP utilizadas nos disparos de e-mail.
+              Cadastre e gerencie as contas SMTP utilizadas nos disparos de e-mail.{' '}
+              <a
+                href="https://inteligencia-sooty.vercel.app/help/email-auth.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#0f49bd] hover:underline"
+              >
+                Como configurar SPF e DKIM
+              </a>
             </p>
           </div>
           <button

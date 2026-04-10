@@ -182,7 +182,16 @@ export default function HelpPage() {
                   <Mail className="size-4" />
                   Enviar E-mail
                 </a>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-4 border-t border-gray-100 space-y-3">
+                  <a
+                    href="https://inteligencia-sooty.vercel.app/help/email-auth.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between text-xs font-bold text-gray-500 hover:text-[#0f49bd]"
+                  >
+                    Como configurar SPF, DKIM e DMARC
+                    <ExternalLink className="size-3" />
+                  </a>
                   <a href="#" className="flex items-center justify-between text-xs font-bold text-gray-500 hover:text-[#0f49bd]">
                     Documentação da API
                     <ExternalLink className="size-3" />
