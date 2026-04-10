@@ -11,6 +11,7 @@ export const mapContactToDTO = (row: any): ContactDTO => {
     email: row.email || undefined,
     phone: row.phone || undefined,
     whatsapp: row.whatsapp || undefined,
+    notes: row.notes || undefined,
     status: row.status as ContactStatus || ContactStatus.ACTIVE,
     bio: row.bio || undefined,
     department: row.department || undefined,

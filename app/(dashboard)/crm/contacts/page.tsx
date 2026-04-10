@@ -462,6 +462,17 @@ export default function ContactsPage() {
                 />
               </div>
               <div className="space-y-2">
+                <label htmlFor="edit-notes" className="text-sm font-bold text-gray-700">Anotações</label>
+                <textarea
+                  id="edit-notes"
+                  rows={3}
+                  className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] resize-none"
+                  placeholder="Registre informações relevantes do contato, o que foi conversado, contexto do relacionamento..."
+                  value={editingContact.notes || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, notes: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">Status</label>
                 <select 
                   className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
