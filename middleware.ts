@@ -21,7 +21,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/signup') ||
-    pathname.startsWith('/app')
+    pathname.startsWith('/app') ||
+    pathname.startsWith('/help/')
   ) {
     return NextResponse.next();
   }
