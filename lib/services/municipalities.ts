@@ -14,7 +14,8 @@ export const municipalityService = {
     const { data, error } = await supabase
       .from('municipalities')
       .select('id, city, state, name')
-      .order('city', { ascending: true });
+      .order('city', { ascending: true })
+      .limit(6000);
     
     if (error) {
       console.error('Error fetching municipalities for select:', error);
