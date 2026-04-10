@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/shared/Header';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Mail, 
-  Phone, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Mail,
+  Phone,
   MoreVertical,
   User,
   Building2,
@@ -16,7 +16,8 @@ import {
   Trash2,
   Eye,
   MessageCircle,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
