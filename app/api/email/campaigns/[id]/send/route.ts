@@ -222,27 +222,6 @@ export async function POST(
     // ── 5. Build audience query (no limit — all recipients go to queue) ───────
     const filters = ((campaign.audience_filters ?? {}) as AudienceFilters);
 
-    let municipalityIds: string[] | null = null;
-
-    if (filters.state || filters.municipalityId || filters.populationRange) {
-      let mq = supabase.from('municipalities').select('id');
-      if (filters.state) mq = mq.eq('state', filters.state);
-      if (filters.municipalityId) mq = mq.eq('id', filters.municipalityId);
-      if (filters.populationRange) mq = mq.eq('population_range', filters.populationRange);
-
-      const { data: munData, error: munError } = await mq;
-
-      if (munError) {
-        return NextResponse.json({ error: munError.message }, { status: 500 });
-      }
-
-      municipalityIds = (munData ?? []).map((m: any) => m.id);
-
-      if (municipalityIds.length === 0) {
-        return NextResponse.json({ queued: 0, total: 0 });
-      }
-    }
-
     let emailQuery = supabase
       .from('municipality_emails')
       .select(`
@@ -254,11 +233,13 @@ export async function POST(
           state
         )
       `)
-      .order('priority_score', { ascending: false, nullsFirst: false });
+      .order('priority_score', { ascending: false, nullsFirst: false })
+      .order('email', { ascending: true });
 
-    if (municipalityIds) {
-      emailQuery = emailQuery.in('municipality_id', municipalityIds);
-    }
+    // Filters applied directly on municipality_emails columns — mirrors audiences/preview logic
+    if (filters.state) emailQuery = emailQuery.eq('state_source', filters.state);
+    if (filters.populationRange) emailQuery = emailQuery.eq('population_range', filters.populationRange);
+    if (filters.municipalityId) emailQuery = emailQuery.eq('municipality_id', filters.municipalityId);
 
     if (filters.strategic === 'yes') emailQuery = emailQuery.eq('is_strategic', true);
     if (filters.strategic === 'no') emailQuery = emailQuery.eq('is_strategic', false);
