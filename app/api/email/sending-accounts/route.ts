@@ -55,7 +55,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('email_sending_accounts')
       .select(
-        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, daily_limit, hourly_limit, is_active, last_tested_at, last_test_status, last_test_error, created_at, updated_at'
+        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, daily_limit, hourly_limit, is_active, last_tested_at, last_test_status, last_test_error, spf_status, dkim_status, dkim_selector, created_at, updated_at'
       )
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: false });
@@ -191,7 +191,7 @@ export async function PATCH(req: NextRequest) {
       .eq('id', account_id)
       .eq('company_id', auth.companyId)
       .select(
-        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, daily_limit, hourly_limit, is_active, last_tested_at, last_test_status, last_test_error, created_at, updated_at'
+        'id, company_id, name, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, daily_limit, hourly_limit, is_active, last_tested_at, last_test_status, last_test_error, spf_status, dkim_status, dkim_selector, created_at, updated_at'
       )
       .single();
 
