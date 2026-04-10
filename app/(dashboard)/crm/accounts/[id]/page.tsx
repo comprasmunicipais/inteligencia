@@ -102,6 +102,7 @@ export default function AccountDetailPage() {
     whatsapp: '',
     department: '',
     secretariat: '',
+    notes: '',
   });
  
   const [editData, setEditData] = useState<any>(null);
@@ -366,10 +367,11 @@ export default function AccountDetailPage() {
         whatsapp: newContact.whatsapp || undefined,
         department: newContact.department || undefined,
         secretariat: newContact.secretariat || undefined,
+        notes: newContact.notes || undefined,
       });
       setContacts([created, ...contacts]);
       setIsAddContactModalOpen(false);
-      setNewContact({ name: '', role: '', email: '', phone: '', whatsapp: '', department: '', secretariat: '' });
+      setNewContact({ name: '', role: '', email: '', phone: '', whatsapp: '', department: '', secretariat: '', notes: '' });
       toast.success('Contato adicionado com sucesso!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -1342,6 +1344,16 @@ export default function AccountDetailPage() {
                 placeholder="5511999999999"
                 value={newContact.whatsapp}
                 onChange={(e) => setNewContact({ ...newContact, whatsapp: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Anotações</label>
+              <textarea
+                rows={3}
+                className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] resize-none"
+                placeholder="Registre informações relevantes do contato, o que foi conversado, contexto do relacionamento..."
+                value={newContact.notes}
+                onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
               />
             </div>
             <DialogFooter className="pt-4">

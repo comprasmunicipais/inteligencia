@@ -58,15 +58,16 @@ export default function ContactsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   
-  const [newContact, setNewContact] = useState({ 
-    name: '', 
-    role: '', 
-    municipality_id: '', 
-    email: '', 
-    phone: '', 
+  const [newContact, setNewContact] = useState({
+    name: '',
+    role: '',
+    municipality_id: '',
+    email: '',
+    phone: '',
     whatsapp: '',
     department: '',
-    secretariat: ''
+    secretariat: '',
+    notes: ''
   });
   const [editingContact, setEditingContact] = useState<ContactDTO | null>(null);
   const [deletingContact, setDeletingContact] = useState<ContactDTO | null>(null);
@@ -128,21 +129,23 @@ export default function ContactsPage() {
         whatsapp: newContact.whatsapp || undefined,
         department: newContact.department || undefined,
         secretariat: newContact.secretariat || undefined,
+        notes: newContact.notes || undefined,
         role: newContact.role || '-'
       };
 
       const created = await contactService.create(payload);
       setContacts([created, ...contacts]);
       setIsAddModalOpen(false);
-      setNewContact({ 
-        name: '', 
-        role: '', 
-        municipality_id: '', 
-        email: '', 
-        phone: '', 
+      setNewContact({
+        name: '',
+        role: '',
+        municipality_id: '',
+        email: '',
+        phone: '',
         whatsapp: '',
         department: '',
-        secretariat: ''
+        secretariat: '',
+        notes: ''
       });
       toast.success('Contato adicionado com sucesso!');
     } catch (error) {
@@ -607,6 +610,17 @@ export default function ContactsPage() {
                 placeholder="5511999999999"
                 value={newContact.whatsapp}
                 onChange={(e) => setNewContact({ ...newContact, whatsapp: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="notes" className="text-sm font-bold text-gray-700">Anotações</label>
+              <textarea
+                id="notes"
+                rows={3}
+                className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] resize-none"
+                placeholder="Registre informações relevantes do contato, o que foi conversado, contexto do relacionamento..."
+                value={newContact.notes}
+                onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
               />
             </div>
             <DialogFooter className="pt-4">
