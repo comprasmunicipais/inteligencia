@@ -112,6 +112,12 @@ export async function POST(req: NextRequest) {
       ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
     })
   } catch (err: unknown) {
+    console.error('ASAAS_SUBSCRIPTION_ERROR', {
+      status: err instanceof AsaasRequestError ? err.status : 'unknown',
+      billingType,
+      planId,
+      companyId: profile.company_id,
+    })
     const status = err instanceof AsaasRequestError && err.status >= 400 && err.status < 500 ? 400 : 500
     return NextResponse.json({ error: getSubscriptionErrorMessage(billingType) }, { status })
   }
