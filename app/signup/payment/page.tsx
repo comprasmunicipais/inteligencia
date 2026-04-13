@@ -64,28 +64,33 @@ export default function SignupPaymentPage() {
   const router = useRouter();
   const supabase = useRef(createClient()).current;
 
-  const [pending, setPending]       = useState<PendingPlan | null>(null);
-  const [plan, setPlan]             = useState<PlanData | null>(null);
-  const [userEmail, setUserEmail]   = useState('');
-  const [userName, setUserName]     = useState('');
-  const [loading, setLoading]       = useState(true);
+  const [pending, setPending] = useState<PendingPlan | null>(null);
+  const [plan, setPlan] = useState<PlanData | null>(null);
+  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const [billingType, setBillingType] = useState<BillingType>('PIX');
-  const [cpfCnpj, setCpfCnpj]         = useState('');
-  const [cardForm, setCardForm]       = useState({
-    holderName: '', number: '', expiryMonth: '', expiryYear: '', ccv: '',
-    postalCode: '', addressNumber: '', phone: '',
+  const [cpfCnpj, setCpfCnpj] = useState('');
+  const [cardForm, setCardForm] = useState({
+    holderName: '',
+    number: '',
+    expiryMonth: '',
+    expiryYear: '',
+    ccv: '',
+    postalCode: '',
+    addressNumber: '',
+    phone: '',
   });
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError]           = useState('');
+  const [error, setError] = useState('');
 
-  // Pós-pagamento
-  const [pixData, setPixData]       = useState<PixData | null>(null);
-  const [boletoUrl, setBoletoUrl]   = useState<string | null>(null);
-  const [pixCopied, setPixCopied]   = useState(false);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
 
-  const [userId, setUserId]               = useState('');
+  const [userId, setUserId] = useState('');
   const [contractAccepted, setContractAccepted] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [contractAccepting, setContractAccepting] = useState(false);
@@ -99,24 +104,38 @@ export default function SignupPaymentPage() {
         const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
         return match ? decodeURIComponent(match[1]) : null;
       };
+
       const raw = typeof window !== 'undefined' ? getCookie('cm_pending_plan') : null;
 
-      if (!raw) { router.replace('/signup/plan'); return; }
+      if (!raw) {
+        router.replace('/signup/plan');
+        return;
+      }
 
       let parsed: PendingPlan;
-      try { parsed = JSON.parse(raw); }
-      catch { router.replace('/signup/plan'); return; }
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        router.replace('/signup/plan');
+        return;
+      }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.replace('/signup/plan'); return; }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace('/signup/plan');
+        return;
+      }
 
       setUserId(user.id);
       setUserEmail(user.email ?? '');
       setUserName(
         user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        user.email?.split('@')[0] ||
-        ''
+          user.user_metadata?.name ||
+          user.email?.split('@')[0] ||
+          ''
       );
       setPending(parsed);
 
@@ -126,20 +145,26 @@ export default function SignupPaymentPage() {
         const found: PlanData | undefined = (data.plans ?? []).find(
           (p: PlanData) => p.id === parsed.planId
         );
-        if (found) { setPlan(found); }
-        else { router.replace('/signup/plan'); return; }
+
+        if (found) {
+          setPlan(found);
+        } else {
+          router.replace('/signup/plan');
+          return;
+        }
       } catch {
-        router.replace('/signup/plan'); return;
+        router.replace('/signup/plan');
+        return;
       }
 
       setLoading(false);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router, supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pending || !plan) return;
+
     setError('');
     setSubmitting(true);
 
@@ -157,7 +182,11 @@ export default function SignupPaymentPage() {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const AsaasTokenizer = (window as any).AsaasTokenizer;
-          if (!AsaasTokenizer) throw new Error('Tokenizador não carregado. Aguarde e tente novamente.');
+
+          if (!AsaasTokenizer) {
+            throw new Error('Tokenizador não carregado. Aguarde e tente novamente.');
+          }
+
           const result = await AsaasTokenizer.tokenize({
             holderName: cardForm.holderName,
             number: cardForm.number.replace(/\s/g, ''),
@@ -165,8 +194,13 @@ export default function SignupPaymentPage() {
             expiryYear: cardForm.expiryYear,
             ccv: cardForm.ccv,
           });
+
           const token: string = result.creditCardToken ?? result.token;
-          if (!token) throw new Error('Falha ao tokenizar cartão. Verifique os dados e tente novamente.');
+
+          if (!token) {
+            throw new Error('Falha ao tokenizar cartão. Verifique os dados e tente novamente.');
+          }
+
           body.creditCardToken = token;
         } catch (tokenErr: unknown) {
           setError(
@@ -177,6 +211,7 @@ export default function SignupPaymentPage() {
           setSubmitting(false);
           return;
         }
+
         body.creditCardHolderInfo = {
           name: cardForm.holderName,
           email: userEmail,
@@ -200,13 +235,11 @@ export default function SignupPaymentPage() {
         return;
       }
 
-      // Limpa cookie
       if (typeof window !== 'undefined') {
         document.cookie = 'cm_pending_plan=; path=/; max-age=0';
       }
 
       if (billingType === 'CREDIT_CARD') {
-        // Cartão: acesso imediato
         router.push('/dashboard?welcome=1');
         return;
       }
@@ -221,9 +254,7 @@ export default function SignupPaymentPage() {
         return;
       }
 
-      // Fallback: redireciona para dashboard com aviso de pagamento pendente
       router.push('/dashboard?payment=pending');
-
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       setError(errMsg || 'Erro de conexão. Verifique sua internet e tente novamente.');
@@ -242,6 +273,7 @@ export default function SignupPaymentPage() {
   const handleScrollContract = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
       setScrolledToBottom(true);
     }
@@ -249,7 +281,9 @@ export default function SignupPaymentPage() {
 
   const handleContractAccept = async () => {
     if (!checkboxChecked || !pending) return;
+
     setContractAccepting(true);
+
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -257,7 +291,10 @@ export default function SignupPaymentPage() {
         .eq('id', userId)
         .single();
 
-      const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ ip: null }));
+      const ipData = await fetch('https://api.ipify.org?format=json')
+        .then((r) => r.json())
+        .catch(() => ({ ip: null }));
+
       const hash = await hashContract(CONTRACT_TEXT);
 
       await supabase.from('contract_acceptances').insert({
@@ -278,7 +315,15 @@ export default function SignupPaymentPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#080c14', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#080c14',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Loader2 size={32} style={{ color: '#10b981', animation: 'spin 1s linear infinite' }} />
       </div>
     );
@@ -288,21 +333,60 @@ export default function SignupPaymentPage() {
 
   const price = getPlanPrice(plan, pending.billingCycle);
 
-  // ─── Tela de QR Code PIX ───────────────────────────────────────────────────
   if (pixData) {
     return (
-      <div style={{ minHeight: '100vh', background: '#080c14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', fontFamily: 'Outfit, sans-serif' }}>
-        <div style={{ width: '100%', maxWidth: 420, background: 'rgba(13,18,30,0.95)', border: '1px solid rgba(16,185,129,0.18)', borderRadius: 20, overflow: 'hidden' }}>
-          <div style={{ height: 3, background: 'linear-gradient(90deg, #059669, #10b981, #34d399, transparent)' }} />
-          <div style={{ padding: '36px 36px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#080c14',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          fontFamily: 'Outfit, sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            background: 'rgba(13,18,30,0.95)',
+            border: '1px solid rgba(16,185,129,0.18)',
+            borderRadius: 20,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: 3,
+              background: 'linear-gradient(90deg, #059669, #10b981, #34d399, transparent)',
+            }}
+          />
+          <div
+            style={{
+              padding: '36px 36px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 20,
+            }}
+          >
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 20, fontWeight: 800, color: '#f0f4ff' }}>
+              <div
+                style={{
+                  fontFamily: 'Sora, sans-serif',
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: '#f0f4ff',
+                }}
+              >
                 CM <span style={{ color: '#10b981' }}>PRO</span>
               </div>
-              <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.60)', marginTop: 4 }}>Pagamento via PIX</div>
+              <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.60)', marginTop: 4 }}>
+                Pagamento via PIX
+              </div>
             </div>
 
-            {/* QR Code */}
             <div style={{ padding: 12, background: '#fff', borderRadius: 12 }}>
               <img
                 src={`data:image/png;base64,${pixData.encodedImage}`}
@@ -313,37 +397,103 @@ export default function SignupPaymentPage() {
               />
             </div>
 
-            <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.70)', textAlign: 'center', lineHeight: 1.6 }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: 'rgba(148,163,184,0.70)',
+                textAlign: 'center',
+                lineHeight: 1.6,
+              }}
+            >
               Escaneie o QR Code com o app do seu banco ou copie o código abaixo.
             </div>
 
-            {/* Copia e Cola */}
             <div style={{ width: '100%' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(148,163,184,0.60)', marginBottom: 8 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.10em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(148,163,184,0.60)',
+                  marginBottom: 8,
+                }}
+              >
                 PIX Copia e Cola
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   readOnly
                   value={pixData.payload}
-                  style={{ flex: 1, height: 42, padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#e2e8f0', fontSize: 12, fontFamily: 'monospace', outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  style={{
+                    flex: 1,
+                    height: 42,
+                    padding: '0 12px',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 10,
+                    color: '#e2e8f0',
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
                 />
                 <button
+                  type="button"
                   onClick={handleCopyPix}
-                  style={{ height: 42, padding: '0 16px', background: pixCopied ? 'rgba(16,185,129,0.20)' : 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.30)', borderRadius: 10, color: '#34d399', fontFamily: 'Outfit, sans-serif', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                  style={{
+                    height: 42,
+                    padding: '0 16px',
+                    background: pixCopied
+                      ? 'rgba(16,185,129,0.20)'
+                      : 'rgba(16,185,129,0.10)',
+                    border: '1px solid rgba(16,185,129,0.30)',
+                    borderRadius: 10,
+                    color: '#34d399',
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'background 0.2s',
+                  }}
                 >
                   {pixCopied ? '✓ Copiado' : 'Copiar'}
                 </button>
               </div>
             </div>
 
-            <div style={{ width: '100%', padding: '12px 14px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.16)', borderRadius: 10, fontSize: 13, color: 'rgba(148,163,184,0.70)', lineHeight: 1.6, textAlign: 'center' }}>
-              Após o pagamento, seu acesso será liberado automaticamente em instantes. Você também receberá uma confirmação por e-mail.
+            <div
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'rgba(16,185,129,0.06)',
+                border: '1px solid rgba(16,185,129,0.16)',
+                borderRadius: 10,
+                fontSize: 13,
+                color: 'rgba(148,163,184,0.70)',
+                lineHeight: 1.6,
+                textAlign: 'center',
+              }}
+            >
+              Após o pagamento, seu acesso será liberado automaticamente em instantes. Você
+              também receberá uma confirmação por e-mail.
             </div>
 
             <button
+              type="button"
               onClick={() => router.push('/dashboard?payment=pending')}
-              style={{ background: 'none', border: 'none', color: 'rgba(100,116,139,0.60)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(100,116,139,0.60)',
+                fontSize: 13,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
             >
               Já paguei, ir para o painel →
             </button>
@@ -353,36 +503,105 @@ export default function SignupPaymentPage() {
     );
   }
 
-  // ─── Tela de Boleto ────────────────────────────────────────────────────────
   if (boletoUrl) {
     return (
-      <div style={{ minHeight: '100vh', background: '#080c14', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', fontFamily: 'Outfit, sans-serif' }}>
-        <div style={{ width: '100%', maxWidth: 420, background: 'rgba(13,18,30,0.95)', border: '1px solid rgba(16,185,129,0.18)', borderRadius: 20, overflow: 'hidden' }}>
-          <div style={{ height: 3, background: 'linear-gradient(90deg, #059669, #10b981, #34d399, transparent)' }} />
-          <div style={{ padding: '36px 36px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center' }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#080c14',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          fontFamily: 'Outfit, sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            background: 'rgba(13,18,30,0.95)',
+            border: '1px solid rgba(16,185,129,0.18)',
+            borderRadius: 20,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: 3,
+              background: 'linear-gradient(90deg, #059669, #10b981, #34d399, transparent)',
+            }}
+          />
+          <div
+            style={{
+              padding: '36px 36px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 20,
+              textAlign: 'center',
+            }}
+          >
             <div>
-              <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 20, fontWeight: 800, color: '#f0f4ff' }}>
+              <div
+                style={{
+                  fontFamily: 'Sora, sans-serif',
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: '#f0f4ff',
+                }}
+              >
                 CM <span style={{ color: '#10b981' }}>PRO</span>
               </div>
-              <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.60)', marginTop: 4 }}>Boleto gerado</div>
+              <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.60)', marginTop: 4 }}>
+                Boleto gerado
+              </div>
             </div>
 
-            <div style={{ fontSize: 14, color: 'rgba(148,163,184,0.70)', lineHeight: 1.7 }}>
-              Seu boleto foi gerado com sucesso. Clique abaixo para visualizar e pagar. O acesso será liberado em até 1 dia útil após a compensação.
+            <div
+              style={{
+                fontSize: 14,
+                color: 'rgba(148,163,184,0.70)',
+                lineHeight: 1.7,
+              }}
+            >
+              Seu boleto foi gerado com sucesso. Clique abaixo para visualizar e pagar. O acesso
+              será liberado em até 1 dia útil após a compensação.
             </div>
 
-            
+            <a
               href={boletoUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ width: '100%', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #059669, #10b981)', borderRadius: 12, color: '#fff', fontFamily: 'Sora, sans-serif', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}
+              style={{
+                width: '100%',
+                height: 50,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, #059669, #10b981)',
+                borderRadius: 12,
+                color: '#fff',
+                fontFamily: 'Sora, sans-serif',
+                fontSize: 14,
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
             >
               Abrir boleto →
             </a>
 
             <button
+              type="button"
               onClick={() => router.push('/dashboard?payment=pending')}
-              style={{ background: 'none', border: 'none', color: 'rgba(100,116,139,0.60)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(100,116,139,0.60)',
+                fontSize: 13,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
             >
               Ir para o painel
             </button>
@@ -392,7 +611,6 @@ export default function SignupPaymentPage() {
     );
   }
 
-  // ─── Formulário principal ──────────────────────────────────────────────────
   return (
     <>
       <Script src={ASAAS_SCRIPT_URL} strategy="afterInteractive" />
@@ -913,7 +1131,9 @@ export default function SignupPaymentPage() {
 
           <div className="pay-body">
             <div className="pay-brand">
-              <div className="pay-brand-name">CM <span>PRO</span></div>
+              <div className="pay-brand-name">
+                CM <span>PRO</span>
+              </div>
               <div className="pay-brand-sub">Finalizar assinatura</div>
             </div>
 
@@ -930,31 +1150,63 @@ export default function SignupPaymentPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="pay-fields">
-
                 <div>
                   <span className="pay-section-label">Forma de pagamento</span>
                   <div className="pay-methods">
                     {(['PIX', 'BOLETO', 'CREDIT_CARD'] as BillingType[]).map((m) => {
-                      const labels: Record<BillingType, string> = { PIX: 'PIX', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão' };
+                      const labels: Record<BillingType, string> = {
+                        PIX: 'PIX',
+                        BOLETO: 'Boleto',
+                        CREDIT_CARD: 'Cartão',
+                      };
+
                       const icons: Record<BillingType, React.ReactElement> = {
                         PIX: (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path
+                              d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         ),
                         BOLETO: (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
-                            <path d="M6 9v6M10 9v6M14 9v3M18 9v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            <rect
+                              x="2"
+                              y="5"
+                              width="20"
+                              height="14"
+                              rx="2"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            />
+                            <path
+                              d="M6 9v6M10 9v6M14 9v3M18 9v6"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
                           </svg>
                         ),
                         CREDIT_CARD: (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <rect x="1" y="4" width="22" height="16" rx="2" stroke="currentColor" strokeWidth="2"/>
-                            <path d="M1 10h22" stroke="currentColor" strokeWidth="2"/>
+                            <rect
+                              x="1"
+                              y="4"
+                              width="22"
+                              height="16"
+                              rx="2"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            />
+                            <path d="M1 10h22" stroke="currentColor" strokeWidth="2" />
                           </svg>
                         ),
                       };
+
                       return (
                         <button
                           key={m}
@@ -976,7 +1228,7 @@ export default function SignupPaymentPage() {
                     type="text"
                     required
                     value={cpfCnpj}
-                    onChange={e => setCpfCnpj(e.target.value)}
+                    onChange={(e) => setCpfCnpj(e.target.value)}
                     placeholder="000.000.000-00 ou 00.000.000/0001-00"
                     className="pay-input"
                   />
@@ -987,7 +1239,16 @@ export default function SignupPaymentPage() {
                     <div className="pay-divider" />
                     <div>
                       <label className="pay-field-label">Nome no cartão</label>
-                      <input type="text" required value={cardForm.holderName} onChange={e => setCardForm(f => ({ ...f, holderName: e.target.value }))} placeholder="Como impresso no cartão" className="pay-input" />
+                      <input
+                        type="text"
+                        required
+                        value={cardForm.holderName}
+                        onChange={(e) =>
+                          setCardForm((f) => ({ ...f, holderName: e.target.value }))
+                        }
+                        placeholder="Como impresso no cartão"
+                        className="pay-input"
+                      />
                     </div>
                     <div>
                       <label className="pay-field-label">Número do cartão</label>
@@ -995,10 +1256,10 @@ export default function SignupPaymentPage() {
                         type="text"
                         required
                         value={cardForm.number}
-                        onChange={e => {
+                        onChange={(e) => {
                           const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
                           const masked = digits.replace(/(.{4})/g, '$1 ').trim();
-                          setCardForm(f => ({ ...f, number: masked }));
+                          setCardForm((f) => ({ ...f, number: masked }));
                         }}
                         placeholder="0000 0000 0000 0000"
                         className="pay-input"
@@ -1008,50 +1269,141 @@ export default function SignupPaymentPage() {
                     <div className="pay-grid-3">
                       <div>
                         <label className="pay-field-label">Mês</label>
-                        <input type="text" required value={cardForm.expiryMonth} onChange={e => setCardForm(f => ({ ...f, expiryMonth: e.target.value.replace(/\D/g, '').slice(0, 2) }))} placeholder="MM" className="pay-input" />
+                        <input
+                          type="text"
+                          required
+                          value={cardForm.expiryMonth}
+                          onChange={(e) =>
+                            setCardForm((f) => ({
+                              ...f,
+                              expiryMonth: e.target.value.replace(/\D/g, '').slice(0, 2),
+                            }))
+                          }
+                          placeholder="MM"
+                          className="pay-input"
+                        />
                       </div>
                       <div>
                         <label className="pay-field-label">Ano</label>
-                        <input type="text" required value={cardForm.expiryYear} onChange={e => setCardForm(f => ({ ...f, expiryYear: e.target.value.replace(/\D/g, '').slice(0, 4) }))} placeholder="AAAA" className="pay-input" />
+                        <input
+                          type="text"
+                          required
+                          value={cardForm.expiryYear}
+                          onChange={(e) =>
+                            setCardForm((f) => ({
+                              ...f,
+                              expiryYear: e.target.value.replace(/\D/g, '').slice(0, 4),
+                            }))
+                          }
+                          placeholder="AAAA"
+                          className="pay-input"
+                        />
                       </div>
                       <div>
                         <label className="pay-field-label">CVV</label>
-                        <input type="password" required value={cardForm.ccv} onChange={e => setCardForm(f => ({ ...f, ccv: e.target.value.replace(/\D/g, '').slice(0, 4) }))} placeholder="···" className="pay-input" />
+                        <input
+                          type="password"
+                          required
+                          value={cardForm.ccv}
+                          onChange={(e) =>
+                            setCardForm((f) => ({
+                              ...f,
+                              ccv: e.target.value.replace(/\D/g, '').slice(0, 4),
+                            }))
+                          }
+                          placeholder="···"
+                          className="pay-input"
+                        />
                       </div>
                     </div>
                     <div className="pay-divider" />
                     <div className="pay-grid-2">
                       <div>
                         <label className="pay-field-label">CEP</label>
-                        <input type="text" required value={cardForm.postalCode} onChange={e => setCardForm(f => ({ ...f, postalCode: e.target.value }))} placeholder="00000-000" className="pay-input" />
+                        <input
+                          type="text"
+                          required
+                          value={cardForm.postalCode}
+                          onChange={(e) =>
+                            setCardForm((f) => ({ ...f, postalCode: e.target.value }))
+                          }
+                          placeholder="00000-000"
+                          className="pay-input"
+                        />
                       </div>
                       <div>
                         <label className="pay-field-label">Número</label>
-                        <input type="text" required value={cardForm.addressNumber} onChange={e => setCardForm(f => ({ ...f, addressNumber: e.target.value }))} placeholder="123" className="pay-input" />
+                        <input
+                          type="text"
+                          required
+                          value={cardForm.addressNumber}
+                          onChange={(e) =>
+                            setCardForm((f) => ({ ...f, addressNumber: e.target.value }))
+                          }
+                          placeholder="123"
+                          className="pay-input"
+                        />
                       </div>
                     </div>
                     <div>
                       <label className="pay-field-label">Telefone (opcional)</label>
-                      <input type="text" value={cardForm.phone} onChange={e => setCardForm(f => ({ ...f, phone: e.target.value }))} placeholder="(11) 99999-9999" className="pay-input" />
+                      <input
+                        type="text"
+                        value={cardForm.phone}
+                        onChange={(e) => setCardForm((f) => ({ ...f, phone: e.target.value }))}
+                        placeholder="(11) 99999-9999"
+                        className="pay-input"
+                      />
                     </div>
                   </>
                 )}
 
                 {billingType !== 'CREDIT_CARD' && (
-                  <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', fontSize: '13px', color: 'rgba(148,163,184,0.65)', lineHeight: 1.6 }}>
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      color: 'rgba(148,163,184,0.65)',
+                      lineHeight: 1.6,
+                    }}
+                  >
                     {billingType === 'PIX'
                       ? 'Após confirmar, você receberá o QR Code do PIX para pagamento. O acesso é liberado em instantes após a confirmação.'
-                      : 'O boleto será gerado e enviado para seu e-mail. O acesso é liberado em até 1 dia útil após a compensação.'
-                    }
+                      : 'O boleto será gerado e enviado para seu e-mail. O acesso é liberado em até 1 dia útil após a compensação.'}
                   </div>
                 )}
 
                 {error && (
                   <div className="pay-error">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                      <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      style={{ flexShrink: 0, marginTop: 1 }}
+                    >
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                      <line
+                        x1="12"
+                        y1="8"
+                        x2="12"
+                        y2="12"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      <line
+                        x1="12"
+                        y1="16"
+                        x2="12.01"
+                        y2="16"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
                     </svg>
                     {error}
                   </div>
@@ -1062,15 +1414,41 @@ export default function SignupPaymentPage() {
                 {contractAccepted ? (
                   <div className="contract-accepted-badge">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M20 6L9 17l-5-5" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path
+                        d="M20 6L9 17l-5-5"
+                        stroke="#10b981"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                     Contrato aceito ✓
                   </div>
                 ) : (
-                  <button type="button" className="contract-cta-btn" onClick={() => { setScrolledToBottom(false); setCheckboxChecked(false); setShowContractModal(true); }}>
+                  <button
+                    type="button"
+                    className="contract-cta-btn"
+                    onClick={() => {
+                      setScrolledToBottom(false);
+                      setCheckboxChecked(false);
+                      setShowContractModal(true);
+                    }}
+                  >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path
+                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <polyline
+                        points="14 2 14 8 20 8"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                     Ler e aceitar o Contrato
                   </button>
@@ -1078,14 +1456,27 @@ export default function SignupPaymentPage() {
               </div>
 
               <div className="pay-submit-wrap">
-                <button type="submit" disabled={submitting || !contractAccepted} className="pay-btn">
+                <button
+                  type="submit"
+                  disabled={submitting || !contractAccepted}
+                  className="pay-btn"
+                >
                   {submitting ? (
-                    <><Loader2 size={18} className="animate-spin" />Processando…</>
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Processando…
+                    </>
                   ) : (
                     <>
                       Finalizar assinatura
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path
+                          d="M5 12h14M12 5l7 7-7 7"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </>
                   )}
@@ -1094,10 +1485,19 @@ export default function SignupPaymentPage() {
             </form>
 
             <div className="pay-footer">
-              <p><a href="/signup/plan">← Alterar plano ou ciclo</a></p>
+              <p>
+                <a href="/signup/plan">← Alterar plano ou ciclo</a>
+              </p>
               <div className="pay-ssl">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="rgba(16,185,129,0.12)"/>
+                  <path
+                    d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="rgba(16,185,129,0.12)"
+                  />
                 </svg>
                 Pagamento seguro · Cancele quando quiser
               </div>
@@ -1107,14 +1507,30 @@ export default function SignupPaymentPage() {
       </div>
 
       {showContractModal && (
-        <div className="contract-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowContractModal(false); }}>
+        <div
+          className="contract-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowContractModal(false);
+          }}
+        >
           <div className="contract-modal">
             <div className="contract-modal-topbar" />
             <div className="contract-modal-header">
-              <div className="contract-modal-title">Contrato de Licença e Prestação de Serviços — CM Pro</div>
-              <button type="button" className="contract-close-btn" onClick={() => setShowContractModal(false)}>
+              <div className="contract-modal-title">
+                Contrato de Licença e Prestação de Serviços — CM Pro
+              </div>
+              <button
+                type="button"
+                className="contract-close-btn"
+                onClick={() => setShowContractModal(false)}
+              >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </div>
@@ -1126,12 +1542,26 @@ export default function SignupPaymentPage() {
                 <div className="contract-hint">Role até o final para habilitar o aceite</div>
               )}
               <label className="contract-checkbox-row">
-                <input type="checkbox" disabled={!scrolledToBottom} checked={checkboxChecked} onChange={(e) => setCheckboxChecked(e.target.checked)} />
-                <span className="contract-checkbox-label">Li e aceito os termos do Contrato de Licença e Prestação de Serviços do CM Pro</span>
+                <input
+                  type="checkbox"
+                  disabled={!scrolledToBottom}
+                  checked={checkboxChecked}
+                  onChange={(e) => setCheckboxChecked(e.target.checked)}
+                />
+                <span className="contract-checkbox-label">
+                  Li e aceito os termos do Contrato de Licença e Prestação de Serviços do CM Pro
+                </span>
               </label>
-              <button type="button" className="contract-btn-accept" disabled={!checkboxChecked || contractAccepting} onClick={handleContractAccept}>
+              <button
+                type="button"
+                className="contract-btn-accept"
+                disabled={!checkboxChecked || contractAccepting}
+                onClick={handleContractAccept}
+              >
                 {contractAccepting ? (
-                  <><Loader2 size={16} className="animate-spin" /> Registrando aceite…</>
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Registrando aceite…
+                  </>
                 ) : (
                   'Confirmar aceite'
                 )}
