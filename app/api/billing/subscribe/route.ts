@@ -52,11 +52,12 @@ export async function POST(req: NextRequest) {
   // Check for existing subscription — cancel it before creating a new one
   const adminSupabase = await createAdminClient()
 
+  // Fix 2: .maybeSingle() — returns null instead of error when no subscription exists
   const { data: existingSub } = await adminSupabase
     .from('subscriptions')
     .select('asaas_subscription_id, asaas_customer_id')
     .eq('company_id', profile.company_id)
-    .single()
+    .maybeSingle()
 
   if (existingSub?.asaas_subscription_id) {
     try {
@@ -66,37 +67,67 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Reuse existing Asaas customer if available
-  const customer = existingSub?.asaas_customer_id
-    ? { id: existingSub.asaas_customer_id }
-    : await createAsaasCustomer({ name, email, cpfCnpj })
+  // Fix 1a: createAsaasCustomer wrapped in try/catch — returns JSON error instead of HTML 500
+  let customer: { id: string }
+  try {
+    customer = existingSub?.asaas_customer_id
+      ? { id: existingSub.asaas_customer_id }
+      : await createAsaasCustomer({ name, email, cpfCnpj })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Erro ao criar cliente no gateway: ${msg}` }, { status: 500 })
+  }
 
   const nextDueDate = new Date()
   nextDueDate.setDate(nextDueDate.getDate() + 1)
   const nextDueDateStr = nextDueDate.toISOString().split('T')[0]
 
-  const subscription = await createAsaasSubscription({
-    customer: customer.id,
-    billingType,
-    value: billing.value,
-    nextDueDate: nextDueDateStr,
-    cycle: billing.cycle,
-    description: `CM Pro — Plano ${plan.name} (${billingCycle})`,
-    ...(billingType === 'CREDIT_CARD' && creditCardToken ? { creditCardToken } : {}),
-    ...(billingType === 'CREDIT_CARD' && creditCardHolderInfo ? { creditCardHolderInfo } : {}),
-    ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
-  })
-
-  await adminSupabase.from('subscriptions')
-    .update({
-      asaas_customer_id: customer.id,
-      asaas_subscription_id: subscription.id,
-      plan_id: planId,
-      billing_cycle: billingCycle,
-      status: 'active',
-      current_period_start: new Date().toISOString(),
+  // Fix 1b: createAsaasSubscription wrapped in try/catch — returns JSON error instead of HTML 500
+  let subscription: { id: string; status: string }
+  try {
+    subscription = await createAsaasSubscription({
+      customer: customer.id,
+      billingType,
+      value: billing.value,
+      nextDueDate: nextDueDateStr,
+      cycle: billing.cycle,
+      description: `CM Pro — Plano ${plan.name} (${billingCycle})`,
+      ...(billingType === 'CREDIT_CARD' && creditCardToken ? { creditCardToken } : {}),
+      ...(billingType === 'CREDIT_CARD' && creditCardHolderInfo ? { creditCardHolderInfo } : {}),
+      ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
     })
-    .eq('company_id', profile.company_id)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Erro ao criar assinatura no gateway: ${msg}` }, { status: 500 })
+  }
+
+  const now = new Date().toISOString()
+
+  // Fix 3: upsert — INSERT for new users without subscription, UPDATE for existing ones
+  if (existingSub) {
+    await adminSupabase.from('subscriptions')
+      .update({
+        asaas_customer_id: customer.id,
+        asaas_subscription_id: subscription.id,
+        plan_id: planId,
+        billing_cycle: billingCycle,
+        status: 'active',
+        current_period_start: now,
+      })
+      .eq('company_id', profile.company_id)
+  } else {
+    await adminSupabase.from('subscriptions')
+      .insert({
+        company_id: profile.company_id,
+        asaas_customer_id: customer.id,
+        asaas_subscription_id: subscription.id,
+        plan_id: planId,
+        billing_cycle: billingCycle,
+        status: 'active',
+        current_period_start: now,
+        created_at: now,
+      })
+  }
 
   await adminSupabase.from('companies')
     .update({ plan_id: planId })
