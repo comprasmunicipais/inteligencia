@@ -18,3 +18,11 @@ View your app in AI Studio: https://ai.studio/apps/d1191813-5595-4ea1-904c-bdd0e
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Atualizações recentes
+
+- Billing: removida a liberação antecipada de acesso no cartão; ativação alinhada ao webhook.
+- Oportunidades: card e lista de "Alta Aderência" alinhados ao score por empresa.
+- Demo: liberado o recálculo de score para `/api/intel/recalculate-scores` sem abrir escrita para outras rotas.
+- Scoring: recálculo executado para a empresa demo e `company_opportunity_scores` populada.
+- Oportunidades demo: correção da ordem de aplicação do filtro para que a amostra respeite "Alta Aderência".
