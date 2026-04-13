@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { createAsaasCustomer, createAsaasSubscription, cancelAsaasSubscription } from '@/lib/asaas'
+import {
+  createAsaasCustomer,
+  createAsaasSubscription,
+  cancelAsaasSubscription,
+  getAsaasSubscriptionPayments,
+  getAsaasPaymentPixQrCode,
+} from '@/lib/asaas'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -20,7 +26,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Company not found' }, { status: 404 })
   }
 
-  // NOTE: creditCard data is never logged — it is only forwarded to Asaas
   const body = await req.json()
   const { planId, billingCycle, billingType, email, name, cpfCnpj, creditCardToken, creditCardHolderInfo, remoteIp } = body
 
@@ -49,10 +54,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid billing cycle' }, { status: 400 })
   }
 
-  // Check for existing subscription — cancel it before creating a new one
   const adminSupabase = await createAdminClient()
 
-  // Fix 2: .maybeSingle() — returns null instead of error when no subscription exists
   const { data: existingSub } = await adminSupabase
     .from('subscriptions')
     .select('asaas_subscription_id, asaas_customer_id')
@@ -63,11 +66,10 @@ export async function POST(req: NextRequest) {
     try {
       await cancelAsaasSubscription(existingSub.asaas_subscription_id)
     } catch {
-      // proceed even if cancel fails (e.g. already cancelled in Asaas)
+      // proceed even if cancel fails
     }
   }
 
-  // Fix 1a: createAsaasCustomer wrapped in try/catch — returns JSON error instead of HTML 500
   let customer: { id: string }
   try {
     customer = existingSub?.asaas_customer_id
@@ -82,7 +84,6 @@ export async function POST(req: NextRequest) {
   nextDueDate.setDate(nextDueDate.getDate() + 1)
   const nextDueDateStr = nextDueDate.toISOString().split('T')[0]
 
-  // Fix 1b: createAsaasSubscription wrapped in try/catch — returns JSON error instead of HTML 500
   let subscription: { id: string; status: string }
   try {
     subscription = await createAsaasSubscription({
@@ -103,7 +104,9 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString()
 
-  // Fix 3: upsert — INSERT for new users without subscription, UPDATE for existing ones
+  // Cartão: ativa imediatamente. PIX/Boleto: aguarda webhook de confirmação.
+  const initialStatus = billingType === 'CREDIT_CARD' ? 'active' : 'pending'
+
   if (existingSub) {
     await adminSupabase.from('subscriptions')
       .update({
@@ -111,7 +114,7 @@ export async function POST(req: NextRequest) {
         asaas_subscription_id: subscription.id,
         plan_id: planId,
         billing_cycle: billingCycle,
-        status: 'active',
+        status: initialStatus,
         current_period_start: now,
       })
       .eq('company_id', profile.company_id)
@@ -123,20 +126,60 @@ export async function POST(req: NextRequest) {
         asaas_subscription_id: subscription.id,
         plan_id: planId,
         billing_cycle: billingCycle,
-        status: 'active',
+        status: initialStatus,
         current_period_start: now,
         created_at: now,
       })
   }
 
-  await adminSupabase.from('companies')
-    .update({ plan_id: planId })
-    .eq('id', profile.company_id)
+  // Só atualiza plan_id na company imediatamente para cartão
+  if (billingType === 'CREDIT_CARD') {
+    await adminSupabase.from('companies')
+      .update({ plan_id: planId })
+      .eq('id', profile.company_id)
+  }
+
+  // Para PIX: busca QR Code do primeiro pagamento gerado
+  let pixData: { encodedImage: string; payload: string; expirationDate: string } | null = null
+
+  if (billingType === 'PIX') {
+    try {
+      const paymentsRes = await getAsaasSubscriptionPayments(subscription.id)
+      const firstPayment = paymentsRes?.data?.[0]
+      if (firstPayment?.id) {
+        const pixRes = await getAsaasPaymentPixQrCode(firstPayment.id)
+        pixData = {
+          encodedImage:   pixRes.encodedImage,
+          payload:        pixRes.payload,
+          expirationDate: pixRes.expirationDate,
+        }
+      }
+    } catch {
+      // não bloqueia — frontend mostrará mensagem de e-mail
+    }
+  }
+
+  // Para Boleto: retorna o link do boleto
+  let boletoUrl: string | null = null
+
+  if (billingType === 'BOLETO') {
+    try {
+      const paymentsRes = await getAsaasSubscriptionPayments(subscription.id)
+      const firstPayment = paymentsRes?.data?.[0]
+      if (firstPayment?.bankSlipUrl) {
+        boletoUrl = firstPayment.bankSlipUrl
+      }
+    } catch {
+      // não bloqueia
+    }
+  }
 
   return NextResponse.json({
     success: true,
     subscription_id: subscription.id,
     customer_id: customer.id,
-    status: subscription.status,
+    status: initialStatus,
+    pix: pixData,
+    boletoUrl,
   })
 }
