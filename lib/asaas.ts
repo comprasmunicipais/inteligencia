@@ -1,6 +1,6 @@
 const ASAAS_BASE_URL = process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
   ? 'https://sandbox.asaas.com/api/v3'
-  : 'https://api.asaas.com/api/v3'
+  : 'https://www.asaas.com/api/v3'
 
 async function asaasRequest(path: string, method = 'GET', body?: object) {
   const res = await fetch(`${ASAAS_BASE_URL}${path}`, {
