@@ -661,6 +661,7 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 - **Logs de diagnóstico em `/api/auth/signup`** — quando email duplicado, loga presença em `auth.users` e `profiles`
 - **Erro real exibido no frontend de `/signup/payment`** — `catch` do fetch mostra mensagem real do erro em vez de texto genérico
 - **Deleção de usuário de teste** — `gaelmartinsdamico@gmail.com` removido de `auth.users`, `profiles`, `company_profiles` e `companies`
+- **Campos de empresa consolidados na tela de pagamento** — Razão Social, CPF/CNPJ (com máscara), Endereço e Telefone tornados obrigatórios em `/signup/payment/page.tsx`; pré-preenchidos ao carregar via `companies`; `UPDATE companies` executado antes de chamar `/api/billing/subscribe`; botão "Finalizar assinatura" só habilitado com os 4 campos preenchidos + contrato aceito; campos removidos da tela `/signup/onboarding` (eram opcionais lá)
 
 ### Sessão 2026-04-10
 
