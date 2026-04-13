@@ -155,8 +155,9 @@ export const opportunityService = {
 
     const merged = (data || []).map(o => ({
       ...o,
-      match_score: scoresMap.has(o.id) ? scoresMap.get(o.id) : (o.match_score ?? 0),
-    }));
+      match_score: scoresMap.has(o.id) ? scoresMap.get(o.id) : (companyId ? 0 : o.match_score ?? 0),
+    }))
+      .filter(o => o.internal_status !== 'expired');
 
     const total = merged.length;
     const highMatch = merged.filter(o => Number(o.match_score || 0) >= 70).length;
