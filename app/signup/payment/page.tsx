@@ -3,14 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
 import { CONTRACT_TEXT, CONTRACT_VERSION, hashContract } from '@/lib/contract/contractText';
-
-const ASAAS_SCRIPT_URL =
-  process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
-    ? 'https://sandbox.asaas.com/assets/tokenizationLibrary.min.js'
-    : 'https://www.asaas.com/assets/tokenizationLibrary.min.js';
 
 type BillingCycle = 'monthly' | 'semiannual' | 'annual';
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD';
@@ -242,47 +236,49 @@ export default function SignupPaymentPage() {
       };
 
       if (billingType === 'CREDIT_CARD') {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const AsaasTokenizer = (window as any).AsaasTokenizer;
+        const cardNumber = cardForm.number.replace(/\D/g, '');
+        const postalCode = cardForm.postalCode.replace(/\D/g, '');
+        const holderCpfCnpj = cpfCnpj.replace(/\D/g, '');
+        const holderPhone = cardForm.phone.replace(/\D/g, '');
 
-          if (!AsaasTokenizer) {
-            throw new Error('Tokenizador não carregado. Aguarde e tente novamente.');
-          }
-
-          const result = await AsaasTokenizer.tokenize({
-            holderName: cardForm.holderName,
-            number: cardForm.number.replace(/\s/g, ''),
-            expiryMonth: cardForm.expiryMonth,
-            expiryYear: cardForm.expiryYear,
-            ccv: cardForm.ccv,
-          });
-
-          const token: string = result.creditCardToken ?? result.token;
-
-          if (!token) {
-            throw new Error('Falha ao tokenizar cartão. Verifique os dados e tente novamente.');
-          }
-
-          body.creditCardToken = token;
-        } catch (tokenErr: unknown) {
-          setError(
-            tokenErr instanceof Error
-              ? tokenErr.message
-              : 'Erro ao tokenizar cartão. Verifique os dados e tente novamente.'
-          );
+        if (
+          !cardForm.holderName.trim() ||
+          !cardNumber ||
+          !cardForm.expiryMonth ||
+          !cardForm.expiryYear ||
+          !cardForm.ccv ||
+          !postalCode ||
+          !cardForm.addressNumber.trim()
+        ) {
+          setError('Preencha todos os dados obrigatórios do cartão para continuar.');
           setSubmitting(false);
           return;
         }
 
-        body.creditCardHolderInfo = {
-          name: cardForm.holderName,
-          email: userEmail,
-          cpfCnpj: cpfCnpj.replace(/\D/g, ''),
-          postalCode: cardForm.postalCode.replace(/\D/g, ''),
-          addressNumber: cardForm.addressNumber,
-          ...(cardForm.phone ? { phone: cardForm.phone } : {}),
+        body.creditCard = {
+          holderName: cardForm.holderName.trim(),
+          number: cardNumber,
+          expiryMonth: cardForm.expiryMonth,
+          expiryYear: cardForm.expiryYear,
+          ccv: cardForm.ccv,
         };
+
+        body.creditCardHolderInfo = {
+          name: cardForm.holderName.trim(),
+          email: userEmail,
+          cpfCnpj: holderCpfCnpj,
+          postalCode,
+          addressNumber: cardForm.addressNumber.trim(),
+          ...(holderPhone ? { phone: holderPhone } : {}),
+        };
+
+        const ipData = await fetch('https://api.ipify.org?format=json')
+          .then((response) => response.json())
+          .catch(() => ({ ip: null }));
+
+        if (ipData?.ip) {
+          body.remoteIp = ipData.ip;
+        }
       }
 
       const res = await fetch('/api/billing/subscribe', {
@@ -763,7 +759,6 @@ export default function SignupPaymentPage() {
 
   return (
     <>
-      <Script src={ASAAS_SCRIPT_URL} strategy="afterInteractive" />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Outfit:wght@300;400;500;600&display=swap');
 

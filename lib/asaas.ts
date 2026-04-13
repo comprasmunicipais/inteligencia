@@ -2,6 +2,16 @@ const ASAAS_BASE_URL = process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
   ? 'https://sandbox.asaas.com/api/v3'
   : 'https://www.asaas.com/api/v3'
 
+export class AsaasRequestError extends Error {
+  status: number
+
+  constructor(status: number, message = 'Asaas request failed') {
+    super(message)
+    this.name = 'AsaasRequestError'
+    this.status = status
+  }
+}
+
 async function asaasRequest(path: string, method = 'GET', body?: object) {
   const res = await fetch(`${ASAAS_BASE_URL}${path}`, {
     method,
@@ -12,8 +22,7 @@ async function asaasRequest(path: string, method = 'GET', body?: object) {
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
-    const error = await res.text()
-    throw new Error(`Asaas error ${res.status}: ${error}`)
+    throw new AsaasRequestError(res.status)
   }
   return res.json()
 }

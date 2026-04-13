@@ -2,12 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import {
+  AsaasRequestError,
   createAsaasCustomer,
   createAsaasSubscription,
   cancelAsaasSubscription,
   getAsaasSubscriptionPayments,
   getAsaasPaymentPixQrCode,
 } from '@/lib/asaas'
+
+function getGatewaySetupErrorMessage() {
+  return 'Não foi possível preparar a cobrança. Tente novamente em instantes.'
+}
+
+function getSubscriptionErrorMessage(billingType: string) {
+  if (billingType === 'CREDIT_CARD') {
+    return 'Não foi possível processar o pagamento com cartão. Verifique os dados e tente novamente.'
+  }
+
+  return 'Não foi possível iniciar a cobrança. Tente novamente em instantes.'
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -27,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { planId, billingCycle, billingType, email, name, cpfCnpj, creditCardToken, creditCardHolderInfo, remoteIp } = body
+  const { planId, billingCycle, billingType, email, name, cpfCnpj, creditCardToken, creditCard, creditCardHolderInfo, remoteIp } = body
 
   if (!planId || !billingCycle || !billingType || !email || !name) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -76,8 +89,8 @@ export async function POST(req: NextRequest) {
       ? { id: existingSub.asaas_customer_id }
       : await createAsaasCustomer({ name, email, cpfCnpj })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Erro ao criar cliente no gateway: ${msg}` }, { status: 500 })
+    const status = err instanceof AsaasRequestError && err.status >= 400 && err.status < 500 ? 400 : 500
+    return NextResponse.json({ error: getGatewaySetupErrorMessage() }, { status })
   }
 
   const nextDueDate = new Date()
@@ -94,12 +107,13 @@ export async function POST(req: NextRequest) {
       cycle: billing.cycle,
       description: `CM Pro — Plano ${plan.name} (${billingCycle})`,
       ...(billingType === 'CREDIT_CARD' && creditCardToken ? { creditCardToken } : {}),
+      ...(billingType === 'CREDIT_CARD' && creditCard ? { creditCard } : {}),
       ...(billingType === 'CREDIT_CARD' && creditCardHolderInfo ? { creditCardHolderInfo } : {}),
       ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
     })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Erro ao criar assinatura no gateway: ${msg}` }, { status: 500 })
+    const status = err instanceof AsaasRequestError && err.status >= 400 && err.status < 500 ? 400 : 500
+    return NextResponse.json({ error: getSubscriptionErrorMessage(billingType) }, { status })
   }
 
   const now = new Date().toISOString()
