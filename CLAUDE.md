@@ -401,6 +401,17 @@ Endpoints validados:
 
 ---
 
+## Fluxo de Signup e Pagamento
+
+- Fluxo completo: `/signup` → `/signup/plan` → `/signup/payment` → webhook Asaas confirma → acesso liberado ao dashboard
+- **Trial foi removido completamente** — status inicial da empresa ao cadastrar é `'pending'`, não `'active'`
+- **Google OAuth removido do MVP** — apenas cadastro manual via formulário
+- Acesso ao `/dashboard` só é liberado após `plan_id` ser preenchido na empresa (ocorre via webhook `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED`)
+- Dashboard layout redireciona para `/signup/plan?error=plan_required` se `plan_id === null`
+- A coluna `trial_ends_at` permanece no banco mas não é mais usada pelo código
+
+---
+
 ## Billing & Plans Module
 
 ### Plans (tabela `plans`)
@@ -410,11 +421,10 @@ Endpoints validados:
 - Elite: 50.000 emails/mês, usuários ilimitados, R$797/mês
 
 Pacote extra: 5.000 emails por R$80 (compra avulsa)
-Trial: 7 dias com limite de 500 emails
 
 ### Tabelas criadas
 - `plans` — planos com preços e limites
-- `subscriptions` — assinatura por empresa (status: trial/active/past_due/cancelled/expired)
+- `subscriptions` — assinatura por empresa (status: pending/active/past_due/cancelled/expired)
 - `email_credits` — pacotes extras comprados
 - `billing_events` — log de webhooks Asaas
 
@@ -426,14 +436,26 @@ Trial: 7 dias com limite de 500 emails
 - `additional_users_count`
 
 ### Gateway de pagamento: Asaas
-- Sandbox: `NEXT_PUBLIC_ASAAS_SANDBOX=true`
-- Variáveis: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
-- Client: `lib/asaas.ts`
+
+- Env vars obrigatórias: `ASAAS_API_KEY` (chave secreta) e `ASAAS_WEBHOOK_TOKEN` (validação do header `asaas-access-token`)
+- `NEXT_PUBLIC_ASAAS_SANDBOX=true` → usa `https://sandbox.asaas.com/api/v3`
+- `NEXT_PUBLIC_ASAAS_SANDBOX` vazio/false → usa `https://api.asaas.com/api/v3`
+- Client: `lib/asaas.ts` — funções: `createAsaasCustomer`, `createAsaasSubscription`, `cancelAsaasSubscription`, `getAsaasSubscriptionPayments`, `getAsaasPaymentPixQrCode`
 - Troca de plano: cancela assinatura anterior antes de criar nova; reutiliza `asaas_customer_id` existente
+- Novos usuários não têm subscription → `POST /api/billing/subscribe` faz INSERT em vez de UPDATE
+
+### Comportamento de `/api/billing/subscribe`
+
+- Usa `.maybeSingle()` na busca de subscription existente (evita erro PGRST116 para novos usuários)
+- `createAsaasCustomer` e `createAsaasSubscription` envolvidos em `try/catch` individuais — erros retornam JSON `{ error }` em vez de HTML 500
+- Se `existingSub` existe: UPDATE; se não existe: INSERT com todos os campos
+- Retorna `{ success, subscription_id, customer_id, status, pix?, boletoUrl? }`
+- Para PIX: busca QR Code do primeiro pagamento via `getAsaasSubscriptionPayments` + `getAsaasPaymentPixQrCode`
+- Para Boleto: retorna `bankSlipUrl` do primeiro pagamento
 
 ### Rotas de billing
-- `POST /api/billing/subscribe` — cria cliente + assinatura no Asaas; suporta `billingType=CREDIT_CARD` com campos `creditCard`, `creditCardHolderInfo`, `remoteIp`
-- `POST /api/billing/webhook` — recebe eventos Asaas (auth via `asaas-access-token` header)
+- `POST /api/billing/subscribe` — cria cliente + assinatura no Asaas; suporta CREDIT_CARD, PIX e BOLETO
+- `POST /api/billing/webhook` — recebe eventos Asaas (auth via `asaas-access-token` header); após `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` gera PDF do contrato e envia por email
 - `POST /api/billing/cancel` — cancela assinatura no Asaas + atualiza `subscriptions.status='cancelled'`
 - `POST /api/billing/extra-credits` — compra pacote extra
 - `GET  /api/billing/subscription` — dados reais de assinatura da empresa
@@ -452,6 +474,26 @@ Trial: 7 dias com limite de 500 emails
 ### Página de assinatura
 - Settings → aba Assinatura: dados reais via GET /api/billing/subscription
 - Exibe plano atual, barra de progresso, 3 cards de planos, pacote extra, botão Cancelar assinatura
+
+---
+
+## Sistema de Contrato
+
+### Arquivos
+
+- `lib/contract/contractText.ts` — texto completo do contrato CM Pro com placeholders `[RAZAO SOCIAL]`, `[CNPJ/CPF]`, etc.; exporta `CONTRACT_TEXT` (string), `CONTRACT_VERSION = 'v1.0'`, e `hashContract(text)` via `crypto.subtle` (SHA-256, retorna hex)
+- `lib/contract/generatePdf.ts` — gera PDF com `pdf-lib`; substitui todos os placeholders com dados reais; paginação automática com footer em cada página; exporta `generateContractPdf(data: ContractData): Promise<Uint8Array>`
+- `lib/contract/sendContractEmail.ts` — envia PDF via Resend (`RESEND_API_KEY`); assunto "Seu contrato CM Pro está disponível"; anexo `Contrato_CM_Pro.pdf`; exporta `sendContractEmail(toEmail, toName, pdfBytes)`
+
+### Fluxo de aceitação (signup/payment)
+
+- Usuário aceita o contrato no modal antes de finalizar o pagamento
+- Ao aceitar: `hashContract(CONTRACT_TEXT)` + `CONTRACT_VERSION` salvos em `contract_acceptances` com `user_id`, `company_id`, `plan_id`, `ip_address`
+
+### Fluxo de envio pós-pagamento (webhook)
+
+- Após `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED`: webhook gera PDF com dados reais da empresa/plano e envia por email via `sendContractEmail`
+- Bloco é best-effort (`try/catch` não bloqueia o webhook)
 
 ---
 
@@ -590,6 +632,13 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 - **NEVER include `supabase/functions/` in the Next.js build.** The folder is excluded via `tsconfig.json` `exclude: ["supabase"]`. Edge Functions use Deno and are incompatible with the Next.js TypeScript compiler.
 - Deploy Edge Functions only via `supabase functions deploy`, never via Next.js build pipeline.
 
+### Regras Obrigatórias para Claude Code
+
+- **Antes de qualquer commit: rodar `npm run build` localmente e confirmar que passou sem erros de tipo ou compilação.**
+- **Nunca criar importações para arquivos que ainda não existem** — verificar se o arquivo existe antes de importar; se não existe, criar o arquivo no mesmo PR/commit.
+- **Nunca remover importações sem investigar se a funcionalidade é intencional** — o padrão correto é criar o arquivo ausente, não remover o import.
+- **Busca sistêmica**: ao corrigir um padrão (ex.: import quebrado, lógica inconsistente), buscar o mesmo padrão em todos os arquivos e corrigir tudo no mesmo commit.
+
 ---
 
 ## Database Fixes (março 2026)
@@ -602,6 +651,16 @@ RESEND_API_KEY                   # e-mails transacionais via Resend
 ---
 
 ## Changelog
+
+### Sessão 2026-04-13
+
+- **Remoção do sistema de trial** — `status` inicial da empresa mudou para `'pending'`; `trial_ends_at` não é mais definido no signup; `dashboard/layout.tsx` redireciona para `/signup/plan` apenas com base em `plan_id === null`; `billing-guard.ts` bloqueia por `no_plan` em vez de `trial_expired`
+- **Google OAuth removido do MVP** — botão "Continuar com Google" e separador removidos de `/signup`
+- **Módulo de contrato PDF criado** — `lib/contract/contractText.ts`, `lib/contract/generatePdf.ts`, `lib/contract/sendContractEmail.ts`; contrato aceito no signup/payment salva hash+versão no banco; webhook Asaas gera e envia PDF após pagamento confirmado
+- **Correções em `/api/billing/subscribe`** — `createAsaasCustomer` e `createAsaasSubscription` em `try/catch` individuais retornando JSON; `.single()` → `.maybeSingle()` na busca de subscription; INSERT para novos usuários sem subscription em vez de UPDATE silencioso
+- **Logs de diagnóstico em `/api/auth/signup`** — quando email duplicado, loga presença em `auth.users` e `profiles`
+- **Erro real exibido no frontend de `/signup/payment`** — `catch` do fetch mostra mensagem real do erro em vez de texto genérico
+- **Deleção de usuário de teste** — `gaelmartinsdamico@gmail.com` removido de `auth.users`, `profiles`, `company_profiles` e `companies`
 
 ### Sessão 2026-04-10
 
