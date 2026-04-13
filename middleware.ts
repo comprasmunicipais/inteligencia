@@ -63,9 +63,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  const isDemoRecalculateScoresRoute =
+    request.method === 'POST' && pathname === '/api/intel/recalculate-scores';
+
   // 🔒 modo demo — bloqueia escrita
   const isWriteMethod = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method);
-  if (isWriteMethod && user.user_metadata?.is_demo === true) {
+  if (isWriteMethod && !isDemoRecalculateScoresRoute && user.user_metadata?.is_demo === true) {
     return NextResponse.json(
       { error: 'Modo demonstração — escrita desabilitada.' },
       { status: 403 }
