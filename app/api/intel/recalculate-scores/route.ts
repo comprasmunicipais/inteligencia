@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 
 const DEMO_COMPANY_ID = 'e4b60595-2a42-4c2a-aa61-ebfb52cfb50d';
 
@@ -131,6 +131,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
+    const adminSupabase = await createAdminClient();
 
     const {
       data: { user },
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
     }
 
     // Buscar perfil da empresa
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await adminSupabase
       .from('company_profiles')
       .select('*')
       .eq('company_id', company_id)
@@ -174,7 +175,7 @@ export async function POST(request: Request) {
     }
 
     // Buscar todas as oportunidades globais (company_id nullable desde 2026-03-31)
-    const { data: opportunities, error: oppsError } = await supabase
+    const { data: opportunities, error: oppsError } = await adminSupabase
       .from('opportunities')
       .select('id, title, description, organ_name, modality, state, estimated_value');
 
@@ -210,7 +211,7 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await adminSupabase
       .from('company_opportunity_scores')
       .upsert(upsertData, { onConflict: 'company_id,opportunity_id' });
 

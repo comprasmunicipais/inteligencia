@@ -118,7 +118,7 @@ export default function OpportunitiesPage() {
 
     try {
       const oppsData = await opportunityService.getAll(companyId);
-      setOpps(isReadOnly ? (oppsData || []).slice(0, 5) : (oppsData || []));
+      setOpps(oppsData || []);
     } catch (error) {
       setOpps([]);
     }
@@ -373,6 +373,10 @@ export default function OpportunitiesPage() {
     };
   }, [filteredOpps]);
 
+  const displayedOpps = useMemo(() => {
+    return isReadOnly ? filteredOpps.slice(0, 5) : filteredOpps;
+  }, [filteredOpps, isReadOnly]);
+
   const quickFilterLabel =
     quickFilter === 'all'
       ? 'Todos os cards'
@@ -590,7 +594,7 @@ export default function OpportunitiesPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {filteredOpps.map((opp) => (
+                {displayedOpps.map((opp) => (
                   <div
                     key={opp.id}
                     className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
