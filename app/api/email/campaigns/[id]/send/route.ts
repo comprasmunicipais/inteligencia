@@ -146,7 +146,7 @@ export async function POST(
     // ── 3. Load campaign ─────────────────────────────────────────────────────
     const { data: campaign, error: campaignError } = await supabase
       .from('email_campaigns')
-      .select('id, company_id, name, subject, preheader, html_content, text_content, audience_filters, status')
+      .select('id, company_id, name, subject, preheader, html_content, text_content, audience_filters, status, sent_at')
       .eq('id', campaignId)
       .eq('company_id', companyId)
       .single();
@@ -164,6 +164,42 @@ export async function POST(
     }
 
     // ── 4. Validate sending account ──────────────────────────────────────────
+    const { data: activeJobs, error: activeJobsError } = await supabase
+      .from('email_job_queue')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .in('status', ['pending', 'processing'])
+      .limit(1);
+
+    if (activeJobsError) {
+      return NextResponse.json({ error: 'Erro ao validar status da fila da campanha.' }, { status: 500 });
+    }
+
+    if ((activeJobs?.length ?? 0) > 0) {
+      return NextResponse.json(
+        { error: 'A campanha jÃ¡ estÃ¡ em processamento de envio.' },
+        { status: 409 },
+      );
+    }
+
+    const { data: sentJobs, error: sentJobsError } = await supabase
+      .from('email_job_queue')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'sent')
+      .limit(1);
+
+    if (sentJobsError) {
+      return NextResponse.json({ error: 'Erro ao validar histÃ³rico de envio da campanha.' }, { status: 500 });
+    }
+
+    if (campaign.sent_at || (sentJobs?.length ?? 0) > 0) {
+      return NextResponse.json(
+        { error: 'A campanha jÃ¡ foi enviada e nÃ£o pode ser enfileirada novamente.' },
+        { status: 409 },
+      );
+    }
+
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
       .select('id, company_id, is_active, smtp_password_encrypted')

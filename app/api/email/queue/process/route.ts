@@ -58,6 +58,12 @@ function sanitizeSmtpError(error: unknown): string {
     .replace(/user(name)?\s*[:=]\s*[^\s]+/gi, 'username=[redacted]');
 }
 
+function maskEmail(email: string): string {
+  const [localPart = '', domain = ''] = email.split('@');
+  const visibleLocal = localPart.slice(0, 2);
+  return `${visibleLocal || '**'}***@${domain || 'redacted'}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Route handler — called by Vercel Cron every hour
 // Auth: Authorization: Bearer <CRON_SECRET>
@@ -211,8 +217,11 @@ export async function GET(req: NextRequest) {
       sent++;
       await supabase.rpc('increment_emails_used', { company_id_param: job.company_id });
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
-    } catch (err) {
-      console.error(`[queue-process] Falha para ${job.recipient_email}:`, sanitizeSmtpError(err));
+      } catch (err) {
+        console.error('[queue-process] Falha para destinatário:', {
+          recipient: maskEmail(job.recipient_email),
+          error: sanitizeSmtpError(err),
+        });
 
       await supabase
         .from('email_job_queue')
