@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -77,7 +77,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function EmailHistoryPage() {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
   const router = useRouter();
 
   const [jobs, setJobs] = useState<EmailJob[]>([]);

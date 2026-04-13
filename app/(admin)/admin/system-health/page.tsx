@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useCompany } from '@/components/providers/CompanyProvider';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -23,8 +23,6 @@ interface TableStatus {
   status: 'ok' | 'error' | 'loading';
 }
 
-const supabase = createClient();
-
 const TABLES_TO_CHECK = [
   'profiles',
   'companies',
@@ -37,6 +35,7 @@ const TABLES_TO_CHECK = [
 ];
 
 export default function SystemHealthPage() {
+  const supabase = useRef(createClient()).current;
   const { user, role, companyId, loading: authLoading } = useCompany();
   const [tableStatuses, setTableStatuses] = useState<TableStatus[]>([]);
   const [checking, setChecking] = useState(false);

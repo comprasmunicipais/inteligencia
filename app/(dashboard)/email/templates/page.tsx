@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Layout, Pencil, Send, X, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
@@ -35,7 +35,7 @@ function bodyPreview(body: string): string {
 
 export default function EmailTemplatesPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);

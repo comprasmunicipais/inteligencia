@@ -487,7 +487,7 @@ function AudienceStep({
   onChange: (f: AudienceFilters) => void;
   isReadOnly?: boolean;
 }) {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingCount, setLoadingCount] = useState(false);
@@ -1264,7 +1264,7 @@ export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
   const campaignId = params.id as string;
   const isNew = campaignId === 'new';
 

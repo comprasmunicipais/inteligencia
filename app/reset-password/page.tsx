@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
@@ -13,7 +13,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
   // Supabase sends the token in the URL hash; the client picks it up automatically
   // on SIGNED_IN with the PASSWORD_RECOVERY event.

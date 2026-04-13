@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -30,7 +30,7 @@ function formatDate(iso: string) {
 }
 
 export default function AdminLogsPage() {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);

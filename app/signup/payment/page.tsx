@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
-import { CONTRACT_TEXT, CONTRACT_VERSION, hashContract } from '@/lib/contract/contractText';
 
 const ASAAS_SCRIPT_URL =
   process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
@@ -241,15 +240,12 @@ export default function SignupPaymentPage() {
         .single();
 
       const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ ip: null }));
-      const hash = await hashContract(CONTRACT_TEXT);
 
       await supabase.from('contract_acceptances').insert({
         company_id: profile?.company_id,
         user_id: userId,
         plan_id: pending.planId,
         ip_address: ipData.ip ?? null,
-        contract_hash: hash,
-        contract_version: CONTRACT_VERSION,
       });
 
       setContractAccepted(true);
@@ -1092,7 +1088,7 @@ export default function SignupPaymentPage() {
             </div>
 
             <div className="contract-scroll-area" ref={scrollRef} onScroll={handleScrollContract}>
-              <pre className="contract-text">{CONTRACT_TEXT}</pre>
+              <pre className="contract-text"></pre>
             </div>
 
             <div className="contract-modal-footer">

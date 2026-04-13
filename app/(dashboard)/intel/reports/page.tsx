@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import { Target, BarChart2, Activity, Trophy, Loader2, Download } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -69,6 +69,7 @@ interface ResultsData { contractCount: number; contractTotal: number; proposalCo
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const [period, setPeriod] = useState<Period>(30);
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,6 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!companyId) return;
-    const supabase = createClient();
     supabase.from('companies').select('name').eq('id', companyId).single()
       .then(({ data }) => { if (data?.name) setCompanyName(data.name); });
   }, [companyId]);
@@ -94,7 +94,6 @@ export default function ReportsPage() {
   const load = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
-    const supabase = createClient();
     const since = periodStart(period);
 
     // ── Relatório 1: Alta Aderência ──────────────────────────────────────────

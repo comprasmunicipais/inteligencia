@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import {
   User,
@@ -26,6 +26,7 @@ interface UserProfile {
 }
 
 export default function SettingsPage() {
+  const supabase = useRef(createClient()).current;
   const [activeTab, setActiveTab] = useState('Perfil');
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -57,7 +58,6 @@ export default function SettingsPage() {
   const [inviteError, setInviteError] = useState('');
 
   useEffect(() => {
-    const supabase = createClient();
     (async () => {
       setLoadingProfile(true);
       try {
@@ -220,7 +220,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (activeTab !== 'Organização' || !companyId) return;
-    const supabase = createClient();
     setLoadingTeam(true);
     (async () => {
       const { data } = await supabase
@@ -253,7 +252,6 @@ export default function SettingsPage() {
         setInviteRole('user');
         // Reload team list
         if (companyId) {
-          const supabase = createClient();
           const { data: members } = await supabase
             .from('profiles')
             .select('id, email, role')

@@ -188,7 +188,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
 
     if (emailAddresses.length > 0) {
       await resend.emails.send({
-        from: 'CM Pro <onboarding@resend.dev>',
+        from: 'CM Pro <noreply@comprasmunicipais.com.br>',
         to: emailAddresses,
         subject: `🎯 ${highScoreOpps.length} nova(s) oportunidade(s) com alta aderência detectada(s)`,
         html: `

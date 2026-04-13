@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -100,7 +100,7 @@ function ChartTooltip({ active, payload }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function EmailEstatisticasPage() {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
   const router = useRouter();
 
   const [campaigns, setCampaigns] = useState<SentCampaign[]>([]);

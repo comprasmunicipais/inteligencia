@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendPaymentConfirmedEmail, sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from '@/lib/email/transactional'
 import { timingSafeEqual } from 'crypto'
+import { generateContractPdf } from '@/lib/contract/generatePdf'
+import { sendContractEmail } from '@/lib/contract/sendContractEmail'
 
 export async function POST(req: NextRequest) {
   // Layer 1: header must be present
@@ -124,6 +126,65 @@ export async function POST(req: NextRequest) {
     } catch {
       // non-blocking
     }
+
+    // Generate and send contract PDF (best-effort)
+    try {
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('name, cnpj_cpf, address, plan_id')
+        .eq('id', companyId)
+        .single()
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      const { data: planData } = companyData?.plan_id
+        ? await supabase.from('plans').select('name').eq('id', companyData.plan_id).single()
+        : { data: null }
+
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('billing_cycle')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+
+      if (profileData?.email) {
+        const cycleLabel: Record<string, string> = {
+          monthly: 'Mensal',
+          semiannual: 'Semestral',
+          annual: 'Anual',
+        }
+        const periodicidade = subData?.billing_cycle
+          ? (cycleLabel[subData.billing_cycle] ?? subData.billing_cycle)
+          : 'Mensal'
+
+        const valor = payment.value
+          ? `R$ ${Number(payment.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          : ''
+
+        const pdfBytes = await generateContractPdf({
+          razaoSocial: companyData?.name ?? '',
+          cnpjCpf: companyData?.cnpj_cpf ?? '',
+          address: companyData?.address ?? '',
+          email: profileData.email,
+          plano: planData?.name ?? 'CM Pro',
+          valor,
+          periodicidade,
+          dataContratacao: new Date().toLocaleDateString('pt-BR'),
+        })
+
+        await sendContractEmail(profileData.email, profileData.full_name ?? '', pdfBytes)
+      }
+    } catch {
+      // non-blocking
+    }
   }
 
   if (event === 'PAYMENT_OVERDUE') {
@@ -215,6 +276,47 @@ export async function POST(req: NextRequest) {
             accessUntil,
           })
         }
+      }
+    } catch {
+      // non-blocking
+    }
+  }
+
+  if (event === 'SUBSCRIPTION_INACTIVATED') {
+    await supabase.from('subscriptions')
+      .update({ status: 'inactive' })
+      .eq('asaas_subscription_id', payment.subscriptionId)
+
+    await supabase.from('companies')
+      .update({ status: 'inactive' })
+      .eq('id', companyId)
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      const { data: company } = await supabase
+        .from('companies')
+        .select('plan_id')
+        .eq('id', companyId)
+        .single()
+
+      const { data: plan } = company?.plan_id
+        ? await supabase.from('plans').select('name').eq('id', company.plan_id).single()
+        : { data: null }
+
+      if (profile?.email) {
+        await sendSubscriptionCancelledEmail({
+          to: profile.email,
+          name: profile.full_name || profile.email,
+          planName: plan?.name ?? 'CM Pro',
+          accessUntil: null,
+        })
       }
     } catch {
       // non-blocking

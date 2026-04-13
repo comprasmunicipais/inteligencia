@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import Image from 'next/image';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -44,8 +44,6 @@ import { formatCurrency } from '@/lib/utils/safe-helpers';
 import EmptyState from '@/components/shared/EmptyState';
 import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient();
-
 const COLOR_OPTIONS = [
   { label: 'Cinza', value: 'bg-gray-400' },
   { label: 'Azul', value: 'bg-blue-500' },
@@ -84,6 +82,7 @@ interface Column {
 }
 
 export default function PipelinePage() {
+  const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const [loading, setLoading] = useState(true);
   const [columns, setColumns] = useState<Column[]>([]);

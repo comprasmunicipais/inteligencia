@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import { TrendingUp, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -26,6 +26,7 @@ interface AnalysisData {
 }
 
 export default function MarketAnalysisPage() {
+  const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const [data, setData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,6 @@ export default function MarketAnalysisPage() {
       setLoading(false);
       return;
     }
-    const supabase = createClient();
 
     const load = async () => {
       setLoading(true);

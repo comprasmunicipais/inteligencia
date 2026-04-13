@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import {
   Search,
@@ -39,8 +39,6 @@ import { OpportunityDTO } from '@/lib/types/dtos';
 import EmptyState from '@/components/shared/EmptyState';
 import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient();
-
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 type QuickFilterKey = 'all' | 'new_last_sync' | 'high_match' | 'expiring_soon' | 'converted';
 type EsferaKey = 'Todos' | 'Municipal' | 'Estadual' | 'Federal' | 'Outro';
@@ -74,6 +72,7 @@ function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' 
 }
 
 export default function OpportunitiesPage() {
+  const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const isReadOnly = useIsReadOnly();
 

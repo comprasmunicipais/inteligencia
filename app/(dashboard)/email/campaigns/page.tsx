@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Mail, Plus, Search, MoreVertical, Pencil, Copy, Trash2, X } from 'lucide-react';
@@ -64,7 +64,7 @@ const STATUS_FILTER_OPTIONS = ['Todos', 'Rascunho', 'Agendada', 'Ativa', 'Enviad
 type StatusFilterOption = typeof STATUS_FILTER_OPTIONS[number];
 
 export default function EmailCampaignsPage() {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
   const router = useRouter();
   const { companyId } = useCompany();
   const isReadOnly = useIsReadOnly();

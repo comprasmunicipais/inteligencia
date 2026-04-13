@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import {
   Save,
@@ -59,7 +59,7 @@ const fileTypeLabel = (type: string) => {
 };
 
 export default function IntelProfilePage() {
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const isReadOnly = useIsReadOnly();
   const [profile, setProfile] = useState<CompanyIntelligenceProfile | null>(null);

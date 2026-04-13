@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { ArrowRight, RefreshCw, Search, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -46,8 +46,6 @@ type AudiencePreviewResponse = {
   pageSize: number;
   error?: string;
 };
-
-const supabase = createClient();
 
 const REGIONS: Record<string, string[]> = {
   Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
@@ -134,6 +132,7 @@ function orderPopulationRanges(ranges: string[]) {
 }
 
 export default function EmailAudiencesPage() {
+  const supabase = useRef(createClient()).current;
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
 

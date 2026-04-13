@@ -35,7 +35,19 @@
       "mcp__claude_ai_Vercel__list_projects",
       "Bash(git --version)",
       "Bash(npx opensquad:*)",
-      "Bash(node skills/supabase-cmpro/index.js get-municipalities-by-state \"{\\\\\"state\\\\\":\\\\\"SP\\\\\",\\\\\"limit\\\\\":2}\")"
+      "Bash(node skills/supabase-cmpro/index.js get-municipalities-by-state \"{\\\\\"state\\\\\":\\\\\"SP\\\\\",\\\\\"limit\\\\\":2}\")",
+      "Bash(vercel --prod)",
+      "Bash(curl:*)",
+      "mcp__claude_ai_Supabase__get_logs",
+      "Bash(find /c/Projetos/inteligencia/inteligencia/app -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -h \"process\\\\.env\\\\.\" {} \\\\;)",
+      "Bash(find /c/Projetos/inteligencia/inteligencia/app -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -h \"\\\\.from\\(\" {} \\\\;)",
+      "Bash(find /c/Projetos/inteligencia/inteligencia/app -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -oP \"\\\\.from\\\\\\(['\\\\\"][^'\\\\\"]+['\\\\\"]\" {} \\\\;)",
+      "Bash(find:*)",
+      "Bash(sed -n '30,40p' /c/Projetos/inteligencia/inteligencia/app/\\\\\\(admin\\\\\\)/admin/logs/page.tsx)",
+      "Bash(sed -n '57,62p' /c/Projetos/inteligencia/inteligencia/app/signup/payment/page.tsx)",
+      "Bash(sed -n '76,82p' /c/Projetos/inteligencia/inteligencia/app/signup/onboarding/page.tsx)",
+      "Bash(sed -n '14,22p' /c/Projetos/inteligencia/inteligencia/app/login/page.tsx)",
+      "Bash(sed -n '1,35p' /c/Projetos/inteligencia/inteligencia/app/\\\\\\(dashboard\\\\\\)/crm/accounts/\\\\[id\\\\]/page.tsx)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 'use client';
  
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Plus,
@@ -63,9 +63,8 @@ type MunicipalityEmailDTO = {
   is_strategic: boolean | null;
 };
  
-const supabase = createClient();
- 
 export default function AccountDetailPage() {
+  const supabase = useRef(createClient()).current;
   const params = useParams();
   const router = useRouter();
   const { companyId, user } = useCompany();
