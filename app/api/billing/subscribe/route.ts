@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString()
 
   // Cartão: ativa imediatamente. PIX/Boleto: aguarda webhook de confirmação.
-  const initialStatus = billingType === 'CREDIT_CARD' ? 'active' : 'pending'
+  const initialStatus = 'pending'
 
   if (existingSub) {
     await adminSupabase.from('subscriptions')
@@ -133,12 +133,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Só atualiza plan_id na company imediatamente para cartão
-  if (billingType === 'CREDIT_CARD') {
-    await adminSupabase.from('companies')
-      .update({ plan_id: planId })
-      .eq('id', profile.company_id)
-  }
-
   // Para PIX: busca QR Code do primeiro pagamento gerado
   let pixData: { encodedImage: string; payload: string; expirationDate: string } | null = null
 

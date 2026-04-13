@@ -88,6 +88,7 @@ export default function SignupPaymentPage() {
 
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
+  const [cardPending, setCardPending] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
 
   const [userId, setUserId] = useState('');
@@ -240,7 +241,7 @@ export default function SignupPaymentPage() {
       }
 
       if (billingType === 'CREDIT_CARD') {
-        router.push('/dashboard?welcome=1');
+        setCardPending(true);
         return;
       }
 
@@ -332,6 +333,93 @@ export default function SignupPaymentPage() {
   if (!plan || !pending) return null;
 
   const price = getPlanPrice(plan, pending.billingCycle);
+
+  if (cardPending) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#080c14',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          fontFamily: 'Outfit, sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            background: 'rgba(13,18,30,0.95)',
+            border: '1px solid rgba(16,185,129,0.18)',
+            borderRadius: 20,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: 3,
+              background: 'linear-gradient(90deg, #059669, #10b981, #34d399, transparent)',
+            }}
+          />
+          <div
+            style={{
+              padding: '36px 36px 32px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 20,
+              textAlign: 'center',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Sora, sans-serif',
+                  fontSize: 20,
+                  fontWeight: 800,
+                  color: '#f0f4ff',
+                }}
+              >
+                CM <span style={{ color: '#10b981' }}>PRO</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(148,163,184,0.60)', marginTop: 4 }}>
+                Cartao em processamento
+              </div>
+            </div>
+
+            <div
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'rgba(16,185,129,0.06)',
+                border: '1px solid rgba(16,185,129,0.16)',
+                borderRadius: 10,
+                fontSize: 14,
+                color: 'rgba(148,163,184,0.70)',
+                lineHeight: 1.7,
+              }}
+            >
+              Seu pagamento foi enviado para confirmacao. O acesso sera liberado somente apos a
+              confirmacao efetiva do pagamento.
+            </div>
+
+            <div
+              style={{
+                fontSize: 13,
+                color: 'rgba(148,163,184,0.65)',
+                lineHeight: 1.6,
+              }}
+            >
+              Assim que o gateway confirmar a cobranca, sua assinatura sera ativada
+              automaticamente e voce recebera a confirmacao por e-mail.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (pixData) {
     return (
