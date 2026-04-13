@@ -22,6 +22,16 @@ function getSubscriptionErrorMessage(billingType: string) {
   return 'Não foi possível iniciar a cobrança. Tente novamente em instantes.'
 }
 
+function getRequestRemoteIp(req: NextRequest, fallbackRemoteIp: unknown) {
+  const forwardedFor = req.headers.get('x-forwarded-for')
+  const realIp = req.headers.get('x-real-ip')
+  const fallback = typeof fallbackRemoteIp === 'string' ? fallbackRemoteIp.trim() : ''
+
+  return [forwardedFor?.split(',')[0]?.trim(), realIp?.trim(), fallback].find(
+    (value) => typeof value === 'string' && value.length > 0
+  )
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -41,6 +51,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { planId, billingCycle, billingType, email, name, cpfCnpj, creditCardToken, creditCard, creditCardHolderInfo, remoteIp } = body
+  const requestRemoteIp = getRequestRemoteIp(req, remoteIp)
 
   if (!planId || !billingCycle || !billingType || !email || !name) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -109,7 +120,7 @@ export async function POST(req: NextRequest) {
       ...(billingType === 'CREDIT_CARD' && creditCardToken ? { creditCardToken } : {}),
       ...(billingType === 'CREDIT_CARD' && creditCard ? { creditCard } : {}),
       ...(billingType === 'CREDIT_CARD' && creditCardHolderInfo ? { creditCardHolderInfo } : {}),
-      ...(billingType === 'CREDIT_CARD' && remoteIp ? { remoteIp } : {}),
+      ...(billingType === 'CREDIT_CARD' && requestRemoteIp ? { remoteIp: requestRemoteIp } : {}),
     })
   } catch (err: unknown) {
     console.error('ASAAS_SUBSCRIPTION_ERROR', {
@@ -117,6 +128,27 @@ export async function POST(req: NextRequest) {
       billingType,
       planId,
       companyId: profile.company_id,
+    })
+    console.error('ASAAS_DEBUG_VALIDATION', {
+      billingType,
+      planId,
+      companyId: profile.company_id,
+      hasCreditCard: !!creditCard,
+      hasHolderInfo: !!creditCardHolderInfo,
+      cpfCnpjLength: typeof cpfCnpj === 'string' ? cpfCnpj.length : undefined,
+      postalCode:
+        creditCardHolderInfo &&
+        typeof creditCardHolderInfo === 'object' &&
+        'postalCode' in creditCardHolderInfo
+          ? creditCardHolderInfo.postalCode
+          : undefined,
+      addressNumber:
+        creditCardHolderInfo &&
+        typeof creditCardHolderInfo === 'object' &&
+        'addressNumber' in creditCardHolderInfo
+          ? creditCardHolderInfo.addressNumber
+          : undefined,
+      hasRemoteIp: !!requestRemoteIp,
     })
     const status = err instanceof AsaasRequestError && err.status >= 400 && err.status < 500 ? 400 : 500
     return NextResponse.json({ error: getSubscriptionErrorMessage(billingType) }, { status })

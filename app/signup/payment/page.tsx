@@ -255,6 +255,39 @@ export default function SignupPaymentPage() {
           return;
         }
 
+        const expiryMonthNumber = Number(cardForm.expiryMonth);
+        const expiryYearNumber = Number(cardForm.expiryYear);
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1;
+        const currentYear = currentDate.getFullYear();
+
+        if (holderCpfCnpj.length !== 11 && holderCpfCnpj.length !== 14) {
+          setError('Informe um CPF ou CNPJ válido para o titular da cobrança.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!Number.isInteger(expiryMonthNumber) || expiryMonthNumber < 1 || expiryMonthNumber > 12) {
+          setError('Informe um mês de validade válido do cartão.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!/^\d{4}$/.test(cardForm.expiryYear)) {
+          setError('Informe um ano de validade válido com 4 dígitos.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (
+          expiryYearNumber < currentYear ||
+          (expiryYearNumber === currentYear && expiryMonthNumber < currentMonth)
+        ) {
+          setError('O cartão informado está vencido.');
+          setSubmitting(false);
+          return;
+        }
+
         body.creditCard = {
           holderName: cardForm.holderName.trim(),
           number: cardNumber,
@@ -270,6 +303,7 @@ export default function SignupPaymentPage() {
           postalCode,
           addressNumber: cardForm.addressNumber.trim(),
           ...(holderPhone ? { phone: holderPhone } : {}),
+          ...(holderPhone ? { mobilePhone: holderPhone } : {}),
         };
 
         const ipData = await fetch('https://api.ipify.org?format=json')
