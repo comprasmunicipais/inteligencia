@@ -46,6 +46,26 @@ export async function POST(request: NextRequest) {
     if (authError) {
       // Supabase returns "User already registered" for duplicate emails
       if (authError.message.includes('already')) {
+        // Diagnostic: check presence in auth.users and profiles
+        try {
+          const { data: authUsers } = await supabase.auth.admin.listUsers();
+          const inAuthUsers = authUsers?.users?.some((u) => u.email === email) ?? false;
+
+          const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('id, email, company_id')
+            .eq('email', email)
+            .maybeSingle();
+
+          console.log('[signup duplicate]', {
+            email,
+            inAuthUsers,
+            profileRow: profileRow ?? null,
+          });
+        } catch (diagErr) {
+          console.error('[signup duplicate] erro no diagnóstico:', diagErr);
+        }
+
         return NextResponse.json(
           { error: 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.' },
           { status: 409 }

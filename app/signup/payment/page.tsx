@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Script from 'next/script';
 import { createClient } from '@/lib/supabase/client';
+import { CONTRACT_TEXT, CONTRACT_VERSION, hashContract } from '@/lib/contract/contractText';
 
 const ASAAS_SCRIPT_URL =
   process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
@@ -55,7 +56,7 @@ function formatCurrency(value: number): string {
 
 export default function SignupPaymentPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useRef(createClient()).current;
 
   const [pending, setPending]       = useState<PendingPlan | null>(null);
   const [plan, setPlan]             = useState<PlanData | null>(null);
@@ -72,6 +73,14 @@ export default function SignupPaymentPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
+
+  const [userId, setUserId]               = useState('');
+  const [contractAccepted, setContractAccepted] = useState(false);
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [contractAccepting, setContractAccepting] = useState(false);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const [checkboxChecked, setCheckboxChecked] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -102,6 +111,7 @@ export default function SignupPaymentPage() {
         return;
       }
 
+      setUserId(user.id);
       setUserEmail(user.email ?? '');
       setUserName(
         user.user_metadata?.full_name ||
@@ -203,10 +213,49 @@ export default function SignupPaymentPage() {
         document.cookie = 'cm_pending_plan=; path=/; max-age=0';
       }
       router.push('/dashboard?welcome=1');
-    } catch {
-      setError('Erro de conexão. Verifique sua internet e tente novamente.');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[payment] erro no fetch /api/billing/subscribe:', errMsg, err);
+      setError(errMsg || 'Erro de conexão. Verifique sua internet e tente novamente.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleScrollContract = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
+      setScrolledToBottom(true);
+    }
+  }, []);
+
+  const handleContractAccept = async () => {
+    if (!checkboxChecked || !pending) return;
+    setContractAccepting(true);
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', userId)
+        .single();
+
+      const ipData = await fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ ip: null }));
+      const hash = await hashContract(CONTRACT_TEXT);
+
+      await supabase.from('contract_acceptances').insert({
+        company_id: profile?.company_id,
+        user_id: userId,
+        plan_id: pending.planId,
+        ip_address: ipData.ip ?? null,
+        contract_hash: hash,
+        contract_version: CONTRACT_VERSION,
+      });
+
+      setContractAccepted(true);
+      setShowContractModal(false);
+    } finally {
+      setContractAccepting(false);
     }
   };
 
@@ -558,6 +607,194 @@ export default function SignupPaymentPage() {
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* Contract modal */
+        .contract-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.72);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 100;
+          padding: 16px;
+          backdrop-filter: blur(4px);
+          animation: payFadeUp 0.2s ease both;
+        }
+
+        .contract-modal {
+          position: relative;
+          width: 100%;
+          max-width: 640px;
+          max-height: 90vh;
+          background: #0d1220;
+          border: 1px solid rgba(16,185,129,0.22);
+          border-radius: 18px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .contract-modal-topbar {
+          height: 3px;
+          background: linear-gradient(90deg, #059669, #10b981, #34d399, transparent);
+          flex-shrink: 0;
+        }
+
+        .contract-modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 24px 16px;
+          flex-shrink: 0;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .contract-modal-title {
+          font-family: 'Sora', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          color: #f0f4ff;
+        }
+
+        .contract-close-btn {
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255,255,255,0.06);
+          border: none;
+          border-radius: 8px;
+          color: rgba(148,163,184,0.70);
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .contract-close-btn:hover { background: rgba(255,255,255,0.12); }
+
+        .contract-scroll-area {
+          flex: 1;
+          overflow-y: auto;
+          padding: 20px 24px;
+          min-height: 0;
+        }
+
+        .contract-scroll-area::-webkit-scrollbar { width: 6px; }
+        .contract-scroll-area::-webkit-scrollbar-track { background: transparent; }
+        .contract-scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+        .contract-text {
+          font-family: 'Outfit', monospace;
+          font-size: 12px;
+          line-height: 1.7;
+          color: rgba(203,213,225,0.75);
+          white-space: pre-wrap;
+          margin: 0;
+        }
+
+        .contract-modal-footer {
+          flex-shrink: 0;
+          padding: 18px 24px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .contract-checkbox-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          cursor: pointer;
+        }
+
+        .contract-checkbox-row input[type="checkbox"] {
+          margin-top: 2px;
+          width: 16px;
+          height: 16px;
+          accent-color: #10b981;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+
+        .contract-checkbox-label {
+          font-family: 'Outfit', sans-serif;
+          font-size: 13px;
+          color: rgba(203,213,225,0.80);
+          line-height: 1.5;
+          cursor: pointer;
+        }
+
+        .contract-hint {
+          font-size: 11px;
+          color: rgba(100,116,139,0.55);
+          text-align: center;
+        }
+
+        /* Contract accept button */
+        .contract-btn-accept {
+          width: 100%;
+          height: 46px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: linear-gradient(135deg, #059669, #10b981);
+          border: none;
+          border-radius: 10px;
+          color: #fff;
+          font-family: 'Sora', sans-serif;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: opacity 0.2s;
+        }
+
+        .contract-btn-accept:disabled {
+          opacity: 0.40;
+          cursor: not-allowed;
+        }
+
+        /* Contract CTA button (before payment) */
+        .contract-cta-btn {
+          width: 100%;
+          height: 46px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: rgba(16,185,129,0.08);
+          border: 1px solid rgba(16,185,129,0.30);
+          border-radius: 10px;
+          color: #34d399;
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.2s, border-color 0.2s;
+        }
+
+        .contract-cta-btn:hover {
+          background: rgba(16,185,129,0.14);
+          border-color: rgba(16,185,129,0.50);
+        }
+
+        .contract-accepted-badge {
+          width: 100%;
+          height: 46px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: rgba(16,185,129,0.08);
+          border: 1px solid rgba(16,185,129,0.25);
+          border-radius: 10px;
+          color: #34d399;
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+        }
       `}</style>
 
       <div className="pay-root">
@@ -784,9 +1021,29 @@ export default function SignupPaymentPage() {
 
               </div>
 
+              {/* Contract accept */}
+              <div className="pay-submit-wrap" style={{ marginTop: 16 }}>
+                {contractAccepted ? (
+                  <div className="contract-accepted-badge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Contrato aceito ✓
+                  </div>
+                ) : (
+                  <button type="button" className="contract-cta-btn" onClick={() => { setScrolledToBottom(false); setCheckboxChecked(false); setShowContractModal(true); }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Ler e aceitar o Contrato
+                  </button>
+                )}
+              </div>
+
               {/* Submit */}
               <div className="pay-submit-wrap">
-                <button type="submit" disabled={submitting} className="pay-btn">
+                <button type="submit" disabled={submitting || !contractAccepted} className="pay-btn">
                   {submitting ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
@@ -819,6 +1076,56 @@ export default function SignupPaymentPage() {
           </div>
         </div>
       </div>
+
+      {/* Contract modal */}
+      {showContractModal && (
+        <div className="contract-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowContractModal(false); }}>
+          <div className="contract-modal">
+            <div className="contract-modal-topbar" />
+            <div className="contract-modal-header">
+              <div className="contract-modal-title">Contrato de Licença e Prestação de Serviços — CM Pro</div>
+              <button type="button" className="contract-close-btn" onClick={() => setShowContractModal(false)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="contract-scroll-area" ref={scrollRef} onScroll={handleScrollContract}>
+              <pre className="contract-text">{CONTRACT_TEXT}</pre>
+            </div>
+
+            <div className="contract-modal-footer">
+              {!scrolledToBottom && (
+                <div className="contract-hint">Role até o final para habilitar o aceite</div>
+              )}
+              <label className="contract-checkbox-row">
+                <input
+                  type="checkbox"
+                  disabled={!scrolledToBottom}
+                  checked={checkboxChecked}
+                  onChange={(e) => setCheckboxChecked(e.target.checked)}
+                />
+                <span className="contract-checkbox-label">
+                  Li e aceito os termos do Contrato de Licença e Prestação de Serviços do CM Pro
+                </span>
+              </label>
+              <button
+                type="button"
+                className="contract-btn-accept"
+                disabled={!checkboxChecked || contractAccepting}
+                onClick={handleContractAccept}
+              >
+                {contractAccepting ? (
+                  <><Loader2 size={16} className="animate-spin" /> Registrando aceite…</>
+                ) : (
+                  'Confirmar aceite'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
