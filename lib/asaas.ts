@@ -67,6 +67,14 @@ export async function getAsaasPayment(paymentId: string) {
   return asaasRequest(`/payments/${paymentId}`)
 }
 
+export async function getAsaasPaymentPixQrCode(paymentId: string) {
+  return asaasRequest(`/payments/${paymentId}/pixQrCode`)
+}
+
+export async function getAsaasSubscriptionPayments(subscriptionId: string) {
+  return asaasRequest(`/subscriptions/${subscriptionId}/payments`)
+}
+
 export async function cancelAsaasSubscription(subscriptionId: string) {
   return asaasRequest(`/subscriptions/${subscriptionId}`, 'DELETE')
 }
