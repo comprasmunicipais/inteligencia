@@ -60,6 +60,28 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function maskCnpjCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+}
+
 export default function SignupPaymentPage() {
   const router = useRouter();
   const supabase = useRef(createClient()).current;
@@ -71,7 +93,10 @@ export default function SignupPaymentPage() {
   const [loading, setLoading] = useState(true);
 
   const [billingType, setBillingType] = useState<BillingType>('PIX');
+  const [razaoSocial, setRazaoSocial] = useState('');
   const [cpfCnpj, setCpfCnpj] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
   const [cardForm, setCardForm] = useState({
     holderName: '',
     number: '',
@@ -92,6 +117,7 @@ export default function SignupPaymentPage() {
   const [pixCopied, setPixCopied] = useState(false);
 
   const [userId, setUserId] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [contractAccepted, setContractAccepted] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [contractAccepting, setContractAccepting] = useState(false);
@@ -138,6 +164,29 @@ export default function SignupPaymentPage() {
           user.email?.split('@')[0] ||
           ''
       );
+
+      // Pré-preencher dados da empresa
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileData?.company_id) {
+        setCompanyId(profileData.company_id);
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('name, cnpj_cpf, address, phone')
+          .eq('id', profileData.company_id)
+          .single();
+        if (companyData) {
+          if (companyData.name) setRazaoSocial(companyData.name);
+          if (companyData.cnpj_cpf) setCpfCnpj(maskCnpjCpf(companyData.cnpj_cpf));
+          if (companyData.address) setCompanyAddress(companyData.address);
+          if (companyData.phone) setCompanyPhone(companyData.phone);
+        }
+      }
+
       setPending(parsed);
 
       try {
@@ -170,6 +219,19 @@ export default function SignupPaymentPage() {
     setSubmitting(true);
 
     try {
+      // Salvar dados da empresa antes de criar assinatura
+      if (companyId) {
+        await supabase
+          .from('companies')
+          .update({
+            name: razaoSocial,
+            cnpj_cpf: cpfCnpj.replace(/\D/g, ''),
+            address: companyAddress,
+            phone: companyPhone,
+          })
+          .eq('id', companyId);
+      }
+
       const body: Record<string, unknown> = {
         planId: pending.planId,
         billingCycle: pending.billingCycle,
@@ -1311,13 +1373,53 @@ export default function SignupPaymentPage() {
                 </div>
 
                 <div>
+                  <span className="pay-section-label">Dados da empresa</span>
+                </div>
+
+                <div>
+                  <label className="pay-field-label">Razão Social</label>
+                  <input
+                    type="text"
+                    required
+                    value={razaoSocial}
+                    onChange={(e) => setRazaoSocial(e.target.value)}
+                    placeholder="Nome da empresa ou razão social"
+                    className="pay-input"
+                  />
+                </div>
+
+                <div>
                   <label className="pay-field-label">CPF / CNPJ do titular</label>
                   <input
                     type="text"
                     required
                     value={cpfCnpj}
-                    onChange={(e) => setCpfCnpj(e.target.value)}
+                    onChange={(e) => setCpfCnpj(maskCnpjCpf(e.target.value))}
                     placeholder="000.000.000-00 ou 00.000.000/0001-00"
+                    className="pay-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="pay-field-label">Endereço completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={companyAddress}
+                    onChange={(e) => setCompanyAddress(e.target.value)}
+                    placeholder="Rua, número, bairro, cidade – UF"
+                    className="pay-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="pay-field-label">Telefone</label>
+                  <input
+                    type="text"
+                    required
+                    value={companyPhone}
+                    onChange={(e) => setCompanyPhone(maskPhone(e.target.value))}
+                    placeholder="(11) 99999-9999"
                     className="pay-input"
                   />
                 </div>
@@ -1546,7 +1648,7 @@ export default function SignupPaymentPage() {
               <div className="pay-submit-wrap">
                 <button
                   type="submit"
-                  disabled={submitting || !contractAccepted}
+                  disabled={submitting || !contractAccepted || !razaoSocial.trim() || !cpfCnpj.trim() || !companyAddress.trim() || !companyPhone.trim()}
                   className="pay-btn"
                 >
                   {submitting ? (

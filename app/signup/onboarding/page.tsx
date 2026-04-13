@@ -5,28 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-function maskCnpjCpf(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 14);
-  if (digits.length <= 11) {
-    return digits
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  }
-  return digits
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-}
-
-function maskPhone(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  return digits
-    .replace(/(\d{2})(\d)/, '($1) $2')
-    .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
-}
-
 const SEGMENTS = [
   { key: 'TI', label: 'TI', icon: '💻' },
   { key: 'Saúde', label: 'Saúde', icon: '🏥' },
@@ -88,10 +66,6 @@ function OnboardingContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const [cnpjCpf, setCnpjCpf] = useState('');
-  const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
-
   const animatedCount = useAnimatedCount(oppCount);
 
   // Fetch opportunity count whenever states change
@@ -145,24 +119,6 @@ function OnboardingContent() {
         const data = await res.json();
         setError(data.error || 'Erro ao salvar perfil.');
         return;
-      }
-
-      // Salvar dados opcionais da empresa se preenchidos
-      if (cnpjCpf || address || phone) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('company_id')
-          .eq('id', userId)
-          .single();
-
-        if (profile?.company_id) {
-          const update: Record<string, string> = {};
-          if (cnpjCpf) update.cnpj_cpf = cnpjCpf;
-          if (address) update.address = address;
-          if (phone) update.phone = phone;
-
-          await supabase.from('companies').update(update).eq('id', profile.company_id);
-        }
       }
 
       router.push('/signup/plan');
@@ -564,67 +520,6 @@ function OnboardingContent() {
                       </>
                     )}
                   </div>
-                </div>
-
-                {/* Dados opcionais da empresa */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(100,116,139,0.70)', marginBottom: 4 }}>
-                    Dados da empresa (opcional)
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="CNPJ ou CPF"
-                    value={cnpjCpf}
-                    onChange={(e) => setCnpjCpf(maskCnpjCpf(e.target.value))}
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                      borderRadius: 10,
-                      padding: '11px 14px',
-                      color: '#e2e8f0',
-                      fontSize: 14,
-                      fontFamily: 'Outfit, sans-serif',
-                      outline: 'none',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Endereço completo"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                      borderRadius: 10,
-                      padding: '11px 14px',
-                      color: '#e2e8f0',
-                      fontSize: 14,
-                      fontFamily: 'Outfit, sans-serif',
-                      outline: 'none',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Telefone"
-                    value={phone}
-                    onChange={(e) => setPhone(maskPhone(e.target.value))}
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                      borderRadius: 10,
-                      padding: '11px 14px',
-                      color: '#e2e8f0',
-                      fontSize: 14,
-                      fontFamily: 'Outfit, sans-serif',
-                      outline: 'none',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                    }}
-                  />
                 </div>
 
                 {error && (
