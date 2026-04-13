@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 type AccessResult =
   | { blocked: false }
-  | { blocked: true; reason: 'past_due' | 'suspended' | 'trial_expired' };
+  | { blocked: true; reason: 'past_due' | 'suspended' | 'no_plan' };
 
 /**
  * Checks whether a company is allowed to perform billable actions.
@@ -13,7 +13,7 @@ export async function checkCompanyAccess(companyId: string): Promise<AccessResul
 
   const { data: company } = await supabase
     .from('companies')
-    .select('status, trial_ends_at, plan_id')
+    .select('status, plan_id')
     .eq('id', companyId)
     .single();
 
@@ -30,8 +30,8 @@ export async function checkCompanyAccess(companyId: string): Promise<AccessResul
     return { blocked: true, reason: 'suspended' };
   }
 
-  if (company.trial_ends_at && new Date(company.trial_ends_at) < new Date()) {
-    return { blocked: true, reason: 'trial_expired' };
+  if (!company.plan_id) {
+    return { blocked: true, reason: 'no_plan' };
   }
 
   return { blocked: false };

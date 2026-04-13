@@ -19,7 +19,6 @@ export default function DashboardLayout({
   const supabase = useRef(createClient()).current;
   // undefined = still loading | null = no plan | string = has plan
   const [planId, setPlanId] = useState<string | null | undefined>(undefined);
-  const [trialEndsAt, setTrialEndsAt] = useState<string | null | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
@@ -37,32 +36,24 @@ export default function DashboardLayout({
   }, [user, supabase]);
 
   useEffect(() => {
-    if (!companyId) { setPlanId(undefined); setTrialEndsAt(undefined); return; }
+    if (!companyId) { setPlanId(undefined); return; }
     supabase
       .from('companies')
-      .select('plan_id, trial_ends_at')
+      .select('plan_id')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
         setPlanId(data?.plan_id ?? null);
-        setTrialEndsAt(data?.trial_ends_at ?? null);
       });
   }, [companyId, supabase]);
 
-  // Redirect only when there is no plan AND no active/expired trial to show
+  // Redirect when there is no plan
   useEffect(() => {
     if (roleLoading || role === 'platform_admin' || isDemo || isDevUser) return;
-    if (!loading && user && companyId && planId === null && trialEndsAt === null) {
+    if (!loading && user && companyId && planId === null) {
       router.replace('/signup/plan?error=plan_required');
     }
-  }, [loading, user, companyId, planId, trialEndsAt, role, roleLoading, router]);
-
-  const isTrialExpired =
-    !isDemo && !isDevUser &&
-    planId === null &&
-    trialEndsAt !== null &&
-    trialEndsAt !== undefined &&
-    new Date(trialEndsAt) < new Date();
+  }, [loading, user, companyId, planId, role, roleLoading, router]);
 
   // User authenticated but not linked to a company
   if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo && !isDevUser) {
@@ -98,7 +89,7 @@ export default function DashboardLayout({
     );
   }
 
-  // Waiting for plan/trial check — render nothing to avoid flash before redirect
+  // Waiting for plan check — render nothing to avoid flash before redirect
   if (!loading && !roleLoading && user && companyId && planId === undefined && role !== 'platform_admin') {
     return null;
   }
@@ -106,17 +97,6 @@ export default function DashboardLayout({
   return (
     <div className="flex flex-col h-screen w-full bg-[#f6f6f8] overflow-hidden">
       <DemoBanner />
-      {isTrialExpired && (
-        <div className="flex items-center justify-center gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-sm text-amber-800">
-          <span>⏰ Seu período de teste encerrou. Escolha um plano para continuar usando o CM Pro.</span>
-          <a
-            href="/signup/plan"
-            className="shrink-0 rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
-          >
-            Ver planos
-          </a>
-        </div>
-      )}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 flex flex-col h-full overflow-hidden">

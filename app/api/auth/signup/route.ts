@@ -76,12 +76,10 @@ export async function POST(request: NextRequest) {
 
     const userId = authData.user.id;
 
-    // Step 2: Create company with 7-day trial
-    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
+    // Step 2: Create company
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .insert({ name: company_name, status: 'active', trial_ends_at: trialEndsAt })
+      .insert({ name: company_name, status: 'pending' })
       .select('id')
       .single();
 

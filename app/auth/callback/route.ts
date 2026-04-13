@@ -24,11 +24,10 @@ export async function GET(request: NextRequest) {
         if (!existingProfile) {
           // New OAuth user — create company + profile, send to onboarding
           const fullName = user.user_metadata?.full_name ?? user.email ?? 'Usuário';
-          const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
           const { data: company } = await adminSupabase
             .from('companies')
-            .insert({ name: `${fullName} - Empresa`, status: 'active', trial_ends_at: trialEndsAt })
+            .insert({ name: `${fullName} - Empresa`, status: 'pending' })
             .select('id')
             .single();
 

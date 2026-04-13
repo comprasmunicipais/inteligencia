@@ -38,47 +38,13 @@ export const adminService = {
     const supabase = await createAdminClient();
 
     // Inserir apenas campos que existem na tabela
-    const { data: newCompany, error: insertError } = await supabase
+    const { data, error: insertError } = await supabase
       .from('companies')
-      .insert([{ name: company.name, status: company.status ?? 'active' }])
+      .insert([{ name: company.name, status: 'pending' }])
       .select()
       .single();
 
     if (insertError) throw insertError;
-
-    // Buscar o plano Iniciante
-    const { data: plan, error: planError } = await supabase
-      .from('plans')
-      .select('id')
-      .eq('name', 'Iniciante')
-      .single();
-
-    if (planError) throw planError;
-
-    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    // Atualizar empresa com plan_id e trial_ends_at
-    const { data, error: updateError } = await supabase
-      .from('companies')
-      .update({ plan_id: plan.id, trial_ends_at: trialEndsAt })
-      .eq('id', newCompany.id)
-      .select()
-      .single();
-
-    if (updateError) throw updateError;
-
-    // Inserir subscription de trial
-    const { error: subError } = await supabase
-      .from('subscriptions')
-      .insert([{
-        company_id: newCompany.id,
-        plan_id: plan.id,
-        status: 'trial',
-        billing_cycle: 'monthly',
-        trial_ends_at: trialEndsAt,
-      }]);
-
-    if (subError) throw subError;
 
     return data as Company;
   },
