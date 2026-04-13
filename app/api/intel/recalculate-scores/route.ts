@@ -4,6 +4,8 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const DEMO_COMPANY_ID = 'e4b60595-2a42-4c2a-aa61-ebfb52cfb50d';
+
 function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -156,7 +158,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'company_id obrigatório' }, { status: 400 });
     }
 
-    if (userProfile.company_id !== company_id) {
+    if (company_id !== DEMO_COMPANY_ID && userProfile.company_id !== company_id) {
       return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
     }
 
