@@ -14,6 +14,30 @@ const VALID_MODALITIES = [6, 8, 1]; // Pregão Eletrônico, Dispensa, Concorrên
 const MAX_PAGES = 1;
 const PAGE_SIZE = 100;
 
+type PNCPFailureKind = 'timeout' | 'http_error';
+
+class PNCPUpstreamError extends Error {
+  kind: PNCPFailureKind;
+  modalidade: number;
+  pagina: number;
+  status?: number;
+
+  constructor(params: {
+    kind: PNCPFailureKind;
+    modalidade: number;
+    pagina: number;
+    status?: number;
+    message: string;
+  }) {
+    super(params.message);
+    this.name = 'PNCPUpstreamError';
+    this.kind = params.kind;
+    this.modalidade = params.modalidade;
+    this.pagina = params.pagina;
+    this.status = params.status;
+  }
+}
+
 function formatDateToPNCP(date: Date) {
   return date.toISOString().slice(0, 10).replace(/-/g, '');
 }
@@ -66,15 +90,37 @@ async function fetchPNCPPage(
     );
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      console.error(`PNCP modalidade ${modalidade} pág ${pagina}: timeout após 45s`);
-      return { items: [], hasMore: false };
+      console.error('PNCP_FETCH_TIMEOUT', {
+        modalidade,
+        pagina,
+        dataInicial,
+        dataFinal,
+      });
+      throw new PNCPUpstreamError({
+        kind: 'timeout',
+        modalidade,
+        pagina,
+        message: 'Timeout ao consultar o PNCP.',
+      });
     }
     throw err;
   }
 
   if (!response.ok) {
-    console.error(`PNCP modalidade ${modalidade} pág ${pagina}: HTTP ${response.status}`);
-    return { items: [], hasMore: false };
+    console.error('PNCP_FETCH_HTTP_ERROR', {
+      modalidade,
+      pagina,
+      dataInicial,
+      dataFinal,
+      status: response.status,
+    });
+    throw new PNCPUpstreamError({
+      kind: 'http_error',
+      modalidade,
+      pagina,
+      status: response.status,
+      message: `PNCP retornou HTTP ${response.status}.`,
+    });
   }
 
   const json = await response.json();
@@ -215,14 +261,6 @@ export async function GET(request: Request) {
       .lt('opening_date', new Date().toISOString())
       .neq('internal_status', 'expired');
 
-    // Deletar oportunidades expiradas há mais de 30 dias
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    await supabase
-      .from('opportunities')
-      .delete()
-      .eq('internal_status', 'expired')
-      .lt('opening_date', cutoff);
-
     // Parâmetros de query opcionais
     const requestUrl = new URL(request.url);
     const modalidadeParam = Number(requestUrl.searchParams.get('modalidade') || '6');
@@ -265,12 +303,56 @@ export async function GET(request: Request) {
     const { inserted, updated, errors } = await syncOpportunities(items, municipalityCache);
     console.log('SYNC_END', Date.now() - start, 'ms');
 
+    if (errors.length > 0) {
+      console.error('PNCP_SYNC_PERSISTENCE_ERROR', {
+        modalidade,
+        dataInicial,
+        dataFinal,
+        errorsCount: errors.length,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Falha ao persistir oportunidades do PNCP.',
+          total_recebidos: items.length,
+          total_inseridos: inserted,
+          total_atualizados: updated,
+          total_erros: errors.length,
+          janela_consultada: { data_inicial: dataInicial, data_final: dataFinal },
+          por_modalidade: byModalidade,
+        },
+        { status: 500 }
+      );
+    }
+
     // Salvar controle de sincronização apenas se não foram passadas datas manuais
     console.log('CONTROL_START', Date.now() - start, 'ms');
     if (!usandoQueryParams) {
-      await supabase
+      const { error: syncControlError } = await supabase
         .from('sync_control')
         .upsert({ source: 'PNCP', last_sync: now.toISOString() }, { onConflict: 'source' });
+
+      if (syncControlError) {
+        console.error('PNCP_SYNC_CONTROL_WRITE_ERROR', {
+          modalidade,
+          dataInicial,
+          dataFinal,
+          message: syncControlError.message,
+        });
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'Falha ao atualizar controle de sincronizacao do PNCP.',
+            total_recebidos: items.length,
+            total_inseridos: inserted,
+            total_atualizados: updated,
+            total_erros: errors.length,
+            janela_consultada: { data_inicial: dataInicial, data_final: dataFinal },
+            por_modalidade: byModalidade,
+          },
+          { status: 500 }
+        );
+      }
     }
     console.log('CONTROL_END', Date.now() - start, 'ms');
 
@@ -286,6 +368,23 @@ export async function GET(request: Request) {
     });
 
   } catch (error) {
+    if (error instanceof PNCPUpstreamError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: error.message,
+          upstream: {
+            source: 'PNCP',
+            kind: error.kind,
+            status: error.status ?? null,
+            modalidade: error.modalidade,
+            pagina: error.pagina,
+          },
+        },
+        { status: error.kind === 'timeout' ? 504 : 502 }
+      );
+    }
+
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
       { status: 500 }
