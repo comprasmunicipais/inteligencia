@@ -24,17 +24,7 @@ export async function archiveExpiredOpportunities(): Promise<void> {
  * Chamado no início de cada sincronização com o PNCP.
  */
 export async function deleteOldExpiredOpportunities(): Promise<void> {
-  const supabase = createClient();
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabase
-    .from('opportunities')
-    .delete()
-    .eq('internal_status', 'expired')
-    .lt('opening_date', cutoff);
-
-  if (error) {
-    console.error('SUPABASE ERROR (deleteOldExpiredOpportunities):', error);
-  }
+  return;
 }
 
 export const opportunityService = {
