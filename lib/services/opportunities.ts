@@ -45,9 +45,6 @@ export const opportunityService = {
     }
     if (filters?.internal_status) {
       query = query.eq('internal_status', filters.internal_status);
-    } else {
-      // Ocultar vencidas por padrão; passar internal_status explícito para exibi-las
-      query = query.neq('internal_status', 'expired');
     }
 
     const { data, error } = await query.order('publication_date', { ascending: false });
@@ -143,13 +140,14 @@ export const opportunityService = {
 
     const scoresMap = new Map(scores?.map(s => [s.opportunity_id, s.match_score]) || []);
 
-    const merged = (data || []).map(o => ({
+    const all = (data || []).map(o => ({
       ...o,
       match_score: scoresMap.has(o.id) ? scoresMap.get(o.id) : (companyId ? 0 : o.match_score ?? 0),
-    }))
-      .filter(o => o.internal_status !== 'expired');
+    }));
 
-    const total = merged.length;
+    const merged = all.filter(o => o.internal_status !== 'expired');
+
+    const total = all.length;
     const highMatch = merged.filter(o => Number(o.match_score || 0) >= 70).length;
     const converted = merged.filter(o => String(o.internal_status || '').startsWith('converted_')).length;
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
