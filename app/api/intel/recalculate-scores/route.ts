@@ -10,14 +10,60 @@ function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+const AMBIGUOUS_POSITIVE_TERMS = new Set([
+  'suporte',
+  'servico',
+  'servicos',
+  'manutencao',
+  'consultoria',
+  'infraestrutura',
+]);
+
+const TI_CONTEXT_TERMS = [
+  'software',
+  'sistema',
+  'sistemas',
+  'tecnologia',
+  'ti',
+  'informatica',
+  'licenca',
+  'licenciamento',
+  'desenvolvimento',
+  'aplicacao',
+  'aplicacoes',
+  'saas',
+  'plataforma',
+  'cloud',
+  'dados',
+  'rede',
+  'redes',
+];
+
+const NON_TI_CONTEXT_TERMS = [
+  'evento',
+  'eventos',
+  'montagem',
+  'desmontagem',
+  'palco',
+  'estrutura',
+  'iluminacao',
+  'sonorizacao',
+  'locacao de infraestrutura para eventos',
+];
+
 const partialMatch = (text: string, term: string): boolean => {
   if (!term || term.length < 3) return false;
   if (text.includes(term)) return true;
+  if (term.includes(' ')) return false;
   if (term.length >= 6) {
     const stem = term.slice(0, Math.floor(term.length * 0.85));
     return text.includes(stem);
   }
   return false;
+};
+
+const hasAnyTerm = (text: string, terms: string[]): boolean => {
+  return terms.some((term) => text.includes(term));
 };
 
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
@@ -34,6 +80,14 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     .map((k: string) => normalize(k.trim()))
     .filter(Boolean);
 
+  const isTechnologyProfile = [...targetCategories, ...positiveKeywords].some((term) =>
+    hasAnyTerm(term, TI_CONTEXT_TERMS)
+  );
+  const hasTechnologyContext = hasAnyTerm(titleDesc, TI_CONTEXT_TERMS);
+  const foundNonTIContext = isTechnologyProfile
+    ? NON_TI_CONTEXT_TERMS.filter((term) => partialMatch(titleDesc, term))
+    : [];
+
   const categoryHit = targetCategories.some((c) => partialMatch(titleDesc, c));
   const keywordHit = positiveKeywords.some((k) => partialMatch(titleDesc, k));
 
@@ -47,15 +101,23 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   // 1. Categorias PNCP (+50)
   const foundCategories = targetCategories.filter((c) => partialMatch(titleDesc, c));
   if (foundCategories.length > 0) {
-    score += 50;
+    score += 30;
     reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
   }
 
   // 2. Keywords positivas (+20)
   const foundPositive = positiveKeywords.filter((k) => partialMatch(titleDesc, k));
-  if (foundPositive.length > 0) {
+  const foundSpecificPositive = foundPositive.filter((k) => !AMBIGUOUS_POSITIVE_TERMS.has(k));
+  const foundAmbiguousPositive = foundPositive.filter((k) => AMBIGUOUS_POSITIVE_TERMS.has(k));
+
+  if (foundSpecificPositive.length > 0) {
     score += 20;
-    reasons.push(`Contém termos de interesse: ${foundPositive.join(', ')}.`);
+    reasons.push(`Contém termos de interesse: ${foundSpecificPositive.join(', ')}.`);
+  }
+
+  if (foundAmbiguousPositive.length > 0 && hasTechnologyContext) {
+    score += 8;
+    reasons.push(`Contém termos de interesse em contexto compatível: ${foundAmbiguousPositive.join(', ')}.`);
   }
 
   // 3. Estado prioritário (+15)
@@ -107,6 +169,11 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   if (foundNegative.length > 0) {
     score -= 20;
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
+  }
+
+  if (foundNonTIContext.length > 0) {
+    score -= 15;
+    reasons.push(`Contexto com baixa aderência ao perfil de TI: ${foundNonTIContext.join(', ')}.`);
   }
 
   // 8. Órgão excluído (-30)
