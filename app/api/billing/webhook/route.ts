@@ -235,6 +235,10 @@ export async function POST(req: NextRequest) {
       .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
       .eq('asaas_subscription_id', payment.subscriptionId)
 
+    await supabase.from('companies')
+      .update({ status: 'cancelled' })
+      .eq('id', companyId)
+
     // Send appropriate email (best-effort)
     try {
       const { data: profile } = await supabase

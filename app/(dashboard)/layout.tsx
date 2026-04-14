@@ -17,8 +17,8 @@ export default function DashboardLayout({
   const isDevUser = user?.email === 'feddamico@hotmail.com';
   const router = useRouter();
   const supabase = useRef(createClient()).current;
-  // undefined = still loading | null = no plan | string = has plan
-  const [planId, setPlanId] = useState<string | null | undefined>(undefined);
+  // undefined = still loading
+  const [companyBilling, setCompanyBilling] = useState<{ planId: string | null; status: string | null } | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
@@ -36,24 +36,31 @@ export default function DashboardLayout({
   }, [user, supabase]);
 
   useEffect(() => {
-    if (!companyId) { setPlanId(undefined); return; }
+    if (!companyId) { setCompanyBilling(undefined); return; }
     supabase
       .from('companies')
-      .select('plan_id')
+      .select('plan_id, status')
       .eq('id', companyId)
       .single()
       .then(({ data }) => {
-        setPlanId(data?.plan_id ?? null);
+        setCompanyBilling({
+          planId: data?.plan_id ?? null,
+          status: data?.status ?? null,
+        });
       });
   }, [companyId, supabase]);
 
-  // Redirect when there is no plan
   useEffect(() => {
     if (roleLoading || role === 'platform_admin' || isDemo || isDevUser) return;
-    if (!loading && user && companyId && planId === null) {
+    if (!loading && user && companyId && companyBilling?.status && ['past_due', 'cancelled', 'inactive'].includes(companyBilling.status)) {
+      router.replace('/settings?billing=blocked');
+      return;
+    }
+
+    if (!loading && user && companyId && companyBilling?.planId === null) {
       router.replace('/signup/plan?error=plan_required');
     }
-  }, [loading, user, companyId, planId, role, roleLoading, router]);
+  }, [loading, user, companyId, companyBilling, role, roleLoading, router, isDemo, isDevUser]);
 
   // User authenticated but not linked to a company
   if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo && !isDevUser) {
@@ -90,7 +97,7 @@ export default function DashboardLayout({
   }
 
   // Waiting for plan check — render nothing to avoid flash before redirect
-  if (!loading && !roleLoading && user && companyId && planId === undefined && role !== 'platform_admin') {
+  if (!loading && !roleLoading && user && companyId && companyBilling === undefined && role !== 'platform_admin') {
     return null;
   }
 

@@ -68,9 +68,9 @@ export async function POST(req: NextRequest) {
   }
 
   const cycleMap: Record<string, { cycle: 'MONTHLY' | 'SEMIANNUAL' | 'YEARLY', value: number }> = {
-    monthly:    { cycle: 'MONTHLY',    value: plan.price_monthly },
+    monthly: { cycle: 'MONTHLY', value: plan.price_monthly },
     semiannual: { cycle: 'SEMIANNUAL', value: plan.price_semiannual },
-    annual:     { cycle: 'YEARLY',     value: plan.price_annual },
+    annual: { cycle: 'YEARLY', value: plan.price_annual },
   }
 
   const billing = cycleMap[billingCycle]
@@ -155,12 +155,11 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-
-  // Cartão: ativa imediatamente. PIX/Boleto: aguarda webhook de confirmação.
   const initialStatus = 'pending'
 
   if (existingSub) {
-    await adminSupabase.from('subscriptions')
+    await adminSupabase
+      .from('subscriptions')
       .update({
         asaas_customer_id: customer.id,
         asaas_subscription_id: subscription.id,
@@ -171,7 +170,8 @@ export async function POST(req: NextRequest) {
       })
       .eq('company_id', profile.company_id)
   } else {
-    await adminSupabase.from('subscriptions')
+    await adminSupabase
+      .from('subscriptions')
       .insert({
         company_id: profile.company_id,
         asaas_customer_id: customer.id,
@@ -184,8 +184,11 @@ export async function POST(req: NextRequest) {
       })
   }
 
-  // Só atualiza plan_id na company imediatamente para cartão
-  // Para PIX: busca QR Code do primeiro pagamento gerado
+  await adminSupabase
+    .from('companies')
+    .update({ status: initialStatus })
+    .eq('id', profile.company_id)
+
   let pixData: { encodedImage: string; payload: string; expirationDate: string } | null = null
 
   if (billingType === 'PIX') {
@@ -195,17 +198,16 @@ export async function POST(req: NextRequest) {
       if (firstPayment?.id) {
         const pixRes = await getAsaasPaymentPixQrCode(firstPayment.id)
         pixData = {
-          encodedImage:   pixRes.encodedImage,
-          payload:        pixRes.payload,
+          encodedImage: pixRes.encodedImage,
+          payload: pixRes.payload,
           expirationDate: pixRes.expirationDate,
         }
       }
     } catch {
-      // não bloqueia — frontend mostrará mensagem de e-mail
+      // non-blocking
     }
   }
 
-  // Para Boleto: retorna o link do boleto
   let boletoUrl: string | null = null
 
   if (billingType === 'BOLETO') {
@@ -216,7 +218,7 @@ export async function POST(req: NextRequest) {
         boletoUrl = firstPayment.bankSlipUrl
       }
     } catch {
-      // não bloqueia
+      // non-blocking
     }
   }
 

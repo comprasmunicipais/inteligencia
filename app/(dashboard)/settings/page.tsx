@@ -25,6 +25,49 @@ interface UserProfile {
   companyName: string;
 }
 
+type BillingStatus = 'pending' | 'active' | 'past_due' | 'cancelled' | 'inactive';
+
+function getBillingStatusMeta(status: string) {
+  switch (status as BillingStatus) {
+    case 'pending':
+      return {
+        badgeClass: 'bg-amber-100 text-amber-700',
+        label: 'Pendente',
+        message: 'Seu pagamento ainda está pendente de confirmação. O acesso será liberado após a confirmação.',
+      };
+    case 'active':
+      return {
+        badgeClass: 'bg-green-100 text-green-700',
+        label: 'Ativo',
+        message: null,
+      };
+    case 'past_due':
+      return {
+        badgeClass: 'bg-red-100 text-red-700',
+        label: 'Inadimplente',
+        message: 'Há uma cobrança vencida. Regularize o pagamento para reativar o acesso completo.',
+      };
+    case 'cancelled':
+      return {
+        badgeClass: 'bg-slate-100 text-slate-700',
+        label: 'Cancelado',
+        message: 'Sua assinatura foi cancelada. Escolha um plano para voltar a usar os recursos pagos.',
+      };
+    case 'inactive':
+      return {
+        badgeClass: 'bg-slate-200 text-slate-700',
+        label: 'Inativo',
+        message: 'Sua assinatura está inativa. Escolha um plano para retomar o acesso.',
+      };
+    default:
+      return {
+        badgeClass: 'bg-gray-100 text-gray-700',
+        label: status || 'Sem status',
+        message: null,
+      };
+  }
+}
+
 export default function SettingsPage() {
   const supabase = useRef(createClient()).current;
   const [activeTab, setActiveTab] = useState('Perfil');
@@ -487,7 +530,6 @@ export default function SettingsPage() {
 
         const planName     = subscriptionData.current_plan?.name ?? '';
         const status       = subscriptionData.subscription?.status ?? subscriptionData.company?.status ?? '';
-        const trialEndsAt  = subscriptionData.subscription?.trial_ends_at ?? subscriptionData.company?.trial_ends_at ?? null;
         const emailsUsed   = subscriptionData.company?.emails_used_this_month ?? 0;
         const emailsLimit  = subscriptionData.current_plan?.emails_per_month ?? 0;
         const currentCycle = subscriptionData.subscription?.billing_cycle ?? 'monthly';
@@ -505,10 +547,8 @@ export default function SettingsPage() {
             }))
           : [];
 
-        const trialDaysLeft = status === 'trial' && trialEndsAt
-          ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-          : null;
-        const emailProgress = Math.round((emailsUsed / emailsLimit) * 100);
+        const statusMeta = getBillingStatusMeta(status);
+        const emailProgress = emailsLimit > 0 ? Math.round((emailsUsed / emailsLimit) * 100) : 0;
 
         return (
           <div className="space-y-6">
@@ -517,18 +557,15 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-bold text-gray-900">Plano Atual</h3>
                 <span className={cn(
                   'text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider',
-                  status === 'active'   ? 'bg-green-100 text-green-700' :
-                  status === 'trial'    ? 'bg-amber-100 text-amber-700' :
-                  status === 'past_due' ? 'bg-red-100 text-red-700'     :
-                                         'bg-gray-100 text-gray-600'
+                  statusMeta.badgeClass
                 )}>
-                  {status === 'trial' ? 'Trial' : status === 'active' ? 'Ativo' : status === 'past_due' ? 'Inadimplente' : status}
+                  {statusMeta.label}
                 </span>
               </div>
               <p className="text-2xl font-black text-gray-900 mb-1">{planName}</p>
               <p className="text-sm text-gray-500 mb-4">R$ {price}/mês · ciclo {currentCycle === 'monthly' ? 'mensal' : currentCycle}</p>
-              {trialDaysLeft !== null && (
-                <p className="text-sm text-amber-700 font-bold mb-4">⏳ {trialDaysLeft} dia{trialDaysLeft !== 1 ? 's' : ''} restante{trialDaysLeft !== 1 ? 's' : ''} do período de trial</p>
+              {statusMeta.message && (
+                <p className="text-sm text-gray-600 font-medium mb-4">{statusMeta.message}</p>
               )}
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold text-gray-500">
@@ -631,7 +668,7 @@ export default function SettingsPage() {
               })}
             </div>
 
-            {status !== 'cancelled' && status !== 'trial' && (
+            {(status === 'active' || status === 'past_due' || status === 'pending') && (
               <div className="text-center">
                 <button
                   onClick={() => setShowCancelModal(true)}

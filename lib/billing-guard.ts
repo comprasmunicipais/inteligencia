@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 type AccessResult =
   | { blocked: false }
-  | { blocked: true; reason: 'past_due' | 'suspended' | 'no_plan' };
+  | { blocked: true; reason: 'past_due' | 'cancelled' | 'inactive' | 'suspended' | 'no_plan' };
 
 /**
  * Checks whether a company is allowed to perform billable actions.
@@ -24,6 +24,14 @@ export async function checkCompanyAccess(companyId: string): Promise<AccessResul
 
   if (company.status === 'past_due') {
     return { blocked: true, reason: 'past_due' };
+  }
+
+  if (company.status === 'cancelled') {
+    return { blocked: true, reason: 'cancelled' };
+  }
+
+  if (company.status === 'inactive') {
+    return { blocked: true, reason: 'inactive' };
   }
 
   if (company.status === 'suspended') {
