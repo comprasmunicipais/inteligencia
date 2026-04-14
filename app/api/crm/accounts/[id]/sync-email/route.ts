@@ -1,22 +1,36 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: municipalityId } = await params;
+  const { id: accountId } = await params;
 
-  const authClient = await createClient();
+  const supabase = await createClient();
   const {
     data: { user },
     error: userError,
-  } = await authClient.auth.getUser();
+  } = await supabase.auth.getUser();
 
   if (userError || !user) {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('company_id, role')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile?.company_id) {
+    return NextResponse.json({ error: 'Empresa não identificada.' }, { status: 401 });
+  }
+
+  if (profile.role !== 'platform_admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await request.json();
@@ -26,13 +40,20 @@ export async function POST(
     return NextResponse.json({ ok: true, skipped: true });
   }
 
-  const supabase = await createAdminClient();
+  const { data: account, error: accountError } = await supabase
+    .from('municipalities')
+    .select('id')
+    .eq('id', accountId)
+    .maybeSingle();
 
-  // Skip if this email already exists for this municipality
+  if (accountError || !account) {
+    return NextResponse.json({ error: 'Conta não encontrada.' }, { status: 404 });
+  }
+
   const { data: existing } = await supabase
     .from('municipality_emails')
     .select('id')
-    .eq('municipality_id', municipalityId)
+    .eq('municipality_id', accountId)
     .ilike('email', email)
     .maybeSingle();
 
@@ -41,7 +62,7 @@ export async function POST(
   }
 
   const { error } = await supabase.from('municipality_emails').insert({
-    municipality_id: municipalityId,
+    municipality_id: accountId,
     email,
     department_label: 'Cadastro principal',
     priority_score: 0,
@@ -50,7 +71,7 @@ export async function POST(
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao sincronizar e-mail da conta.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, inserted: true });

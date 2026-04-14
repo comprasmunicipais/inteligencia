@@ -64,6 +64,25 @@ function maskEmail(email: string): string {
   return `${visibleLocal || '**'}***@${domain || 'redacted'}`;
 }
 
+async function countSentForWindow(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  sendingAccountId: string,
+  from: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from('email_job_queue')
+    .select('id', { count: 'exact', head: true })
+    .eq('sending_account_id', sendingAccountId)
+    .eq('status', 'sent')
+    .gte('sent_at', from);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Route handler — called by Vercel Cron every hour
 // Auth: Authorization: Bearer <CRON_SECRET>
@@ -121,7 +140,7 @@ export async function GET(req: NextRequest) {
   const [{ data: accounts }, { data: campaigns }] = await Promise.all([
     supabase
       .from('email_sending_accounts')
-      .select('id, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted')
+      .select('id, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted, is_active, hourly_limit, daily_limit')
       .in('id', accountIds),
     supabase
       .from('email_campaigns')
@@ -142,6 +161,28 @@ export async function GET(req: NextRequest) {
 
   // Cache transporters per account
   const transporterCache = new Map<string, nodemailer.Transporter>();
+  const accountQuota = new Map<string, { hourlySent: number; dailySent: number; hourlyLimit: number; dailyLimit: number }>();
+  const inactiveAccountsLogged = new Set<string>();
+  const hourlyLimitLogged = new Set<string>();
+  const dailyLimitLogged = new Set<string>();
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDayIso = startOfDay.toISOString();
+
+  for (const account of accounts ?? []) {
+    const [hourlySent, dailySent] = await Promise.all([
+      countSentForWindow(supabase, account.id, oneHourAgo),
+      countSentForWindow(supabase, account.id, startOfDayIso),
+    ]);
+
+    accountQuota.set(account.id, {
+      hourlySent,
+      dailySent,
+      hourlyLimit: account.hourly_limit ?? 50,
+      dailyLimit: account.daily_limit ?? 500,
+    });
+  }
 
   for (const job of jobs) {
     const account = accountMap.get(job.sending_account_id);
@@ -156,6 +197,61 @@ export async function GET(req: NextRequest) {
       failed++;
       campaignFailed.set(job.campaign_id, (campaignFailed.get(job.campaign_id) ?? 0) + 1);
       continue;
+    }
+
+    if (!account.is_active) {
+      if (!inactiveAccountsLogged.has(job.sending_account_id)) {
+        console.warn('[queue-process] Conta SMTP inativa; jobs mantidos na fila.', {
+          sendingAccountId: job.sending_account_id,
+        });
+        inactiveAccountsLogged.add(job.sending_account_id);
+      }
+
+      await supabase
+        .from('email_job_queue')
+        .update({ status: 'pending', claimed_at: null })
+        .eq('id', job.id);
+
+      continue;
+    }
+
+    const quota = accountQuota.get(job.sending_account_id);
+    if (quota) {
+      if (quota.hourlySent >= quota.hourlyLimit) {
+        if (!hourlyLimitLogged.has(job.sending_account_id)) {
+          console.warn('[queue-process] Limite horário da conta SMTP atingido; jobs mantidos na fila.', {
+            sendingAccountId: job.sending_account_id,
+            hourlySent: quota.hourlySent,
+            hourlyLimit: quota.hourlyLimit,
+          });
+          hourlyLimitLogged.add(job.sending_account_id);
+        }
+
+        await supabase
+          .from('email_job_queue')
+          .update({ status: 'pending', claimed_at: null })
+          .eq('id', job.id);
+
+        continue;
+      }
+
+      if (quota.dailySent >= quota.dailyLimit) {
+        if (!dailyLimitLogged.has(job.sending_account_id)) {
+          console.warn('[queue-process] Limite diário da conta SMTP atingido; jobs mantidos na fila.', {
+            sendingAccountId: job.sending_account_id,
+            dailySent: quota.dailySent,
+            dailyLimit: quota.dailyLimit,
+          });
+          dailyLimitLogged.add(job.sending_account_id);
+        }
+
+        await supabase
+          .from('email_job_queue')
+          .update({ status: 'pending', claimed_at: null })
+          .eq('id', job.id);
+
+        continue;
+      }
     }
 
     // Build transporter once per account
@@ -215,6 +311,10 @@ export async function GET(req: NextRequest) {
         .eq('id', job.id);
 
       sent++;
+      if (quota) {
+        quota.hourlySent += 1;
+        quota.dailySent += 1;
+      }
       await supabase.rpc('increment_emails_used', { company_id_param: job.company_id });
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
       } catch (err) {

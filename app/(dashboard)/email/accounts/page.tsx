@@ -53,7 +53,7 @@ const initialForm: FormState = {
   smtp_username: '',
   smtp_password: '',
   daily_limit: 500,
-  hourly_limit: 100,
+  hourly_limit: 50,
   is_active: true,
 };
 
@@ -497,11 +497,17 @@ export default function EmailAccountsPage() {
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">Limite por hora</label>
-                  <input type="number" value={form.hourly_limit} onChange={(e) => updateField('hourly_limit', Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    50 e-mails/hora
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Limite fixo gerenciado automaticamente pelo CM Pro.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">Limite por dia</label>
-                  <input type="number" value={form.daily_limit} onChange={(e) => updateField('daily_limit', Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    500 e-mails/dia
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Limite fixo gerenciado automaticamente pelo CM Pro.</p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="flex items-center gap-2 text-sm font-medium text-slate-700">

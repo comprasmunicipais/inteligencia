@@ -12,14 +12,15 @@ type SendingAccountPayload = {
   smtp_secure: boolean;
   smtp_username: string;
   smtp_password: string;
-  daily_limit?: number;
-  hourly_limit?: number;
   is_active?: boolean;
 };
 
 type UpdateAccountPayload = Partial<SendingAccountPayload> & {
   account_id: string;
 };
+
+const FIXED_DAILY_LIMIT = 500;
+const FIXED_HOURLY_LIMIT = 50;
 
 function normalizeEmail(value?: string | null) {
   return value ? value.trim().toLowerCase() : null;
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     const {
       name, sender_name, sender_email, reply_to_email,
       smtp_host, smtp_port, smtp_secure, smtp_username,
-      smtp_password, daily_limit, hourly_limit, is_active,
+      smtp_password, is_active,
     } = body;
 
     if (!name?.trim()) return NextResponse.json({ error: 'Informe o nome da conta de envio.' }, { status: 400 });
@@ -111,8 +112,8 @@ export async function POST(req: NextRequest) {
       p_smtp_secure:       Boolean(smtp_secure),
       p_smtp_username:     smtp_username.trim(),
       p_smtp_password_enc: encryptedPassword,
-      p_daily_limit:       daily_limit ?? 500,
-      p_hourly_limit:      hourly_limit ?? 100,
+      p_daily_limit:       FIXED_DAILY_LIMIT,
+      p_hourly_limit:      FIXED_HOURLY_LIMIT,
       p_is_active:         is_active ?? true,
       p_updated_at:        new Date().toISOString(),
     });
@@ -176,8 +177,8 @@ export async function PATCH(req: NextRequest) {
     if (fields.smtp_port !== undefined) payload.smtp_port = Number(fields.smtp_port);
     if (fields.smtp_secure !== undefined) payload.smtp_secure = Boolean(fields.smtp_secure);
     if (fields.smtp_username !== undefined) payload.smtp_username = fields.smtp_username.trim();
-    if (fields.daily_limit !== undefined) payload.daily_limit = fields.daily_limit;
-    if (fields.hourly_limit !== undefined) payload.hourly_limit = fields.hourly_limit;
+    payload.daily_limit = FIXED_DAILY_LIMIT;
+    payload.hourly_limit = FIXED_HOURLY_LIMIT;
     if (fields.is_active !== undefined) payload.is_active = fields.is_active;
 
     // Senha só recriptografa se foi informada
