@@ -539,7 +539,7 @@ export default function SettingsPage() {
               id: p.id,
               name: p.name,
               emails: p.emails_per_month,
-              users: p.max_users === 0 ? 'Usuários ilimitados' : `${p.max_users} usuário${p.max_users !== 1 ? 's' : ''}`,
+              users: p.max_users === 5 ? 'Até 5 usuários' : `${p.max_users} usuário${p.max_users !== 1 ? 's' : ''}`,
               price_monthly: p.price_monthly,
               price_semiannual: p.price_semiannual,
               price_annual: p.price_annual,
