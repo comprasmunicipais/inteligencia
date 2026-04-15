@@ -570,7 +570,7 @@ export default function SignupPlanPage() {
             {plans.map((plan) => {
               const featured = isProfessional(plan);
               const price = getPlanPrice(plan, cycle);
-              const usersLabel = plan.max_users === 0 ? 'Usuários ilimitados' : `${plan.max_users} usuário${plan.max_users > 1 ? 's' : ''}`;
+              const usersLabel = plan.max_users === 5 ? 'Até 5 usuários' : `${plan.max_users} usuário${plan.max_users > 1 ? 's' : ''}`;
 
               return (
                 <div key={plan.id} className={`plan-card${featured ? ' featured' : ''}${selectedPlan?.id === plan.id ? ' selected' : ''}`}>
