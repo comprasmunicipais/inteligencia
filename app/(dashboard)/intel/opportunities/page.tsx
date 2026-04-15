@@ -42,6 +42,7 @@ import { createClient } from '@/lib/supabase/client';
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 type QuickFilterKey = 'all' | 'new_last_sync' | 'high_match' | 'expiring_soon' | 'converted';
 type EsferaKey = 'Todos' | 'Municipal' | 'Estadual' | 'Federal' | 'Outro';
+const OPPORTUNITIES_PAGE_SIZE = 50;
 
 function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' | 'Outro' {
   const up = (organ_name || '').toUpperCase();
@@ -77,6 +78,7 @@ export default function OpportunitiesPage() {
   const isReadOnly = useIsReadOnly();
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
 
@@ -110,6 +112,8 @@ export default function OpportunitiesPage() {
     minScore: 0,
   });
   const [selectedEsfera, setSelectedEsfera] = useState<EsferaKey>('Todos');
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -117,10 +121,17 @@ export default function OpportunitiesPage() {
     setLoading(true);
 
     try {
-      const oppsData = await opportunityService.getAll(companyId);
+      const oppsData = await opportunityService.getAll(companyId, undefined, {
+        offset: 0,
+        limit: OPPORTUNITIES_PAGE_SIZE,
+      });
       setOpps(oppsData || []);
+      setOffset(oppsData?.length || 0);
+      setHasMore((oppsData?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
     } catch (error) {
       setOpps([]);
+      setOffset(0);
+      setHasMore(false);
     }
 
     try {
@@ -390,6 +401,27 @@ export default function OpportunitiesPage() {
 
   const handleQuickFilterClick = (filter: QuickFilterKey) => {
     setQuickFilter(filter);
+  };
+
+  const handleLoadMore = async () => {
+    if (!companyId || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+
+    try {
+      const nextBatch = await opportunityService.getAll(companyId, undefined, {
+        offset,
+        limit: OPPORTUNITIES_PAGE_SIZE,
+      });
+
+      setOpps((prev) => [...prev, ...(nextBatch || [])]);
+      setOffset((prev) => prev + (nextBatch?.length || 0));
+      setHasMore((nextBatch?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+    } catch {
+      toast.error('Erro ao carregar mais oportunidades.');
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   return (
@@ -759,6 +791,20 @@ export default function OpportunitiesPage() {
                   </div>
                 ))}
               </div>
+
+              {!isReadOnly && hasMore && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition-all hover:border-[#0f49bd]/40 hover:text-[#0f49bd] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loadingMore && <Loader2 className="size-4 animate-spin" />}
+                    {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                  </button>
+                </div>
+              )}
             )}
           </div>
         )}

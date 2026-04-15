@@ -28,8 +28,14 @@ export async function deleteOldExpiredOpportunities(): Promise<void> {
 }
 
 export const opportunityService = {
-  async getAll(companyId: string, filters?: any): Promise<OpportunityDTO[]> {
+  async getAll(
+    companyId: string,
+    filters?: any,
+    options?: { offset?: number; limit?: number }
+  ): Promise<OpportunityDTO[]> {
     const supabase = createClient();
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? 50;
     let query = supabase
       .from('opportunities')
       .select('*, municipalities(name)');
@@ -47,17 +53,25 @@ export const opportunityService = {
       query = query.eq('internal_status', filters.internal_status);
     }
 
-    const { data, error } = await query.order('publication_date', { ascending: false });
+    const { data, error } = await query
+      .order('publication_date', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('SUPABASE ERROR (opportunities.getAll):', error);
       throw error;
     }
 
+    const opportunityIds = (data || []).map((opp) => opp.id);
+    if (opportunityIds.length === 0) {
+      return [];
+    }
+
     const { data: scores } = await supabase
       .from('company_opportunity_scores')
       .select('opportunity_id, match_score, match_reason')
-      .eq('company_id', companyId);
+      .eq('company_id', companyId)
+      .in('opportunity_id', opportunityIds);
 
     const scoresMap = new Map(scores?.map(s => [s.opportunity_id, s]) || []);
 
