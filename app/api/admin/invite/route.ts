@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         .eq('id', targetCompany.plan_id)
         .single();
 
-      // max_users = 0 means unlimited (Elite plan)
+      // max_users = 0 means unlimited
       if (plan && plan.max_users > 0) {
         const { count } = await adminClient
           .from('profiles')
