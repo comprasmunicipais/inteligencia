@@ -455,8 +455,17 @@ export default function Sidebar() {
               {getInitials(user?.email)}
             </div>
             <div className="sb-user-info">
-              <div className="sb-user-name">{user?.email?.split('@')[0] || 'Usuário'}</div>
-              <div className="sb-user-email">{user?.email || 'email@empresa.com.br'}</div>
+              {user?.email ? (
+                <>
+                  <div className="sb-user-name">{user.email.split('@')[0]}</div>
+                  <div className="sb-user-email">{user.email}</div>
+                </>
+              ) : (
+                <>
+                  <div className="sb-user-name" style={{ width: 80, height: 12, background: 'var(--sb-item-hover)', borderRadius: 4 }} />
+                  <div className="sb-user-email" style={{ width: 120, height: 10, background: 'var(--sb-item-hover)', borderRadius: 4, marginTop: 4 }} />
+                </>
+              )}
             </div>
             <LogOut className="sb-logout-icon" size={14} strokeWidth={1.75} />
           </div>

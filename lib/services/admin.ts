@@ -65,7 +65,8 @@ export const adminService = {
   // Users
   async getUsers() {
     const supabase = await createAdminClient();
-    const { data, error } = await supabase
+    const demoEmail = process.env.DEMO_USER_EMAIL;
+    let query = supabase
       .from('profiles')
       .select(`
         *,
@@ -74,6 +75,12 @@ export const adminService = {
         )
       `)
       .order('created_at', { ascending: false });
+
+    if (demoEmail) {
+      query = query.neq('email', demoEmail);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return data as UserProfile[];
