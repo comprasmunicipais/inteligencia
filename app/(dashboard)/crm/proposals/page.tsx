@@ -79,6 +79,27 @@ export default function ProposalsPage() {
   
   const [filters, setFilters] = useState({ status: '' });
 
+  const buildManualProposalTemplate = (title: string) => {
+    const trimmedTitle = title.trim() || 'PROPOSTA COMERCIAL';
+    return `PROPOSTA COMERCIAL
+
+TITULO: ${trimmedTitle}
+
+1. APRESENTACAO DA PROPOSTA
+
+2. OBJETO
+
+3. ESCOPO E CONDICOES
+
+4. VALOR E CONDICOES COMERCIAIS
+
+5. PRAZOS
+
+6. OBSERVACOES
+
+7. ASSINATURA`;
+  };
+
   const loadMunicipalities = useCallback(async () => {
     try {
       const munData = await municipalityService.getAllForSelect();
@@ -135,6 +156,7 @@ export default function ProposalsPage() {
 
     setSaving(true);
     try {
+      const initialFullContent = buildManualProposalTemplate(newProposal.title);
       const created = await proposalService.create({
         title: newProposal.title,
         municipality_id: newProposal.municipality_id,
@@ -143,10 +165,15 @@ export default function ProposalsPage() {
         department: newProposal.department || undefined,
         secretariat: newProposal.secretariat || undefined,
         date: new Date().toISOString(),
-        company_id: companyId
+        company_id: companyId,
+        ai_content: initialFullContent,
       });
       setProposals([created, ...proposals]);
       setIsAddModalOpen(false);
+      setEditingProposal({ ...created, ai_content: initialFullContent });
+      setEditingAiProposalId(null);
+      setEditingFullContent(initialFullContent);
+      setIsFullContentModalOpen(true);
       setNewProposal({ 
         title: '', 
         municipality_id: '', 
@@ -155,7 +182,7 @@ export default function ProposalsPage() {
         department: '',
         secretariat: ''
       });
-      toast.success('Proposta criada com sucesso!');
+      toast.success('Proposta criada. Complete o conteúdo no editor.');
     } catch (error: any) {
       console.error('Error creating proposal:', error);
       toast.error(`Erro ao criar proposta: ${error.message || 'Erro desconhecido'}`);
@@ -197,9 +224,20 @@ export default function ProposalsPage() {
 
   const handleOpenProposalEditor = async (proposal: ProposalDTO) => {
     setEditingProposal(proposal);
+    setEditingAiProposalId(null);
 
-    if (!companyId || !proposal.opportunity_id) {
+    if (!companyId) {
       setIsEditModalOpen(true);
+      return;
+    }
+
+    if (!proposal.opportunity_id) {
+      if ((proposal.ai_content || '').trim()) {
+        setEditingFullContent(proposal.ai_content || '');
+        setIsFullContentModalOpen(true);
+      } else {
+        setIsEditModalOpen(true);
+      }
       return;
     }
 
@@ -307,6 +345,49 @@ export default function ProposalsPage() {
     } catch (error: any) {
       toast.error(error.message || 'Erro ao gerar PDF.');
     }
+  };
+
+  const handleDownloadProposal = async (proposal: ProposalDTO) => {
+    if ((proposal.ai_content || '').trim()) {
+      try {
+        const response = await fetch('/api/intel/generate-proposal-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: proposal.ai_content,
+            title: proposal.title,
+          }),
+        });
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => null);
+          throw new Error(result?.error || 'Erro ao gerar PDF.');
+        }
+
+        const html = await response.text();
+        const printWindow = window.open('', '_blank');
+
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.focus();
+
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        }
+        return;
+      } catch (error: any) {
+        toast.error(error.message || 'Erro ao gerar PDF.');
+        return;
+      }
+    }
+
+    toast.promise(generateProposalPDF(proposal), {
+      loading: 'Gerando PDF...',
+      success: 'PDF gerado com sucesso!',
+      error: 'Erro ao gerar PDF.'
+    });
   };
 
   const handleDeleteProposal = async () => {
@@ -492,13 +573,7 @@ export default function ProposalsPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={async () => {
-                            toast.promise(generateProposalPDF(p), {
-                              loading: 'Gerando PDF...',
-                              success: 'PDF gerado com sucesso!',
-                              error: 'Erro ao gerar PDF.'
-                            });
-                          }}
+                          onClick={() => { void handleDownloadProposal(p); }}
                           className="text-gray-400 hover:text-[#0f49bd] p-1 rounded-md hover:bg-gray-100 transition-colors"
                           title="Baixar PDF"
                         >
@@ -872,7 +947,7 @@ export default function ProposalsPage() {
                 className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {saving && <Loader2 className="size-4 animate-spin" />}
-                Gerar Proposta
+                Criar e Editar
               </button>
             </DialogFooter>
           </form>
