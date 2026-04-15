@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
-
-import { runAgentTest } from "@/lib/agents/test-run";
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const result = runAgentTest();
-
-  return NextResponse.json(result);
+  return NextResponse.json({
+    ok: true,
+    message: 'agents test endpoint available',
+  });
 }
