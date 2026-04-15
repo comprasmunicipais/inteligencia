@@ -2,8 +2,6 @@ import { OpportunityDTO } from '../types/dtos';
 import { OpportunityEntity } from '../types/entities';
 
 export function mapOpportunityToDTO(data: any): OpportunityDTO {
-  console.log('MUNICIPALITIES RAW:', data.municipality_id, JSON.stringify(data.municipalities));
-
   const municipalityName = Array.isArray(data.municipalities)
     ? data.municipalities[0]?.name || null
     : data.municipalities?.name || null;
