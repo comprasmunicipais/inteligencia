@@ -60,6 +60,7 @@ export interface DealEntity extends BaseEntity {
 export interface ProposalEntity extends BaseEntity {
   company_id: string;
   municipality_id?: string;
+  opportunity_id?: string;
   title: string;
   value: number;
   status: string;
@@ -67,6 +68,8 @@ export interface ProposalEntity extends BaseEntity {
   notes?: string;
   department?: string;
   secretariat?: string;
+  ai_generated?: boolean;
+  ai_content?: string;
 }
 
 export interface ContractEntity extends BaseEntity {

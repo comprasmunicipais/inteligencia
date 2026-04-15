@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Header from '@/components/shared/Header';
 import {
   Search,
@@ -76,6 +77,7 @@ export default function OpportunitiesPage() {
   const supabase = useRef(createClient()).current;
   const { companyId } = useCompany();
   const isReadOnly = useIsReadOnly();
+  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -157,6 +159,33 @@ export default function OpportunitiesPage() {
       setLoading(false);
     }
   }, [companyId, loadData]);
+
+  useEffect(() => {
+    const requestedOpportunityId = searchParams.get('opportunityId');
+    if (!requestedOpportunityId || !companyId) return;
+
+    let cancelled = false;
+
+    const openRequestedOpportunity = async () => {
+      try {
+        const opportunity = await opportunityService.getById(requestedOpportunityId);
+        if (cancelled) return;
+
+        setSelectedOpp(opportunity);
+        setIsDetailModalOpen(true);
+      } catch {
+        if (!cancelled) {
+          toast.error('Não foi possível abrir a oportunidade vinculada.');
+        }
+      }
+    };
+
+    void openRequestedOpportunity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, searchParams]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -625,12 +654,13 @@ export default function OpportunitiesPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {displayedOpps.map((opp) => (
-                  <div
-                    key={opp.id}
-                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
-                  >
+              <>
+                <div className="grid grid-cols-1 gap-4">
+                  {displayedOpps.map((opp) => (
+                    <div
+                      key={opp.id}
+                      className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
+                    >
                     <div className="p-6 flex flex-col md:flex-row gap-6">
                       <div className="flex-1 space-y-4">
                         <div className="flex items-start justify-between gap-4">
@@ -788,23 +818,24 @@ export default function OpportunitiesPage() {
                         </button>
                       </div>
                     )}
-                  </div>
-                ))}
-              </div>
-
-              {!isReadOnly && hasMore && (
-                <div className="flex justify-center pt-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition-all hover:border-[#0f49bd]/40 hover:text-[#0f49bd] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loadingMore && <Loader2 className="size-4 animate-spin" />}
-                    {loadingMore ? 'Carregando...' : 'Carregar mais'}
-                  </button>
                 </div>
-              )}
+                  ))}
+                </div>
+
+                {!isReadOnly && hasMore && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition-all hover:border-[#0f49bd]/40 hover:text-[#0f49bd] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loadingMore && <Loader2 className="size-4 animate-spin" />}
+                      {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

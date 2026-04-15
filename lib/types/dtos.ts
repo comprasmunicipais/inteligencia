@@ -80,6 +80,7 @@ export interface ProposalDTO {
   id: string;
   company_id: string;
   municipality_id?: string;
+  opportunity_id?: string;
   title: string;
   value: number;
   status: string;
@@ -87,6 +88,8 @@ export interface ProposalDTO {
   notes?: string;
   department?: string;
   secretariat?: string;
+  ai_generated?: boolean;
+  ai_content?: string;
   account_name?: string;
   created_at?: string;
   updated_at?: string;

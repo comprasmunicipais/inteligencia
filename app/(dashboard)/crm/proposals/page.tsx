@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/shared/Header';
 import { 
   FileText, 
@@ -17,7 +19,6 @@ import {
   Trash2,
   Copy,
   ArrowRightLeft,
-  Eye,
   Loader2
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
@@ -42,19 +43,24 @@ import { proposalService } from '@/lib/services/proposals';
 import { municipalityService, MunicipalityOption } from '@/lib/services/municipalities';
 import { ProposalDTO } from '@/lib/types/dtos';
 import { ProposalStatus } from '@/lib/types/enums';
-import { safeText, formatCurrency } from '@/lib/utils/safe-helpers';
+import { formatCurrency } from '@/lib/utils/safe-helpers';
+import { createClient } from '@/lib/supabase/client';
 
 import EmptyState from '@/components/shared/EmptyState';
 
 export default function ProposalsPage() {
+  const router = useRouter();
+  const supabase = createClient();
   const { companyId } = useCompany();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingFullProposal, setLoadingFullProposal] = useState(false);
   const [proposals, setProposals] = useState<ProposalDTO[]>([]);
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isFullContentModalOpen, setIsFullContentModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   
@@ -67,6 +73,8 @@ export default function ProposalsPage() {
     secretariat: ''
   });
   const [editingProposal, setEditingProposal] = useState<ProposalDTO | null>(null);
+  const [editingFullContent, setEditingFullContent] = useState('');
+  const [editingAiProposalId, setEditingAiProposalId] = useState<string | null>(null);
   const [deletingProposal, setDeletingProposal] = useState<ProposalDTO | null>(null);
   
   const [filters, setFilters] = useState({ status: '' });
@@ -184,6 +192,120 @@ export default function ProposalsPage() {
       toast.error(`Erro ao atualizar proposta: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleOpenProposalEditor = async (proposal: ProposalDTO) => {
+    setEditingProposal(proposal);
+
+    if (!companyId || !proposal.opportunity_id) {
+      setIsEditModalOpen(true);
+      return;
+    }
+
+    setLoadingFullProposal(true);
+
+    try {
+      const { data: aiProposal, error } = await supabase
+        .from('ai_proposals')
+        .select('id, content')
+        .eq('company_id', companyId)
+        .eq('opportunity_id', proposal.opportunity_id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const fullContent = aiProposal?.content || proposal.ai_content || '';
+      if (!fullContent.trim()) {
+        setIsEditModalOpen(true);
+        return;
+      }
+
+      setEditingAiProposalId(aiProposal?.id || null);
+      setEditingFullContent(fullContent);
+      setIsFullContentModalOpen(true);
+    } catch (error) {
+      console.error('Error loading full proposal content:', error);
+      toast.error('Não foi possível carregar o conteúdo completo. Abrindo edição simples.');
+      setIsEditModalOpen(true);
+    } finally {
+      setLoadingFullProposal(false);
+    }
+  };
+
+  const handleSaveFullProposal = async () => {
+    if (!editingProposal) return;
+
+    setSaving(true);
+
+    try {
+      const updated = await proposalService.update(editingProposal.id, {
+        title: editingProposal.title,
+        municipality_id: editingProposal.municipality_id,
+        value: Number(editingProposal.value),
+        status: editingProposal.status,
+        department: editingProposal.department || undefined,
+        secretariat: editingProposal.secretariat || undefined,
+        ai_content: editingFullContent,
+      });
+
+      if (editingAiProposalId) {
+        const { error } = await supabase
+          .from('ai_proposals')
+          .update({ content: editingFullContent, updated_at: new Date().toISOString() })
+          .eq('id', editingAiProposalId);
+
+        if (error) throw error;
+      }
+
+      setProposals(proposals.map((p) => (
+        p.id === updated.id ? { ...updated, ai_content: editingFullContent } : p
+      )));
+      setEditingProposal({ ...updated, ai_content: editingFullContent });
+      toast.success('Conteúdo completo da proposta salvo!');
+      setIsFullContentModalOpen(false);
+      setEditingAiProposalId(null);
+      setEditingFullContent('');
+    } catch (error: any) {
+      console.error('Error saving full proposal:', error);
+      toast.error(`Erro ao salvar proposta: ${error.message || 'Erro desconhecido'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownloadFullProposalPDF = async () => {
+    if (!editingProposal || !editingFullContent) return;
+
+    try {
+      const response = await fetch('/api/intel/generate-proposal-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editingFullContent,
+          title: editingProposal.title,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || 'Erro ao gerar PDF.');
+      }
+
+      const html = await response.text();
+      const printWindow = window.open('', '_blank');
+
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao gerar PDF.');
     }
   };
 
@@ -342,7 +464,18 @@ export default function ProposalsPage() {
                   </tr>
                 ) : filteredProposals.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-gray-900">{p.title}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900">
+                      {p.opportunity_id ? (
+                        <Link
+                          href={`/intel/opportunities?opportunityId=${p.opportunity_id}`}
+                          className="text-[#0f49bd] hover:underline"
+                        >
+                          {p.title}
+                        </Link>
+                      ) : (
+                        p.title
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-gray-600">{p.account_name}</td>
                     <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(p.value)}</td>
                     <td className="px-6 py-4 text-gray-500">{p.created_at ? formatDate(p.created_at) : 'N/A'}</td>
@@ -379,7 +512,7 @@ export default function ProposalsPage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setEditingProposal(p); setIsEditModalOpen(true); }}>
+                            <DropdownMenuItem onClick={() => { void handleOpenProposalEditor(p); }}>
                               <Edit className="size-4 mr-2" /> Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDuplicateProposal(p)}>
@@ -408,6 +541,109 @@ export default function ProposalsPage() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={isFullContentModalOpen}
+        onOpenChange={(open) => {
+          setIsFullContentModalOpen(open);
+          if (!open) {
+            setEditingAiProposalId(null);
+            setEditingFullContent('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="size-5 text-purple-600" />
+              Editar Conteúdo Completo
+            </DialogTitle>
+            <DialogDescription>
+              {editingProposal?.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 overflow-y-auto">
+            {editingProposal && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="full-edit-title" className="text-sm font-bold text-gray-700">Título da Proposta</label>
+                    <input
+                      id="full-edit-title"
+                      className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                      value={editingProposal.title}
+                      onChange={(e) => setEditingProposal({ ...editingProposal, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="full-edit-status" className="text-sm font-bold text-gray-700">Status</label>
+                    <select
+                      id="full-edit-status"
+                      className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                      value={editingProposal.status}
+                      onChange={(e) => setEditingProposal({ ...editingProposal, status: e.target.value as ProposalStatus })}
+                    >
+                      <option value={ProposalStatus.DRAFT}>Rascunho</option>
+                      <option value={ProposalStatus.SENT}>Enviada</option>
+                      <option value={ProposalStatus.ACCEPTED}>Aceita</option>
+                      <option value={ProposalStatus.REJECTED}>Rejeitada</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    Edite o texto completo e salve para manter a proposta reabrível no CRM.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/intel/opportunities?opportunityId=${editingProposal.opportunity_id}`)}
+                    className="text-xs font-bold text-[#0f49bd] hover:underline disabled:text-gray-400 disabled:no-underline"
+                    disabled={!editingProposal.opportunity_id}
+                  >
+                    Ir para oportunidade
+                  </button>
+                </div>
+
+                <textarea
+                  className="w-full min-h-[400px] p-4 text-sm text-gray-700 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 resize-none leading-relaxed font-mono"
+                  value={editingFullContent}
+                  onChange={(e) => setEditingFullContent(e.target.value)}
+                />
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setIsFullContentModalOpen(false)}
+              className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadFullProposalPDF}
+              disabled={saving || !editingFullContent}
+              className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 transition-all disabled:opacity-50 shadow-sm"
+            >
+              <Download className="size-4" />
+              Baixar PDF
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveFullProposal}
+              disabled={saving || !editingFullContent.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+              Salvar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Proposal Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -683,6 +919,14 @@ export default function ProposalsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {loadingFullProposal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="rounded-xl bg-white px-6 py-4 shadow-xl flex items-center gap-3 text-sm font-bold text-gray-700">
+            <Loader2 className="size-4 animate-spin text-[#0f49bd]" />
+            Carregando conteúdo completo da proposta...
+          </div>
+        </div>
+      )}
     </>
   );
 }
