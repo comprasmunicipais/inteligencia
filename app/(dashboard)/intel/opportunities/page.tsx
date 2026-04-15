@@ -661,7 +661,7 @@ export default function OpportunitiesPage() {
                       key={opp.id}
                       className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
                     >
-                    <div className="p-6 flex flex-col md:flex-row gap-6">
+                      <div className="p-6 flex flex-col md:flex-row gap-6">
                       <div className="flex-1 space-y-4">
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -818,7 +818,7 @@ export default function OpportunitiesPage() {
                         </button>
                       </div>
                     )}
-                </div>
+                    </div>
                   ))}
                 </div>
 
