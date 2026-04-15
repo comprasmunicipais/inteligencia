@@ -7,6 +7,7 @@ export async function middleware(request: NextRequest) {
 
   // 🔓 rotas públicas — sem verificação de sessão
   if (
+    pathname.startsWith('/api/agents/test') ||
     pathname.startsWith('/api/demo') ||
     pathname.startsWith('/api/pncp/sync') ||
     pathname.startsWith('/api/pncp/ingest') ||
