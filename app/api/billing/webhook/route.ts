@@ -62,7 +62,20 @@ export async function POST(req: NextRequest) {
     .eq('asaas_subscription_id', payment.subscriptionId)
     .single()
 
-  if (!subscription) return NextResponse.json({ received: true })
+  if (!subscription) {
+    console.error('SUBSCRIPTION_NOT_FOUND_WEBHOOK', {
+      subscriptionId: payment?.subscriptionId,
+      event: event,
+    })
+
+    await supabase.from('billing_events').insert({
+      event_type: 'SUBSCRIPTION_NOT_FOUND',
+      payload: payload,
+      created_at: new Date().toISOString(),
+    })
+
+    return NextResponse.json({ received: true })
+  }
 
   const companyId = subscription.company_id
 
