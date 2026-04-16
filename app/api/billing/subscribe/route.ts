@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
   const initialStatus = 'pending'
 
   if (existingSub) {
-    await adminSupabase
+    const { error: updateError } = await adminSupabase
       .from('subscriptions')
       .update({
         asaas_customer_id: customer.id,
@@ -169,8 +169,19 @@ export async function POST(req: NextRequest) {
         current_period_start: now,
       })
       .eq('company_id', profile.company_id)
+
+    if (updateError) {
+      console.error('SUBSCRIPTION_UPDATE_FAILED', {
+        companyId: profile.company_id,
+        error: updateError.message,
+      })
+      return NextResponse.json(
+        { error: 'Erro interno ao registrar assinatura. Tente novamente.' },
+        { status: 500 }
+      )
+    }
   } else {
-    await adminSupabase
+    const { error: insertError } = await adminSupabase
       .from('subscriptions')
       .insert({
         company_id: profile.company_id,
@@ -182,6 +193,17 @@ export async function POST(req: NextRequest) {
         current_period_start: now,
         created_at: now,
       })
+
+    if (insertError) {
+      console.error('SUBSCRIPTION_INSERT_FAILED', {
+        companyId: profile.company_id,
+        error: insertError.message,
+      })
+      return NextResponse.json(
+        { error: 'Erro interno ao registrar assinatura. Tente novamente.' },
+        { status: 500 }
+      )
+    }
   }
 
   await adminSupabase
