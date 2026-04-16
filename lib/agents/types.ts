@@ -15,9 +15,31 @@ export interface SocialPost {
   type: "carrossel" | "texto" | "video";
   content: string;
   cta: string;
+  slides?: {
+    slide1: string;
+    slide2: string;
+    slide3: string;
+    slide4: string;
+  };
 }
 
 export interface ApprovalStatus {
   status: "approved" | "rejected";
   reason?: string;
+}
+
+export interface VisualBrief {
+  channel: "instagram" | "linkedin" | "facebook";
+  angle: "dor" | "processo" | "prova";
+  theme: string;
+  content: string;
+  cta: string;
+}
+
+export interface VisualOutput {
+  visualObjective: string;
+  style: string;
+  composition: string;
+  imagePrompt: string;
+  notes: string[];
 }
