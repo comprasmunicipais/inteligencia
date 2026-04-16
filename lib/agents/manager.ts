@@ -15,43 +15,24 @@ export function generateWeeklyPlan(
   };
 
   const [dorCta, processoCta, provaCta] = ctaByTarget[objective.target];
-  const normalizedObjective = objective.objective.toLowerCase();
-  const isAdvancedAudience =
-    normalizedObjective.includes("já comprou banco de dados") ||
-    normalizedObjective.includes("já conhecem banco de dados") ||
-    normalizedObjective.includes("já é estruturado") ||
-    normalizedObjective.includes("ja e estruturado") ||
-    normalizedObjective.includes("estruturado") ||
-    normalizedObjective.includes("mais estratégico") ||
-    normalizedObjective.includes("mais estrategico");
 
-  const themes = isAdvancedAudience
-    ? {
-        dor: "Banco de dados sem processo vira acúmulo operacional",
-        processo: "Como dar previsibilidade ao fluxo depois da oportunidade",
-        prova: "O que muda quando a operação comercial ganha estrutura",
-      }
-    : {
-        dor: "A oportunidade entra, mas o time se perde na execução",
-        processo: "Como organizar os próximos passos sem depender de improviso",
-        prova: "O que acontece quando cada etapa do processo fica clara",
-      };
+  void objective.objective;
 
   return [
     {
-      theme: themes.dor,
+      theme: "Erros depois que a oportunidade aparece",
       angle: "dor",
       channel: "instagram",
       cta: dorCta,
     },
     {
-      theme: themes.processo,
+      theme: "Como organizar o processo comercial",
       angle: "processo",
       channel: "linkedin",
       cta: processoCta,
     },
     {
-      theme: themes.prova,
+      theme: "O que muda quando existe processo",
       angle: "prova",
       channel: "facebook",
       cta: provaCta,
