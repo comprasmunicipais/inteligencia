@@ -85,6 +85,7 @@ export default function OpportunitiesPage() {
   const [recalculating, setRecalculating] = useState(false);
 
   const [opps, setOpps] = useState<OpportunityDTO[]>([]);
+  const [highMatchOpps, setHighMatchOpps] = useState<OpportunityDTO[]>([]);
   const [stats, setStats] = useState({
     total: 0,
     newLastSync: 0,
@@ -116,6 +117,9 @@ export default function OpportunitiesPage() {
   const [selectedEsfera, setSelectedEsfera] = useState<EsferaKey>('Todos');
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [highMatchHasMore, setHighMatchHasMore] = useState(false);
+  const [highMatchOffset, setHighMatchOffset] = useState(0);
+  const [highMatchLoaded, setHighMatchLoaded] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -128,12 +132,20 @@ export default function OpportunitiesPage() {
         limit: OPPORTUNITIES_PAGE_SIZE,
       });
       setOpps(oppsData || []);
+      setHighMatchOpps([]);
       setOffset(oppsData?.length || 0);
       setHasMore((oppsData?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+      setHighMatchOffset(0);
+      setHighMatchHasMore(false);
+      setHighMatchLoaded(false);
     } catch (error) {
       setOpps([]);
+      setHighMatchOpps([]);
       setOffset(0);
       setHasMore(false);
+      setHighMatchOffset(0);
+      setHighMatchHasMore(false);
+      setHighMatchLoaded(false);
     }
 
     try {
@@ -150,6 +162,32 @@ export default function OpportunitiesPage() {
     } catch {}
 
     setLoading(false);
+  }, [companyId]);
+
+  const loadHighMatchData = useCallback(async () => {
+    if (!companyId) return;
+
+    setLoading(true);
+
+    try {
+      const oppsData = await opportunityService.getHighMatch(companyId, {
+        offset: 0,
+        limit: OPPORTUNITIES_PAGE_SIZE,
+      });
+
+      setHighMatchOpps(oppsData || []);
+      setHighMatchOffset(oppsData?.length || 0);
+      setHighMatchHasMore((oppsData?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+      setHighMatchLoaded(true);
+    } catch {
+      setHighMatchOpps([]);
+      setHighMatchOffset(0);
+      setHighMatchHasMore(false);
+      setHighMatchLoaded(true);
+      toast.error('Erro ao carregar oportunidades de alta aderência.');
+    } finally {
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
@@ -186,6 +224,12 @@ export default function OpportunitiesPage() {
       cancelled = true;
     };
   }, [companyId, searchParams]);
+
+  useEffect(() => {
+    if (quickFilter !== 'high_match' || highMatchLoaded || !companyId) return;
+
+    void loadHighMatchData();
+  }, [companyId, highMatchLoaded, loadHighMatchData, quickFilter]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -336,10 +380,6 @@ export default function OpportunitiesPage() {
     return (opp.internal_status || '').startsWith('converted_to_');
   };
 
-  const isHighMatchOpportunity = (opp: OpportunityDTO) => {
-    return Number(opp.match_score || 0) >= 70;
-  };
-
   const isNewLastSyncOpportunity = (opp: OpportunityDTO) => {
     return opp.internal_status === 'new';
   };
@@ -366,11 +406,13 @@ export default function OpportunitiesPage() {
   };
 
   const matchesQuickFilter = (opp: OpportunityDTO) => {
+    if (quickFilter === 'high_match') {
+      return true;
+    }
+
     switch (quickFilter) {
       case 'new_last_sync':
         return isNewLastSyncOpportunity(opp);
-      case 'high_match':
-        return isHighMatchOpportunity(opp);
       case 'expiring_soon':
         return isExpiringSoonOpportunity(opp);
       case 'converted':
@@ -381,8 +423,11 @@ export default function OpportunitiesPage() {
     }
   };
 
+  const sourceOpps = quickFilter === 'high_match' ? highMatchOpps : opps;
+  const canLoadMore = quickFilter === 'high_match' ? highMatchHasMore : hasMore;
+
   const filteredOpps = useMemo(() => {
-    return opps.filter((opp) => {
+    return sourceOpps.filter((opp) => {
       const matchesTab = activeTab === 'all' ? true : opp.internal_status === activeTab;
       const searchBase = `${opp.title || ''} ${opp.organ_name || ''} ${opp.description || ''}`.toLowerCase();
       const matchesSearch = searchBase.includes(searchTerm.toLowerCase());
@@ -399,7 +444,7 @@ export default function OpportunitiesPage() {
 
       return matchesTab && matchesSearch && matchesLocation && matchesModality && matchesScore && matchesQuick && matchesEsfera;
     });
-  }, [opps, activeTab, searchTerm, filters, quickFilter, selectedEsfera]);
+  }, [sourceOpps, activeTab, searchTerm, filters, quickFilter, selectedEsfera]);
 
   const iaSummary = useMemo(() => {
     const ordered = [...filteredOpps].sort(
@@ -433,19 +478,34 @@ export default function OpportunitiesPage() {
   };
 
   const handleLoadMore = async () => {
-    if (!companyId || loadingMore || !hasMore) return;
+    const shouldLoadHighMatch = quickFilter === 'high_match';
+    const currentHasMore = shouldLoadHighMatch ? highMatchHasMore : hasMore;
+    const currentOffset = shouldLoadHighMatch ? highMatchOffset : offset;
+
+    if (!companyId || loadingMore || !currentHasMore) return;
 
     setLoadingMore(true);
 
     try {
-      const nextBatch = await opportunityService.getAll(companyId, undefined, {
-        offset,
-        limit: OPPORTUNITIES_PAGE_SIZE,
-      });
+      const nextBatch = shouldLoadHighMatch
+        ? await opportunityService.getHighMatch(companyId, {
+            offset: currentOffset,
+            limit: OPPORTUNITIES_PAGE_SIZE,
+          })
+        : await opportunityService.getAll(companyId, undefined, {
+            offset: currentOffset,
+            limit: OPPORTUNITIES_PAGE_SIZE,
+          });
 
-      setOpps((prev) => [...prev, ...(nextBatch || [])]);
-      setOffset((prev) => prev + (nextBatch?.length || 0));
-      setHasMore((nextBatch?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+      if (shouldLoadHighMatch) {
+        setHighMatchOpps((prev) => [...prev, ...(nextBatch || [])]);
+        setHighMatchOffset((prev) => prev + (nextBatch?.length || 0));
+        setHighMatchHasMore((nextBatch?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+      } else {
+        setOpps((prev) => [...prev, ...(nextBatch || [])]);
+        setOffset((prev) => prev + (nextBatch?.length || 0));
+        setHasMore((nextBatch?.length || 0) === OPPORTUNITIES_PAGE_SIZE);
+      }
     } catch {
       toast.error('Erro ao carregar mais oportunidades.');
     } finally {
@@ -822,7 +882,7 @@ export default function OpportunitiesPage() {
                   ))}
                 </div>
 
-                {!isReadOnly && hasMore && (
+                {!isReadOnly && canLoadMore && (
                   <div className="flex justify-center pt-2">
                     <button
                       type="button"

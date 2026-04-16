@@ -2,6 +2,34 @@ import { createClient } from '@/lib/supabase/client';
 import { OpportunityDTO } from '../types/dtos';
 import { mapOpportunityToDTO } from '../mappers/opportunities';
 
+async function enrichOpportunitiesWithScores(
+  companyId: string,
+  opportunities: any[]
+): Promise<OpportunityDTO[]> {
+  const supabase = createClient();
+  const opportunityIds = (opportunities || []).map((opp) => opp.id);
+
+  if (opportunityIds.length === 0) {
+    return [];
+  }
+
+  const { data: scores } = await supabase
+    .from('company_opportunity_scores')
+    .select('opportunity_id, match_score, match_reason')
+    .eq('company_id', companyId)
+    .in('opportunity_id', opportunityIds);
+
+  const scoresMap = new Map(scores?.map((score) => [score.opportunity_id, score]) || []);
+
+  return opportunities.map((opp) =>
+    mapOpportunityToDTO({
+      ...opp,
+      match_score: scoresMap.get(opp.id)?.match_score ?? (companyId ? 0 : opp.match_score ?? 0),
+      match_reason: scoresMap.get(opp.id)?.match_reason ?? opp.match_reason,
+    })
+  );
+}
+
 /**
  * Marca como 'expired' todas as oportunidades cujo prazo já passou.
  * Chamado no início de cada sincronização com o PNCP.
@@ -62,26 +90,54 @@ export const opportunityService = {
       throw error;
     }
 
-    const opportunityIds = (data || []).map((opp) => opp.id);
+    return enrichOpportunitiesWithScores(companyId, data || []);
+  },
+
+  async getHighMatch(
+    companyId: string,
+    options?: { offset?: number; limit?: number }
+  ): Promise<OpportunityDTO[]> {
+    const supabase = createClient();
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? 50;
+
+    const { data: scoreRows, error: scoresError } = await supabase
+      .from('company_opportunity_scores')
+      .select('opportunity_id, match_score')
+      .eq('company_id', companyId)
+      .gte('match_score', 70)
+      .order('match_score', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (scoresError) {
+      console.error('SUPABASE ERROR (opportunities.getHighMatch.scores):', scoresError);
+      throw scoresError;
+    }
+
+    const opportunityIds = (scoreRows || []).map((row) => row.opportunity_id);
     if (opportunityIds.length === 0) {
       return [];
     }
 
-    const { data: scores } = await supabase
-      .from('company_opportunity_scores')
-      .select('opportunity_id, match_score, match_reason')
-      .eq('company_id', companyId)
-      .in('opportunity_id', opportunityIds);
+    const { data: opportunities, error: opportunitiesError } = await supabase
+      .from('opportunities')
+      .select('*, municipalities(name)')
+      .in('id', opportunityIds);
 
-    const scoresMap = new Map(scores?.map(s => [s.opportunity_id, s]) || []);
+    if (opportunitiesError) {
+      console.error(
+        'SUPABASE ERROR (opportunities.getHighMatch.opportunities):',
+        opportunitiesError
+      );
+      throw opportunitiesError;
+    }
 
-    const merged = (data || []).map(opp => ({
-      ...opp,
-      match_score: scoresMap.get(opp.id)?.match_score ?? (companyId ? 0 : opp.match_score ?? 0),
-      match_reason: scoresMap.get(opp.id)?.match_reason ?? opp.match_reason,
-    }));
+    const opportunitiesMap = new Map((opportunities || []).map((opp) => [opp.id, opp]));
+    const orderedOpportunities = opportunityIds
+      .map((id) => opportunitiesMap.get(id))
+      .filter(Boolean);
 
-    return merged.map(mapOpportunityToDTO);
+    return enrichOpportunitiesWithScores(companyId, orderedOpportunities);
   },
 
   async getByMunicipality(municipalityId: string): Promise<OpportunityDTO[]> {
