@@ -90,7 +90,6 @@ export default function IntelProfilePage() {
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState(true);
   const [uploadingDocument, setUploadingDocument] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(DOCUMENT_CATEGORIES[0].id);
   const [documentDescription, setDocumentDescription] = useState('');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(DOCUMENT_CATEGORIES[0].id);
 
@@ -275,17 +274,17 @@ export default function IntelProfilePage() {
     } catch { toast.error('Erro ao excluir catálogo.'); }
   };
 
-  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>, category: string) => {
     const file = e.target.files?.[0];
     if (!file || !companyId) return;
     if (!ALLOWED_TYPES.includes(file.type)) { toast.error('Formato não permitido.'); return; }
     setUploadingDocument(true);
     const toastId = toast.loading('Fazendo upload do documento...');
     try {
-      const created = await companyDocumentService.upload(file, companyId, selectedCategory, documentDescription.trim());
+      const created = await companyDocumentService.upload(file, companyId, category, documentDescription.trim());
       setDocuments([created, ...documents]);
       setDocumentDescription('');
-      setExpandedCategory(selectedCategory);
+      setExpandedCategory(category);
       toast.success('Documento enviado!', { id: toastId });
     } catch { toast.error('Erro ao enviar documento.', { id: toastId }); }
     finally { setUploadingDocument(false); e.target.value = ''; }
@@ -552,25 +551,6 @@ export default function IntelProfilePage() {
                   <h3 className="font-bold">Documentos de Habilitação</h3>
                 </div>
                 <p className="text-xs text-gray-500 -mt-4">Centralize os documentos exigidos em licitações organizados por categoria.</p>
-                <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Novo Documento</p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <select className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                      {DOCUMENT_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
-                    </select>
-                    <div className="flex gap-3">
-                      <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Descrição opcional (ex: CND Federal — validade 12/2025)" value={documentDescription} onChange={(e) => setDocumentDescription(e.target.value)} />
-                      <div className="relative">
-                        <input type="file" id="doc-upload" className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={handleUploadDocument} disabled={uploadingDocument || isReadOnly} />
-                        <label htmlFor="doc-upload" className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingDocument ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
-                          {uploadingDocument ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                          {uploadingDocument ? 'Enviando...' : 'Upload'}
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG — máx. 50MB</p>
-                </div>
                 {loadingDocuments ? (
                   <div className="flex justify-center py-4"><Loader2 className="size-5 text-[#0f49bd] animate-spin" /></div>
                 ) : (
@@ -597,6 +577,17 @@ export default function IntelProfilePage() {
                           </button>
                           {isExpanded && (
                             <div className="p-3 space-y-2 bg-white">
+                              <div className="flex gap-3">
+                                <input type="text" className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]" placeholder="Descricao opcional (ex: CND Federal - validade 12/2025)" value={documentDescription} onChange={(e) => setDocumentDescription(e.target.value)} />
+                                <div className="relative">
+                                  <input type="file" id={`doc-upload-${cat.id}`} className="hidden" accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png" onChange={(e) => handleUploadDocument(e, cat.id)} disabled={uploadingDocument || isReadOnly} />
+                                  <label htmlFor={`doc-upload-${cat.id}`} className={cn('h-10 px-4 rounded-md flex items-center gap-2 text-sm font-bold cursor-pointer transition-colors', uploadingDocument ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0f49bd] text-white hover:bg-[#0a3690]')}>
+                                    {uploadingDocument ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                                    {uploadingDocument ? 'Enviando...' : 'Upload'}
+                                  </label>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-gray-400">Formatos aceitos: PDF, DOCX, XLSX, JPG, PNG - max. 50MB</p>
                               {catDocs.length === 0 ? (
                                 <p className="text-xs text-gray-400 text-center py-4">Nenhum documento nesta categoria.</p>
                               ) : catDocs.map((doc) => (
