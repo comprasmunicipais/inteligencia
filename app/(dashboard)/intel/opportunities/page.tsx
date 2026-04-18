@@ -43,6 +43,11 @@ import { createClient } from '@/lib/supabase/client';
 type TabKey = 'all' | 'new' | 'under_review' | 'relevant' | 'discarded';
 type QuickFilterKey = 'all' | 'new_last_sync' | 'high_match' | 'expiring_soon' | 'converted';
 type EsferaKey = 'Todos' | 'Municipal' | 'Estadual' | 'Federal' | 'Outro';
+type OpportunityItemDetail = {
+  item_original: string;
+  quantity: number | null;
+  unit: string | null;
+};
 const OPPORTUNITIES_PAGE_SIZE = 50;
 
 function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' | 'Outro' {
@@ -71,6 +76,121 @@ function deriveEsfera(organ_name: string): 'Municipal' | 'Estadual' | 'Federal' 
     up.includes('FUNDO DE EDUCACAO')
   ) return 'Municipal';
   return 'Outro';
+}
+
+function getScoreHighlight(score: number) {
+  if (score >= 70) {
+    return {
+      wrapper: 'border-emerald-200 bg-emerald-50',
+      value: 'text-emerald-700',
+      label: 'text-emerald-600',
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      wrapper: 'border-amber-200 bg-amber-50',
+      value: 'text-amber-700',
+      label: 'text-amber-600',
+    };
+  }
+
+  return {
+    wrapper: 'border-slate-200 bg-slate-50',
+    value: 'text-slate-700',
+    label: 'text-slate-500',
+  };
+}
+
+function getMatchSourceLabel(matchReason?: string | null) {
+  return (matchReason || '').includes('Itens identificados na licitação')
+    ? 'Match por itens'
+    : 'Match por descrição';
+}
+
+function getMatchReasonSummary(matchReason?: string | null) {
+  const reason = (matchReason || '').trim();
+  if (!reason) return 'Sem justificativa resumida';
+
+  const terms = new Set<string>();
+  const patterns = [
+    /Categoria de interesse identificada:\s*([^.]*)/i,
+    /Cont[eé]m termos de interesse(?: em contexto compat[ií]vel)?:\s*([^.]*)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = reason.match(pattern);
+    if (!match?.[1]) continue;
+
+    match[1]
+      .split(',')
+      .map((term) => term.trim())
+      .filter(Boolean)
+      .forEach((term) => {
+        if (terms.size < 3) {
+          terms.add(term);
+        }
+      });
+  }
+
+  if (terms.size > 0) {
+    return Array.from(terms).join(' + ');
+  }
+
+  const firstSentence = reason.split('.').map((part) => part.trim()).find(Boolean) || reason;
+  return firstSentence.length > 72 ? `${firstSentence.slice(0, 69).trim()}...` : firstSentence;
+}
+
+function parseMatchReason(matchReason?: string | null) {
+  const reason = (matchReason || '').trim();
+
+  const extractTerms = (pattern: RegExp) => {
+    const match = reason.match(pattern);
+    if (!match?.[1]) return [];
+
+    return match[1]
+      .split(',')
+      .map((term) => term.trim())
+      .filter(Boolean);
+  };
+
+  const category = extractTerms(/Categoria de interesse identificada:\s*([^.]*)/i)[0] || null;
+  const terms = Array.from(
+    new Set([
+      ...extractTerms(/Cont[eé]m termos de interesse:\s*([^.]*)/i),
+      ...extractTerms(/Cont[eé]m termos de interesse em contexto compat[ií]vel:\s*([^.]*)/i),
+    ])
+  );
+  const items = Array.from(
+    new Set(extractTerms(/Itens identificados na licita[cç][aã]o:\s*([^.]*)/i))
+  ).slice(0, 3);
+
+  return {
+    category,
+    terms,
+    items,
+  };
+}
+
+function getDecisionSignal(matchScore: number, matchReason?: string | null) {
+  const reason = matchReason || '';
+
+  const aderencia =
+    matchScore >= 70
+      ? { label: 'Alta', classes: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+      : matchScore >= 50
+      ? { label: 'Média', classes: 'bg-amber-50 text-amber-700 border-amber-200' }
+      : { label: 'Baixa', classes: 'bg-slate-100 text-slate-600 border-slate-200' };
+
+  const modalidade = reason.includes('Modalidade de contratação preferencial.')
+    ? { label: 'Favorável', classes: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+    : { label: 'Neutra', classes: 'bg-slate-100 text-slate-600 border-slate-200' };
+
+  const regiao = reason.includes('Localização estratégica (Estado alvo).')
+    ? { label: 'Alvo', classes: 'bg-blue-50 text-blue-700 border-blue-200' }
+    : { label: 'Fora do alvo', classes: 'bg-slate-100 text-slate-600 border-slate-200' };
+
+  return { aderencia, modalidade, regiao };
 }
 
 export default function OpportunitiesPage() {
@@ -103,6 +223,8 @@ export default function OpportunitiesPage() {
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
 
   const [selectedOpp, setSelectedOpp] = useState<OpportunityDTO | null>(null);
+  const [selectedOppItems, setSelectedOppItems] = useState<OpportunityItemDetail[]>([]);
+  const [selectedOppItemsLoading, setSelectedOppItemsLoading] = useState(false);
   const [proposalOpp, setProposalOpp] = useState<OpportunityDTO | null>(null);
   const [proposalContent, setProposalContent] = useState('');
   const [proposalId, setProposalId] = useState<string | null>(null);
@@ -224,6 +346,53 @@ export default function OpportunitiesPage() {
       cancelled = true;
     };
   }, [companyId, searchParams]);
+
+  useEffect(() => {
+    if (!isDetailModalOpen || !selectedOpp?.id) {
+      setSelectedOppItems([]);
+      setSelectedOppItemsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOpportunityItems = async () => {
+      setSelectedOppItemsLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from('opportunity_items')
+          .select('item_original, quantity, unit')
+          .eq('opportunity_id', selectedOpp.id)
+          .limit(10);
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const sortedItems = [...(data || [])].sort((a, b) => {
+          const quantityA = typeof a.quantity === 'number' ? a.quantity : -1;
+          const quantityB = typeof b.quantity === 'number' ? b.quantity : -1;
+          return quantityB - quantityA;
+        });
+
+        setSelectedOppItems(sortedItems);
+      } catch {
+        if (!cancelled) {
+          setSelectedOppItems([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSelectedOppItemsLoading(false);
+        }
+      }
+    };
+
+    void loadOpportunityItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDetailModalOpen, selectedOpp?.id, supabase]);
 
   useEffect(() => {
     if (quickFilter !== 'high_match' || highMatchLoaded || !companyId) return;
@@ -716,7 +885,13 @@ export default function OpportunitiesPage() {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-4">
-                  {displayedOpps.map((opp) => (
+                  {displayedOpps.map((opp) => {
+                    const score = Number(opp.match_score || 0);
+                    const scoreHighlight = getScoreHighlight(score);
+                    const matchSummary = getMatchReasonSummary(opp.match_reason);
+                    const matchSourceLabel = getMatchSourceLabel(opp.match_reason);
+
+                    return (
                     <div
                       key={opp.id}
                       className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
@@ -746,24 +921,40 @@ export default function OpportunitiesPage() {
                             </p>
                           </div>
 
-                          <div className="flex flex-col items-end">
+                          <div className="flex flex-col items-end gap-2">
                             <div
                               className={cn(
-                                'size-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
-                                Number(opp.match_score || 0) >= 90
-                                  ? 'border-green-100 text-green-600 bg-green-50'
-                                  : Number(opp.match_score || 0) >= 70
-                                  ? 'border-blue-100 text-blue-600 bg-blue-50'
-                                  : Number(opp.match_score || 0) >= 50
-                                  ? 'border-amber-100 text-amber-600 bg-amber-50'
-                                  : 'border-gray-100 text-gray-400 bg-gray-50'
+                                'min-w-[110px] rounded-2xl border px-4 py-3 text-right shadow-sm',
+                                scoreHighlight.wrapper
                               )}
                             >
-                              {Number(opp.match_score || 0)}%
+                              <div className={cn('text-2xl font-black leading-none', scoreHighlight.value)}>
+                                {score}%
+                              </div>
+                              <div
+                                className={cn(
+                                  'mt-1 text-[10px] font-bold uppercase tracking-[0.18em]',
+                                  scoreHighlight.label
+                                )}
+                              >
+                                Score IA
+                              </div>
                             </div>
-                            <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">
-                              Match IA
+                            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                              {matchSourceLabel}
                             </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                          <Sparkles className="size-4 shrink-0 text-[#0f49bd]" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                              Motivo resumido do match
+                            </p>
+                            <p className="truncate text-sm font-semibold text-slate-800">
+                              {matchSummary}
+                            </p>
                           </div>
                         </div>
 
@@ -860,12 +1051,12 @@ export default function OpportunitiesPage() {
                       </div>
                     </div>
 
-                    {Number(opp.match_score || 0) >= 50 && (
+                    {score >= 50 && (
                       <div className="bg-blue-50/50 px-6 py-3 border-t border-blue-100 flex items-center gap-3">
                         <Sparkles className="size-4 text-blue-600" />
                         <p className="text-xs text-blue-800 font-medium">
                           <span className="font-bold">Análise IA:</span>{' '}
-                          {opp.match_reason || 'Sem justificativa disponível.'}
+                          {matchSummary}
                         </p>
                         <button
                           onClick={() => {
@@ -879,7 +1070,8 @@ export default function OpportunitiesPage() {
                       </div>
                     )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {!isReadOnly && canLoadMore && (
@@ -1063,11 +1255,150 @@ export default function OpportunitiesPage() {
 
           {selectedOpp && (
             <div className="py-4 space-y-6">
+              {(() => {
+                const parsedMatchReason = parseMatchReason(selectedOpp.match_reason);
+                const decisionSignal = getDecisionSignal(
+                  Number(selectedOpp.match_score || 0),
+                  selectedOpp.match_reason
+                );
+
+                return (
+                  <>
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-gray-900">{selectedOpp.title}</h3>
                 <p className="text-sm text-gray-500 flex items-center gap-1">
                   <Building2 className="size-4" /> {selectedOpp.organ_name}
                 </p>
+              </div>
+
+              {(parsedMatchReason.category || parsedMatchReason.terms.length > 0 || parsedMatchReason.items.length > 0) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Por que essa oportunidade apareceu
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Explicação rápida dos sinais identificados no match desta licitação.
+                    </p>
+                  </div>
+
+                  {parsedMatchReason.category && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Categoria identificada
+                      </span>
+                      <div className="inline-flex items-center rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                        {parsedMatchReason.category}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedMatchReason.terms.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Termos encontrados
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {parsedMatchReason.terms.map((term) => (
+                          <span
+                            key={term}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                          >
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedMatchReason.items.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Itens identificados na licitação
+                      </span>
+                      <ul className="space-y-2">
+                        {parsedMatchReason.items.map((item) => (
+                          <li
+                            key={item}
+                            className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                          >
+                            <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#0f49bd]" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Vale a pena disputar?</h4>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Leitura rápida dos sinais comerciais já identificados nesta oportunidade.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <span className="text-sm font-medium text-slate-700">Aderência</span>
+                    <span className={cn('rounded-full border px-3 py-1 text-xs font-bold', decisionSignal.aderencia.classes)}>
+                      {decisionSignal.aderencia.label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <span className="text-sm font-medium text-slate-700">Modalidade</span>
+                    <span className={cn('rounded-full border px-3 py-1 text-xs font-bold', decisionSignal.modalidade.classes)}>
+                      {decisionSignal.modalidade.label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <span className="text-sm font-medium text-slate-700">Região</span>
+                    <span className={cn('rounded-full border px-3 py-1 text-xs font-bold', decisionSignal.regiao.classes)}>
+                      {decisionSignal.regiao.label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Principais itens da licitação</h4>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Itens mais relevantes informados no detalhamento desta contratação.
+                  </p>
+                </div>
+
+                {selectedOppItemsLoading ? (
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">
+                    Carregando itens...
+                  </div>
+                ) : selectedOppItems.length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">
+                    Nenhum item detalhado disponível para esta licitação.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedOppItems.map((item, index) => (
+                      <div
+                        key={`${item.item_original}-${index}`}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-3"
+                      >
+                        <p className="text-sm font-medium text-slate-800">{item.item_original}</p>
+                        {(typeof item.quantity === 'number' || item.unit) && (
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {typeof item.quantity === 'number' ? item.quantity : ''}
+                            {typeof item.quantity === 'number' && item.unit ? ' ' : ''}
+                            {item.unit || ''}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-6">
@@ -1159,6 +1490,9 @@ export default function OpportunitiesPage() {
                   <FileText className="size-4" /> Gerar Proposta
                 </button>
               </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </DialogContent>
