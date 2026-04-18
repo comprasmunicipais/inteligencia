@@ -2,13 +2,14 @@
 
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -226,6 +227,31 @@ export default function SignupPage() {
           box-sizing: border-box;
         }
 
+        .signup-password-wrap {
+          position: relative;
+        }
+
+        .signup-password-input {
+          padding-right: 48px;
+        }
+
+        .signup-password-toggle {
+          position: absolute;
+          top: 50%;
+          right: 12px;
+          transform: translateY(-50%);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          padding: 0;
+          background: transparent;
+          border: none;
+          color: rgba(148,163,184,0.85);
+          cursor: pointer;
+        }
+
         .signup-input::placeholder {
           color: rgba(100,116,139,0.55);
         }
@@ -429,15 +455,25 @@ export default function SignupPage() {
                   </svg>
                   Senha
                 </label>
+                <div className="signup-password-wrap">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   minLength={8}
                   placeholder="Mínimo 8 caracteres"
-                  className="signup-input"
+                  className="signup-input signup-password-input"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                  <button
+                    type="button"
+                    className="signup-password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {error && (

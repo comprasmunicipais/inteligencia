@@ -4,11 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -232,6 +233,31 @@ export default function LoginPage() {
           box-sizing: border-box;
         }
 
+        .login-password-wrap {
+          position: relative;
+        }
+
+        .login-password-input {
+          padding-right: 48px;
+        }
+
+        .login-password-toggle {
+          position: absolute;
+          top: 50%;
+          right: 12px;
+          transform: translateY(-50%);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          padding: 0;
+          background: transparent;
+          border: none;
+          color: rgba(148,163,184,0.85);
+          cursor: pointer;
+        }
+
         .login-input::placeholder {
           color: rgba(100,116,139,0.6);
         }
@@ -435,14 +461,24 @@ export default function LoginPage() {
                   </svg>
                   Senha
                 </label>
+                <div className="login-password-wrap">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="••••••••"
-                  className="login-input"
+                  className="login-input login-password-input"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                  <button
+                    type="button"
+                    className="login-password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div className="login-forgot-row">
