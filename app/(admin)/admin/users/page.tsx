@@ -622,7 +622,6 @@ export default function AdminUsersPage() {
                     onChange={(e) => setSelectedPlanId(e.target.value)}
                     className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
                   >
-                    <option value="">Sem plano</option>
                     {plans.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} — R${p.price_monthly?.toLocaleString('pt-BR')}/mês
@@ -630,7 +629,7 @@ export default function AdminUsersPage() {
                     ))}
                   </select>
                   <button
-                    disabled={planUpdateLoading || selectedPlanId === (companyDetail.plan_id ?? '')}
+                    disabled={planUpdateLoading || !selectedPlanId || selectedPlanId === (companyDetail.plan_id ?? '')}
                     onClick={async () => {
                       setPlanUpdateLoading(true);
                       try {
@@ -642,7 +641,14 @@ export default function AdminUsersPage() {
                         const json = await res.json();
                         if (!res.ok) { toast.error(json.error || 'Erro ao atualizar plano.'); return; }
                         toast.success(`Plano atualizado para ${json.plan_name}!`);
-                        setCompanyDetail({ ...companyDetail, plan_id: selectedPlanId });
+                        setCompanyDetail(prev => ({
+                          ...prev,
+                          plan_id: selectedPlanId,
+                          subscription: {
+                            status: 'active',
+                            billing_cycle: prev?.subscription?.billing_cycle ?? 'monthly',
+                          },
+                        }));
                       } catch {
                         toast.error('Erro de conexão.');
                       } finally {

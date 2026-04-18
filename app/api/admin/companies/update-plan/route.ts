@@ -92,11 +92,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro ao atualizar plano da empresa.' }, { status: 500 });
   }
 
-  // Update subscription plan as well (if exists)
-  await adminClient
+  // Ensure the company has an active subscription for the selected plan
+  const { error: subscriptionError } = await adminClient
     .from('subscriptions')
-    .update({ plan_id })
-    .eq('company_id', company_id);
+    .upsert(
+      {
+        company_id,
+        plan_id,
+        status: 'active',
+      },
+      { onConflict: 'company_id' }
+    );
+
+  if (subscriptionError) {
+    return NextResponse.json({ error: 'Erro ao atualizar assinatura da empresa.' }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, plan_name: plan.name });
 }
