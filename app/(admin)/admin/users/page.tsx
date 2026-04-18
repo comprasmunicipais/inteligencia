@@ -641,14 +641,15 @@ export default function AdminUsersPage() {
                         const json = await res.json();
                         if (!res.ok) { toast.error(json.error || 'Erro ao atualizar plano.'); return; }
                         toast.success(`Plano atualizado para ${json.plan_name}!`);
-                        setCompanyDetail(prev => ({
+                        setCompanyDetail(prev => prev ? {
                           ...prev,
+                          id: prev.id,
                           plan_id: selectedPlanId,
                           subscription: {
                             status: 'active',
-                            billing_cycle: prev?.subscription?.billing_cycle ?? 'monthly',
+                            billing_cycle: prev.subscription?.billing_cycle ?? 'monthly',
                           },
-                        }));
+                        } : prev);
                       } catch {
                         toast.error('Erro de conexão.');
                       } finally {
