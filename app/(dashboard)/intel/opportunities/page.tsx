@@ -199,7 +199,8 @@ export default function OpportunitiesPage() {
   const isReadOnly = useIsReadOnly();
   const searchParams = useSearchParams();
 
-  const [loading, setLoading] = useState(true);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
@@ -243,10 +244,10 @@ export default function OpportunitiesPage() {
   const [highMatchOffset, setHighMatchOffset] = useState(0);
   const [highMatchLoaded, setHighMatchLoaded] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadListData = useCallback(async () => {
     if (!companyId) return;
 
-    setLoading(true);
+    setLoadingList(true);
 
     try {
       const oppsData = await opportunityService.getAll(companyId, undefined, {
@@ -268,7 +269,15 @@ export default function OpportunitiesPage() {
       setHighMatchOffset(0);
       setHighMatchHasMore(false);
       setHighMatchLoaded(false);
+    } finally {
+      setLoadingList(false);
     }
+  }, [companyId]);
+
+  const loadStatsData = useCallback(async () => {
+    if (!companyId) return;
+
+    setLoadingStats(true);
 
     try {
       const statsData = await opportunityService.getStats(companyId);
@@ -281,15 +290,16 @@ export default function OpportunitiesPage() {
           converted: 0,
         }
       );
-    } catch {}
-
-    setLoading(false);
+    } catch {
+    } finally {
+      setLoadingStats(false);
+    }
   }, [companyId]);
 
   const loadHighMatchData = useCallback(async () => {
     if (!companyId) return;
 
-    setLoading(true);
+    setLoadingList(true);
 
     try {
       const oppsData = await opportunityService.getHighMatch(companyId, {
@@ -308,17 +318,19 @@ export default function OpportunitiesPage() {
       setHighMatchLoaded(true);
       toast.error('Erro ao carregar oportunidades de alta aderência.');
     } finally {
-      setLoading(false);
+      setLoadingList(false);
     }
   }, [companyId]);
 
   useEffect(() => {
     if (companyId) {
-      loadData();
+      void loadListData();
+      void loadStatsData();
     } else {
-      setLoading(false);
+      setLoadingList(false);
+      setLoadingStats(false);
     }
-  }, [companyId, loadData]);
+  }, [companyId, loadListData, loadStatsData]);
 
   useEffect(() => {
     const requestedOpportunityId = searchParams.get('opportunityId');
@@ -404,7 +416,8 @@ export default function OpportunitiesPage() {
     setSyncing(true);
     try {
       toast.info('A sincronização automática ainda será conectada à fonte oficial.');
-      await loadData();
+      await loadListData();
+      void loadStatsData();
     } catch {
       toast.error('Erro ao sincronizar dados.');
     } finally {
@@ -429,7 +442,8 @@ export default function OpportunitiesPage() {
       if (!response.ok) throw new Error(result.error);
 
       toast.success(`Score atualizado em ${result.updated} oportunidades!`, { id: toastId });
-      await loadData();
+      await loadListData();
+      void loadStatsData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao recalcular scores.', {
         id: toastId,
@@ -690,11 +704,6 @@ export default function OpportunitiesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
-          </div>
-        ) : (
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <button
@@ -710,7 +719,11 @@ export default function OpportunitiesPage() {
                 <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
                   Total Capturadas
                 </span>
-                <span className="text-2xl font-black text-gray-900">{stats.total}</span>
+                {loadingStats ? (
+                  <div className="h-8 w-16 animate-pulse rounded-md bg-gray-100" />
+                ) : (
+                  <span className="text-2xl font-black text-gray-900">{stats.total}</span>
+                )}
               </button>
 
               <button
@@ -726,7 +739,11 @@ export default function OpportunitiesPage() {
                 <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
                   Novas na Última Atualização
                 </span>
-                <span className="text-2xl font-black text-blue-600">{stats.newLastSync}</span>
+                {loadingStats ? (
+                  <div className="h-8 w-16 animate-pulse rounded-md bg-blue-100" />
+                ) : (
+                  <span className="text-2xl font-black text-blue-600">{stats.newLastSync}</span>
+                )}
               </button>
 
               <button
@@ -742,7 +759,11 @@ export default function OpportunitiesPage() {
                 <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
                   Alta Aderência
                 </span>
-                <span className="text-2xl font-black text-green-600">{stats.highMatch}</span>
+                {loadingStats ? (
+                  <div className="h-8 w-16 animate-pulse rounded-md bg-green-100" />
+                ) : (
+                  <span className="text-2xl font-black text-green-600">{stats.highMatch}</span>
+                )}
               </button>
 
               <button
@@ -758,7 +779,11 @@ export default function OpportunitiesPage() {
                 <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
                   Vencendo em Breve
                 </span>
-                <span className="text-2xl font-black text-red-600">{stats.expiringSoon}</span>
+                {loadingStats ? (
+                  <div className="h-8 w-16 animate-pulse rounded-md bg-red-100" />
+                ) : (
+                  <span className="text-2xl font-black text-red-600">{stats.expiringSoon}</span>
+                )}
               </button>
 
               <button
@@ -774,7 +799,11 @@ export default function OpportunitiesPage() {
                 <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
                   Convertidas
                 </span>
-                <span className="text-2xl font-black text-purple-600">{stats.converted}</span>
+                {loadingStats ? (
+                  <div className="h-8 w-16 animate-pulse rounded-md bg-purple-100" />
+                ) : (
+                  <span className="text-2xl font-black text-purple-600">{stats.converted}</span>
+                )}
               </button>
             </div>
 
@@ -874,7 +903,11 @@ export default function OpportunitiesPage() {
               </div>
             )}
 
-            {filteredOpps.length === 0 ? (
+            {loadingList ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
+              </div>
+            ) : filteredOpps.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
                 <EmptyState
                   icon={AlertCircle}
@@ -1090,7 +1123,6 @@ export default function OpportunitiesPage() {
               </>
             )}
           </div>
-        )}
       </div>
 
       <Dialog open={isProposalModalOpen} onOpenChange={setIsProposalModalOpen}>
