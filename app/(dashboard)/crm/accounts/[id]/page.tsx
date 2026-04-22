@@ -62,6 +62,13 @@ type MunicipalityEmailDTO = {
   priority_score: number | null;
   is_strategic: boolean | null;
 };
+
+type MunicipalitySecretaryDTO = {
+  id: string;
+  department: string;
+  name: string;
+  source: string | null;
+};
  
 export default function AccountDetailPage() {
   const supabase = useRef(createClient()).current;
@@ -79,6 +86,7 @@ export default function AccountDetailPage() {
   const [contracts, setContracts] = useState<ContractDTO[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityDTO[]>([]);
   const [municipalityEmails, setMunicipalityEmails] = useState<MunicipalityEmailDTO[]>([]);
+  const [secretaries, setSecretaries] = useState<MunicipalitySecretaryDTO[]>([]);
 
   // States do modal de proposta
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
@@ -105,7 +113,7 @@ export default function AccountDetailPage() {
   });
  
   const [editData, setEditData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'opportunities' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'emails' | 'secretaries' | 'opportunities' | 'deals' | 'proposals' | 'contracts' | 'documents'>('overview');
   const [emailSearch, setEmailSearch] = useState('');
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
@@ -122,7 +130,8 @@ export default function AccountDetailPage() {
         proposalsData,
         contractsData,
         opportunitiesData,
-        emailsResult
+        emailsResult,
+        secretariesResult
       ] = await Promise.all([
         accountService.getById(params.id as string),
         contactService.getByMunicipality(params.id as string),
@@ -136,7 +145,12 @@ export default function AccountDetailPage() {
           .from('municipality_emails')
           .select('id, email, department_label, priority_score, is_strategic')
           .eq('municipality_id', params.id as string)
-          .order('priority_score', { ascending: false })
+          .order('priority_score', { ascending: false }),
+        supabase
+          .from('municipality_secretaries')
+          .select('id, department, name, source')
+          .eq('municipality_id', params.id as string)
+          .order('department', { ascending: true })
       ]);
  
       setAccount(acc);
@@ -154,6 +168,7 @@ export default function AccountDetailPage() {
       } else {
         setMunicipalityEmails((emailsResult.data || []) as MunicipalityEmailDTO[]);
       }
+      setSecretaries((secretariesResult.data || []) as MunicipalitySecretaryDTO[]);
     } catch (error) {
       console.error('Error loading account data:', error);
       toast.error('Erro ao carregar dados da prefeitura.');
@@ -633,6 +648,17 @@ export default function AccountDetailPage() {
                   E-mails ({unifiedEmails.length})
                 </button>
                 <button
+                  onClick={() => setActiveTab('secretaries')}
+                  className={cn(
+                    "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'secretaries'
+                      ? "text-[#0f49bd] border-b-2 border-[#0f49bd]"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Secretarias ({secretaries.length})
+                </button>
+                <button
                   onClick={() => setActiveTab('opportunities')}
                   className={cn(
                     "px-8 py-4 text-sm font-bold transition-all whitespace-nowrap",
@@ -905,6 +931,42 @@ export default function AccountDetailPage() {
                         })()}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'secretaries' && (
+                  <div className="space-y-3">
+                    {secretaries.length === 0 && (
+                      <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-gray-100">
+                        Nenhum secretário mapeado para esta prefeitura.
+                      </div>
+                    )}
+                    {secretaries.map(sec => (
+                      <div key={sec.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex items-center gap-4">
+                          <div className="size-10 rounded-full bg-blue-50 flex items-center justify-center text-[#0f49bd] font-bold border border-blue-100">
+                            <User className="size-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900">{sec.name}</h4>
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-white border border-gray-200 text-gray-600">
+                              {sec.department}
+                            </span>
+                          </div>
+                        </div>
+                        {sec.source && (
+                          <a
+                            href={sec.source}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-[#0f49bd] hover:border-[#0f49bd] transition-all shadow-sm"
+                            title="Ver fonte"
+                          >
+                            <ExternalLink className="size-4" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
 
