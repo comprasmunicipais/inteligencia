@@ -24,6 +24,7 @@ import {
   History,
   Mail,
   Layout,
+  BookOpen,
   Menu,
   X,
 } from 'lucide-react';
@@ -68,6 +69,7 @@ const sidebarItems = [
     group: 'SISTEMA',
     items: [
       { name: 'Configurações', href: '/settings', icon: Settings },
+      { name: 'Instruções Iniciais', href: '/instrucoes', icon: BookOpen },
       { name: 'Ajuda', href: '/help', icon: HelpCircle },
     ],
   },
