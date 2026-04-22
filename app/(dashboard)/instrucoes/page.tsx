@@ -311,35 +311,36 @@ function timelineNum(color: string) {
 
 export default function InstrucoesPage() {
   return (
-    <div style={styles.page}>
-      <header className="hero" style={styles.hero}>
-        <div className="container" style={styles.container}>
-          <span className="badge" style={styles.badge}>Primeiros passos e operação prática</span>
-          <h1 style={styles.heroTitle}>Como começar a usar o CM Pro</h1>
-          <p style={styles.heroText}>
-            Siga esta sequência para configurar o sistema corretamente, entender cada módulo e transformar oportunidades em operação comercial organizada.
-          </p>
-          <nav className="nav" style={styles.nav}>
-            <a href="#primeiros-passos" style={styles.navLink}>Primeiros passos</a>
-            <a href="#visao-geral" style={styles.navLink}>Visão geral do sistema</a>
-            <a href="#crm" style={styles.navLink}>CRM Operacional</a>
-            <a href="#inteligencia" style={styles.navLink}>Inteligência</a>
-            <a href="#email" style={styles.navLink}>Disparos de E-mail</a>
-            <a href="#operacao" style={styles.navLink}>Como operar na prática</a>
-          </nav>
-        </div>
-      </header>
+    <div style={{ height: '100%', overflowY: 'auto' }}>
+      <div style={styles.page}>
+        <header className="hero" style={styles.hero}>
+          <div className="container" style={styles.container}>
+            <span className="badge" style={styles.badge}>Primeiros passos e operação prática</span>
+            <h1 style={styles.heroTitle}>Como começar a usar o CM Pro</h1>
+            <p style={styles.heroText}>
+              Siga esta sequência para configurar o sistema corretamente, entender cada módulo e transformar oportunidades em operação comercial organizada.
+            </p>
+            <nav className="nav" style={styles.nav}>
+              <a href="#primeiros-passos" style={styles.navLink}>Primeiros passos</a>
+              <a href="#visao-geral" style={styles.navLink}>Visão geral do sistema</a>
+              <a href="#crm" style={styles.navLink}>CRM Operacional</a>
+              <a href="#inteligencia" style={styles.navLink}>Inteligência</a>
+              <a href="#email" style={styles.navLink}>Disparos de E-mail</a>
+              <a href="#operacao" style={styles.navLink}>Como operar na prática</a>
+            </nav>
+          </div>
+        </header>
 
-      <main style={styles.main}>
-        <div className="container" style={styles.container}>
-          <section id="primeiros-passos" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>Etapa obrigatória</div>
-            <div className="module-header" style={styles.moduleHeader}>
-              <h2 style={styles.h2}>Primeiros passos</h2>
-              <p style={styles.moduleText}>
-                Antes de explorar qualquer módulo, o sistema precisa entender o perfil da sua empresa e recalcular o score das oportunidades disponíveis. Sem essa configuração inicial, a experiência perde precisão.
-              </p>
-            </div>
+        <main style={styles.main}>
+          <div className="container" style={styles.container}>
+            <section id="primeiros-passos" style={styles.section}>
+              <div className="section-label" style={styles.sectionLabel}>Etapa obrigatória</div>
+              <div className="module-header" style={styles.moduleHeader}>
+                <h2 style={styles.h2}>Primeiros passos</h2>
+                <p style={styles.moduleText}>
+                  Antes de explorar qualquer módulo, o sistema precisa entender o perfil da sua empresa e recalcular o score das oportunidades disponíveis. Sem essa configuração inicial, a experiência perde precisão.
+                </p>
+              </div>
 
             <div className="grid" style={styles.grid}>
               <article className="step-card blue" style={styles.stepCard}>
@@ -731,17 +732,18 @@ export default function InstrucoesPage() {
             </div>
           </section>
 
-          <section style={styles.section}>
-            <div className="footer-help" style={styles.footerHelp}>
-              <div style={{ fontSize: 24, lineHeight: 1 }}>?</div>
-              <div>
-                <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>Precisa de ajuda?</h3>
-                <p style={styles.footerHelpText}>Se sua equipe precisar de apoio para configurar o sistema ou organizar a operação, entre em contato com a equipe do CM Pro pelo WhatsApp: (11) 3280-7010.</p>
+            <section style={styles.section}>
+              <div className="footer-help" style={styles.footerHelp}>
+                <div style={{ fontSize: 24, lineHeight: 1 }}>?</div>
+                <div>
+                  <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>Precisa de ajuda?</h3>
+                  <p style={styles.footerHelpText}>Se sua equipe precisar de apoio para configurar o sistema ou organizar a operação, entre em contato com a equipe do CM Pro pelo WhatsApp: (11) 3280-7010.</p>
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
-      </main>
+            </section>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
