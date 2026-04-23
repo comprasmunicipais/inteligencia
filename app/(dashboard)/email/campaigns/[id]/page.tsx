@@ -1110,7 +1110,7 @@ function SendStep({
             <Users className="size-4 text-[#0f49bd]" />
           </div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Quantos e-mails deseja enviar?
+            Quantos e-mails deseja enviar? Selecione um % ou o número de destinatários que deseja
           </h3>
         </div>
         <input

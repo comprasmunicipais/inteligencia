@@ -4,6 +4,7 @@ export const maxDuration = 60;
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { persistOpportunityItems } from '@/lib/services/opportunity-items';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,7 +77,6 @@ async function fetchPNCPPage(
 ): Promise<{ items: any[]; hasMore: boolean }> {
   const params = new URLSearchParams({
     pagina: String(pagina),
-    tamanhoPagina: String(PAGE_SIZE),
     dataInicial,
     dataFinal,
     codigoModalidadeContratacao: String(modalidade),
@@ -107,12 +107,14 @@ async function fetchPNCPPage(
   }
 
   if (!response.ok) {
+    const responseBody = await response.text();
     console.error('PNCP_FETCH_HTTP_ERROR', {
       modalidade,
       pagina,
       dataInicial,
       dataFinal,
       status: response.status,
+      pncp_response_body: responseBody,
     });
     throw new PNCPUpstreamError({
       kind: 'http_error',
@@ -168,8 +170,19 @@ async function fetchAllPNCPItems(dataInicial: string, dataFinal: string, modalid
 async function syncOpportunities(
   items: any[],
   municipalityCache: Map<string, any[]>
-): Promise<{ inserted: number; updated: number; errors: any[] }> {
+): Promise<{
+  inserted: number;
+  updated: number;
+  errors: any[];
+  persistedOpportunities: {
+    id: string;
+    cnpj: string | null;
+    anoCompra: number | null;
+    sequencialCompra: number | null;
+  }[];
+}> {
   const oportunidades: any[] = [];
+  const metadataByExternalId = new Map<string, { cnpj: string | null; anoCompra: number | null; sequencialCompra: number | null }>();
 
   for (const item of items) {
     const externalId =
@@ -177,6 +190,11 @@ async function syncOpportunities(
       `${item.anoCompra || ''}-${item.sequencialCompra || ''}-${item.orgaoEntidade?.cnpj || ''}`;
 
     const externalIdString = String(externalId);
+    metadataByExternalId.set(externalIdString, {
+      cnpj: item.orgaoEntidade?.cnpj ? String(item.orgaoEntidade.cnpj) : null,
+      anoCompra: typeof item.anoCompra === 'number' ? item.anoCompra : Number(item.anoCompra) || null,
+      sequencialCompra: typeof item.sequencialCompra === 'number' ? item.sequencialCompra : Number(item.sequencialCompra) || null,
+    });
     const city = item.unidadeOrgao?.municipioNome || null;
     const state = item.unidadeOrgao?.ufSigla || null;
 
@@ -229,17 +247,91 @@ async function syncOpportunities(
     });
   }
 
-  if (oportunidades.length === 0) return { inserted: 0, updated: 0, errors: [] };
+  if (oportunidades.length === 0) return { inserted: 0, updated: 0, errors: [], persistedOpportunities: [] };
 
   const { error } = await supabase
     .from('opportunities')
     .upsert(oportunidades, { onConflict: 'external_id' });
 
   if (error) {
-    return { inserted: 0, updated: 0, errors: [{ message: error.message, details: error.details, hint: error.hint }] };
+    return {
+      inserted: 0,
+      updated: 0,
+      errors: [{ message: error.message, details: error.details, hint: error.hint }],
+      persistedOpportunities: [],
+    };
   }
 
-  return { inserted: oportunidades.length, updated: 0, errors: [] };
+  const externalIds = oportunidades.map((opp) => opp.external_id);
+  const { data: persistedOpportunities, error: persistedOpportunitiesError } = await supabase
+    .from('opportunities')
+    .select('id, external_id')
+    .in('external_id', externalIds);
+
+  if (persistedOpportunitiesError) {
+    return {
+      inserted: oportunidades.length,
+      updated: 0,
+      errors: [{
+        message: persistedOpportunitiesError.message,
+        details: persistedOpportunitiesError.details,
+        hint: persistedOpportunitiesError.hint,
+      }],
+      persistedOpportunities: [],
+    };
+  }
+
+  return {
+    inserted: oportunidades.length,
+    updated: 0,
+    errors: [],
+    persistedOpportunities: (persistedOpportunities || []).map((opp: any) => ({
+      id: opp.id,
+      cnpj: metadataByExternalId.get(opp.external_id)?.cnpj ?? null,
+      anoCompra: metadataByExternalId.get(opp.external_id)?.anoCompra ?? null,
+      sequencialCompra: metadataByExternalId.get(opp.external_id)?.sequencialCompra ?? null,
+    })),
+  };
+}
+
+async function fetchOpportunityItemsFromPNCP(params: {
+  cnpj: string;
+  anoCompra: number;
+  sequencialCompra: number;
+}): Promise<any[]> {
+  const allItems: any[] = [];
+  let pagina = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const searchParams = new URLSearchParams({
+      pagina: String(pagina),
+      tamanhoPagina: String(PAGE_SIZE),
+    });
+
+    const response = await fetch(
+      `https://pncp.gov.br/api/pncp/v1/orgaos/${params.cnpj}/compras/${params.anoCompra}/${params.sequencialCompra}/itens?${searchParams.toString()}`,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`PNCP itens retornou HTTP ${response.status}.`);
+    }
+
+    const json = await response.json();
+    const pageItems: any[] = Array.isArray(json) ? json : json?.data || [];
+    allItems.push(...pageItems);
+
+    hasMore = pageItems.length === PAGE_SIZE || (json?.paginasRestantes ?? 0) > 0;
+    pagina += 1;
+  }
+
+  return allItems;
 }
 
 
@@ -300,7 +392,7 @@ export async function GET(request: Request) {
     // Upsert global — sem company_id
     const municipalityCache = new Map<string, any[]>();
     console.log('SYNC_START', Date.now() - start, 'ms');
-    const { inserted, updated, errors } = await syncOpportunities(items, municipalityCache);
+    const { inserted, updated, errors, persistedOpportunities } = await syncOpportunities(items, municipalityCache);
     console.log('SYNC_END', Date.now() - start, 'ms');
 
     if (errors.length > 0) {
@@ -323,6 +415,100 @@ export async function GET(request: Request) {
         },
         { status: 500 }
       );
+    }
+
+    const opportunityItemRecords: Array<{
+      opportunity_id: string;
+      items: Array<{
+        source: 'pncp';
+        source_item_id: string | null;
+        item_original: string;
+        item_normalizado: null;
+        quantity: number | null;
+        unit: string | null;
+        estimated_value: number | null;
+        category: null;
+        confidence: null;
+      }>;
+    }> = [];
+
+    for (const opportunity of persistedOpportunities) {
+      if (!opportunity.cnpj || !opportunity.anoCompra || !opportunity.sequencialCompra) {
+        continue;
+      }
+
+      try {
+        const pncpItems = await fetchOpportunityItemsFromPNCP({
+          cnpj: opportunity.cnpj,
+          anoCompra: opportunity.anoCompra,
+          sequencialCompra: opportunity.sequencialCompra,
+        });
+
+        opportunityItemRecords.push({
+          opportunity_id: opportunity.id,
+          items: pncpItems.map((pncpItem: any) => ({
+            source: 'pncp' as const,
+            source_item_id:
+              pncpItem.numeroItem ? String(pncpItem.numeroItem) :
+              pncpItem.sequencialItem ? String(pncpItem.sequencialItem) :
+              pncpItem.itemNumero ? String(pncpItem.itemNumero) :
+              null,
+            item_original:
+              pncpItem.descricao || pncpItem.descricaoItem || pncpItem.objetoCompra || 'Item PNCP sem descrição',
+            item_normalizado: null,
+            quantity:
+              typeof pncpItem.quantidade === 'number' ? pncpItem.quantidade :
+              typeof pncpItem.quantidade === 'string' ? Number(pncpItem.quantidade) || null :
+              null,
+            unit: pncpItem.unidadeMedida || pncpItem.unidadeFornecimento || null,
+            estimated_value:
+              typeof pncpItem.valorUnitarioEstimado === 'number' ? pncpItem.valorUnitarioEstimado :
+              typeof pncpItem.valorTotal === 'number' ? pncpItem.valorTotal :
+              typeof pncpItem.valorUnitarioEstimado === 'string' ? Number(pncpItem.valorUnitarioEstimado) || null :
+              typeof pncpItem.valorTotal === 'string' ? Number(pncpItem.valorTotal) || null :
+              null,
+            category: null,
+            confidence: null,
+          })),
+        });
+      } catch (error) {
+        console.error('PNCP_SYNC_ITEMS_FETCH_ERROR', {
+          modalidade,
+          dataInicial,
+          dataFinal,
+          opportunity_id: opportunity.id,
+          cnpj: opportunity.cnpj,
+          anoCompra: opportunity.anoCompra,
+          sequencialCompra: opportunity.sequencialCompra,
+          message: error instanceof Error ? error.message : 'Erro desconhecido ao consultar itens da contratação.',
+        });
+      }
+    }
+
+    if (opportunityItemRecords.length > 0) {
+      try {
+        const itemsResult = await persistOpportunityItems(supabase, {
+          records: opportunityItemRecords,
+          mode: 'replace_by_source',
+          request_source: 'pncp',
+        });
+
+        if (itemsResult.errors.length > 0) {
+          console.error('PNCP_SYNC_ITEMS_PERSIST_ERROR', {
+            modalidade,
+            dataInicial,
+            dataFinal,
+            errorsCount: itemsResult.errors.length,
+          });
+        }
+      } catch (error) {
+        console.error('PNCP_SYNC_ITEMS_PERSIST_SYSTEM_ERROR', {
+          modalidade,
+          dataInicial,
+          dataFinal,
+          message: error instanceof Error ? error.message : 'Erro desconhecido ao persistir itens da contratação.',
+        });
+      }
     }
 
     // Salvar controle de sincronização apenas se não foram passadas datas manuais

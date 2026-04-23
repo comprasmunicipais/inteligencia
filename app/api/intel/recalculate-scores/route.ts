@@ -66,8 +66,23 @@ const hasAnyTerm = (text: string, terms: string[]): boolean => {
   return terms.some((term) => text.includes(term));
 };
 
+function truncateItemExample(value: string, maxLength = 80): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 3).trim()}...`;
+}
+
 function calculateScore(opportunity: any, profile: any): { score: number; reason: string } {
-  const titleDesc = normalize(`${opportunity.title || ''} ${opportunity.description || ''}`);
+  const baseText = normalize(`${opportunity.title || ''} ${opportunity.description || ''}`);
+  const itemsText = normalize(opportunity.items_text || '');
+  const combinedText = normalize(`${baseText} ${itemsText}`);
+  const itemsOriginals: string[] = Array.isArray(opportunity.items_originals)
+    ? opportunity.items_originals.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+  const normalizedItems = itemsOriginals.map((item) => ({
+    original: item,
+    normalized: normalize(item),
+  }));
 
   // Gate de produto obrigatório
   const targetCategories: string[] = (profile.target_categories || '')
@@ -83,13 +98,13 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   const isTechnologyProfile = [...targetCategories, ...positiveKeywords].some((term) =>
     hasAnyTerm(term, TI_CONTEXT_TERMS)
   );
-  const hasTechnologyContext = hasAnyTerm(titleDesc, TI_CONTEXT_TERMS);
+  const hasTechnologyContext = hasAnyTerm(combinedText, TI_CONTEXT_TERMS);
   const foundNonTIContext = isTechnologyProfile
-    ? NON_TI_CONTEXT_TERMS.filter((term) => partialMatch(titleDesc, term))
+    ? NON_TI_CONTEXT_TERMS.filter((term) => partialMatch(combinedText, term))
     : [];
 
-  const categoryHit = targetCategories.some((c) => partialMatch(titleDesc, c));
-  const keywordHit = positiveKeywords.some((k) => partialMatch(titleDesc, k));
+  const categoryHit = targetCategories.some((c) => partialMatch(combinedText, c));
+  const keywordHit = positiveKeywords.some((k) => partialMatch(combinedText, k));
 
   if (!categoryHit && !keywordHit) {
     return { score: 0, reason: 'Produto/segmento da empresa não identificado na licitação.' };
@@ -99,14 +114,14 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   const reasons: string[] = [];
 
   // 1. Categorias PNCP (+50)
-  const foundCategories = targetCategories.filter((c) => partialMatch(titleDesc, c));
+  const foundCategories = targetCategories.filter((c) => partialMatch(combinedText, c));
   if (foundCategories.length > 0) {
     score += 30;
     reasons.push(`Categoria de interesse identificada: ${foundCategories.join(', ')}.`);
   }
 
   // 2. Keywords positivas (+20)
-  const foundPositive = positiveKeywords.filter((k) => partialMatch(titleDesc, k));
+  const foundPositive = positiveKeywords.filter((k) => partialMatch(combinedText, k));
   const foundSpecificPositive = foundPositive.filter((k) => !AMBIGUOUS_POSITIVE_TERMS.has(k));
   const foundAmbiguousPositive = foundPositive.filter((k) => AMBIGUOUS_POSITIVE_TERMS.has(k));
 
@@ -118,6 +133,21 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
   if (foundAmbiguousPositive.length > 0 && hasTechnologyContext) {
     score += 8;
     reasons.push(`Contém termos de interesse em contexto compatível: ${foundAmbiguousPositive.join(', ')}.`);
+  }
+
+  const foundItemCategories = targetCategories.filter((c) => partialMatch(itemsText, c));
+  const foundItemPositive = positiveKeywords.filter((k) => partialMatch(itemsText, k));
+  const matchedItemTerms = [...foundItemCategories, ...foundItemPositive];
+  if (matchedItemTerms.length > 0 && normalizedItems.length > 0) {
+    const matchedItemExamples = normalizedItems
+      .filter((item) => matchedItemTerms.some((term) => partialMatch(item.normalized, term)))
+      .map((item) => truncateItemExample(item.original))
+      .filter((item, index, array) => array.indexOf(item) === index)
+      .slice(0, 3);
+
+    if (matchedItemExamples.length > 0) {
+      reasons.push(`Itens identificados na licitação: ${matchedItemExamples.join(', ')}.`);
+    }
   }
 
   // 3. Estado prioritário (+15)
@@ -165,7 +195,7 @@ function calculateScore(opportunity: any, profile: any): { score: number; reason
     .map((k: string) => normalize(k.trim()))
     .filter(Boolean);
 
-  const foundNegative = negativeKeywords.filter((k) => partialMatch(titleDesc, k));
+  const foundNegative = negativeKeywords.filter((k) => partialMatch(combinedText, k));
   if (foundNegative.length > 0) {
     score -= 20;
     reasons.push(`Contém termos evitados: ${foundNegative.join(', ')}.`);
@@ -254,6 +284,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, updated: 0, message: 'Nenhuma oportunidade encontrada.' });
     }
 
+    const opportunityIds = opportunities.map((opp) => opp.id);
+    const { data: opportunityItems, error: opportunityItemsError } = await adminSupabase
+      .from('opportunity_items')
+      .select('opportunity_id, item_original')
+      .in('opportunity_id', opportunityIds);
+
+    if (opportunityItemsError) {
+      return NextResponse.json({ error: opportunityItemsError.message }, { status: 500 });
+    }
+
+    const itemsTextByOpportunityId = new Map<string, string>();
+    const itemsOriginalsByOpportunityId = new Map<string, string[]>();
+    for (const item of opportunityItems || []) {
+      const currentText = itemsTextByOpportunityId.get(item.opportunity_id) || '';
+      const nextText = [currentText, item.item_original || ''].filter(Boolean).join(' ').trim();
+      itemsTextByOpportunityId.set(item.opportunity_id, nextText);
+      const currentItems = itemsOriginalsByOpportunityId.get(item.opportunity_id) || [];
+      if (item.item_original) {
+        currentItems.push(item.item_original);
+      }
+      itemsOriginalsByOpportunityId.set(item.opportunity_id, currentItems);
+    }
+
     // Calcular scores em paralelo por batch de 50
     const BATCH_SIZE = 50;
     const results: { opportunity_id: string; match_score: number; match_reason: string }[] = [];
@@ -262,7 +315,14 @@ export async function POST(request: Request) {
       const batch = opportunities.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(
         batch.map(async (opp) => {
-          const { score, reason } = calculateScore(opp, profile);
+          const { score, reason } = calculateScore(
+            {
+              ...opp,
+              items_text: itemsTextByOpportunityId.get(opp.id) || '',
+              items_originals: itemsOriginalsByOpportunityId.get(opp.id) || [],
+            },
+            profile
+          );
           return { opportunity_id: opp.id, match_score: score, match_reason: reason };
         })
       );

@@ -47,7 +47,8 @@
       "Bash(sed -n '57,62p' /c/Projetos/inteligencia/inteligencia/app/signup/payment/page.tsx)",
       "Bash(sed -n '76,82p' /c/Projetos/inteligencia/inteligencia/app/signup/onboarding/page.tsx)",
       "Bash(sed -n '14,22p' /c/Projetos/inteligencia/inteligencia/app/login/page.tsx)",
-      "Bash(sed -n '1,35p' /c/Projetos/inteligencia/inteligencia/app/\\\\\\(dashboard\\\\\\)/crm/accounts/\\\\[id\\\\]/page.tsx)"
+      "Bash(sed -n '1,35p' /c/Projetos/inteligencia/inteligencia/app/\\\\\\(dashboard\\\\\\)/crm/accounts/\\\\[id\\\\]/page.tsx)",
+      "Bash(node *)"
     ]
   }
 }
