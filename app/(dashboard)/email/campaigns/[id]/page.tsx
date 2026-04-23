@@ -402,9 +402,14 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               // Por isso, o onChange do editor visual so e permitido quando a aba "visual" esta ativa.
               // NAO remover essa condicao sem tratar separacao de estados entre RAW e VISUAL.
               <RichEmailEditor
-                value={form.html_content}
+                value={
+                  form.html_content?.includes('<html') ||
+                  form.html_content?.includes('<!DOCTYPE')
+                    ? ''
+                    : form.html_content
+                }
                 onChange={
-                  isReadOnly || htmlSubTab !== 'visual'
+                  isReadOnly
                     ? () => {}
                     : (html) => onChange({ ...form, html_content: html })
                 }
