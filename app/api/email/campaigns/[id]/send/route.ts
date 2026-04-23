@@ -299,20 +299,34 @@ export async function POST(
 
     const allRows = (emailRows ?? []) as EmailRow[];
 
-    // ── 5b. Busca emails já enviados nesta campanha ───────────────────────────
-    const { data: sentEmailRows, error: sentEmailError } = await supabase
-      .from('email_job_queue')
-      .select('recipient_email')
-      .eq('campaign_id', campaignId)
-      .eq('status', 'sent');
+    // ── 5b. Busca emails já enviados nesta campanha (paginado) ──────────────
+    // PostgREST aplica max-rows por requisição (padrão 1000 no Supabase).
+    // O loop com .range() garante que todos os enviados sejam coletados,
+    // independentemente do volume total da campanha.
+    const alreadySentEmails = new Set<string>();
+    let sentPage = 0;
+    const SENT_PAGE_SIZE = 1000;
 
-    if (sentEmailError) {
-      return NextResponse.json({ error: sentEmailError.message }, { status: 500 });
+    while (true) {
+      const { data: sentPageRows, error: sentPageError } = await supabase
+        .from('email_job_queue')
+        .select('recipient_email')
+        .eq('campaign_id', campaignId)
+        .eq('status', 'sent')
+        .range(sentPage * SENT_PAGE_SIZE, (sentPage + 1) * SENT_PAGE_SIZE - 1);
+
+      if (sentPageError) {
+        return NextResponse.json({ error: sentPageError.message }, { status: 500 });
+      }
+
+      for (const r of sentPageRows ?? []) {
+        alreadySentEmails.add(r.recipient_email as string);
+      }
+
+      if (!sentPageRows || sentPageRows.length < SENT_PAGE_SIZE) break;
+
+      sentPage++;
     }
-
-    const alreadySentEmails = new Set(
-      (sentEmailRows ?? []).map((r) => r.recipient_email as string),
-    );
 
     // ── 5c. Exclui já enviados + deduplica por email ──────────────────────────
     const seenEmails = new Set<string>();
