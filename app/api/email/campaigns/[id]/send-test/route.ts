@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 
+function substituteVars(
+  template: string,
+  name: string,
+  municipality: string,
+  state: string,
+): string {
+  return template
+    .replace(/\[Nome\]/gi, name || 'Prezado(a)')
+    .replace(/\[Municipio\]/gi, municipality)
+    .replace(/\[Estado\]/gi, state);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -78,10 +90,20 @@ export async function POST(
     }
 
     const testEmail = user.email!;
+    const testName = 'Teste';
+    const testMunicipality = 'Município de Teste';
+    const testState = 'SP';
+    const personalizedHtml = substituteVars(
+      campaign.html_content!,
+      testName,
+      testMunicipality,
+      testState,
+    );
+
     await sendEmail(supabase, account, {
       to: testEmail,
       subject: `[TESTE] ${campaign.subject}`,
-      html: campaign.html_content,
+      html: personalizedHtml,
       ...(campaign.text_content ? { text: campaign.text_content } : {}),
       ...(campaign.preheader ? { headers: { 'X-Preheader': campaign.preheader } } : {}),
     });
