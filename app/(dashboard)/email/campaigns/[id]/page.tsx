@@ -269,8 +269,13 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
     const raw = form.html_content
       ? unescapeHtml(form.html_content)
       : '<p style="font-family:sans-serif;color:#94a3b8;padding:24px">Nenhum HTML para pré-visualizar.</p>';
+    const previewHtml = raw
+      .replace(/\[Nome\]/gi, 'Teste')
+      .replace(/\[Municipio\]/gi, 'Município de Teste')
+      .replace(/\[Estado\]/gi, 'SP')
+      .replace(/\[Prefeito\]/gi, 'Prefeito de Teste');
     doc.open();
-    doc.write(raw);
+    doc.write(previewHtml);
     doc.close();
   }
 
@@ -390,6 +395,12 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               </button>
             </div>
             {htmlSubTab === 'visual' && (
+              // IMPORTANTE:
+              // O html_content e compartilhado entre o modo "HTML Raw" e o editor visual (TipTap).
+              // Quando HTML bruto passa pelo TipTap, ele e interpretado como texto e pode ser escapado
+              // (ex: < vira &lt;), quebrando o envio real de e-mails.
+              // Por isso, o onChange do editor visual so e permitido quando a aba "visual" esta ativa.
+              // NAO remover essa condicao sem tratar separacao de estados entre RAW e VISUAL.
               <RichEmailEditor
                 value={form.html_content}
                 onChange={

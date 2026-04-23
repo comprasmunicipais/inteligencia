@@ -43,11 +43,13 @@ function substituteVars(
   name: string,
   municipality: string,
   state: string,
+  mayor: string,
 ): string {
   return template
     .replace(/\[Nome\]/gi, name || 'Prezado(a)')
     .replace(/\[Municipio\]/gi, municipality)
-    .replace(/\[Estado\]/gi, state);
+    .replace(/\[Estado\]/gi, state)
+    .replace(/\[Prefeito\]/gi, mayor || '');
 }
 
 function sanitizeSmtpError(error: unknown): string {
@@ -146,6 +148,27 @@ export async function GET(req: NextRequest) {
 
   const accountMap = new Map((accounts ?? []).map((a) => [a.id, a]));
   const campaignMap = new Map((campaigns ?? []).map((c) => [c.id, c]));
+  const mayorMap = new Map<string, string>();
+  const municipalityCities = [...new Set(jobs.map((j: Job) => j.municipality).filter(Boolean))];
+  const municipalityStates = [...new Set(jobs.map((j: Job) => j.state).filter(Boolean))];
+
+  if (municipalityCities.length > 0 && municipalityStates.length > 0) {
+    const { data: municipalities, error: municipalitiesError } = await supabase
+      .from('municipalities')
+      .select('city, state, mayor_name')
+      .in('city', municipalityCities)
+      .in('state', municipalityStates);
+
+    if (municipalitiesError) {
+      console.warn('[queue-process] Falha ao buscar mayor_name; usando fallback vazio.', {
+        error: municipalitiesError.message,
+      });
+    } else {
+      for (const municipality of municipalities ?? []) {
+        mayorMap.set(`${municipality.city ?? ''}::${municipality.state ?? ''}`, municipality.mayor_name ?? '');
+      }
+    }
+  }
 
   // ── 5. Process each job ──────────────────────────────────────────────────
   let sent = 0;
@@ -249,18 +272,19 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+      const mayor = mayorMap.get(`${job.municipality}::${job.state}`) ?? '';
       const personalizedHtml = injectTracking(
-        substituteVars(campaign.html_content!, job.recipient_name, job.municipality, job.state),
+        substituteVars(campaign.html_content!, job.recipient_name, job.municipality, job.state, mayor),
         job.campaign_id,
         job.recipient_email,
       );
 
       await sendEmail(supabase, account, {
         to: job.recipient_email,
-        subject: substituteVars(campaign.subject!, job.recipient_name, job.municipality, job.state),
+        subject: substituteVars(campaign.subject!, job.recipient_name, job.municipality, job.state, mayor),
         html: personalizedHtml,
         ...(campaign.text_content
-          ? { text: substituteVars(campaign.text_content, job.recipient_name, job.municipality, job.state) }
+          ? { text: substituteVars(campaign.text_content, job.recipient_name, job.municipality, job.state, mayor) }
           : {}),
         ...(campaign.preheader
           ? { headers: { 'X-Preheader': campaign.preheader } }
