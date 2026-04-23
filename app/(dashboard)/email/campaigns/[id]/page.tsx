@@ -978,6 +978,7 @@ function CheckRow({
 
 function SendStep({
   audienceCount,
+  remainingCount,
   selectedAccountId,
   onAccountChange,
   confirmed,
@@ -987,6 +988,7 @@ function SendStep({
   isReadOnly = false,
 }: {
   audienceCount: number;
+  remainingCount: number;
   selectedAccountId: string;
   onAccountChange: (id: string) => void;
   confirmed: boolean;
@@ -1090,12 +1092,13 @@ function SendStep({
       </div>
 
       {/* Truncation warning */}
-      {audienceCount > 0 && (
+      {remainingCount > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
           <p className="text-sm text-blue-800">
-            Sua campanha será enviada em lotes de 100 e-mails por hora até atingir todos os{' '}
-            <strong>{audienceCount.toLocaleString('pt-BR')}</strong> destinatários.
+            O envio será feito apenas para destinatários ainda não enviados desta campanha.{' '}
+            Serão disparados em lotes de 100 e-mails por hora até atingir todos os{' '}
+            <strong>{remainingCount.toLocaleString('pt-BR')}</strong> restantes.
           </p>
         </div>
       )}
@@ -1113,11 +1116,11 @@ function SendStep({
         <input
           type="number"
           min={1}
-          max={audienceCount}
+          max={remainingCount}
           step={1}
           value={sendLimit}
           onChange={(e) => {
-            const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), audienceCount);
+            const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), remainingCount);
             onSendLimitChange(val);
           }}
           disabled={isReadOnly}
@@ -1125,7 +1128,7 @@ function SendStep({
         />
         <div className="mt-3 flex flex-wrap gap-2">
           {[25, 50, 75, 100].map((pct) => {
-            const val = Math.max(1, Math.round(audienceCount * pct / 100));
+            const val = Math.max(1, Math.round(remainingCount * pct / 100));
             return (
               <button
                 key={pct}
@@ -1140,7 +1143,9 @@ function SendStep({
           })}
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Você tem <strong>{audienceCount.toLocaleString('pt-BR')}</strong> e-mails na audiência. Selecione quantos deseja usar neste disparo.
+          O envio será feito apenas para destinatários ainda não enviados desta campanha.{' '}
+          <strong>{remainingCount.toLocaleString('pt-BR')}</strong> restantes de{' '}
+          {audienceCount.toLocaleString('pt-BR')} na audiência.
         </p>
       </div>
 
@@ -1295,8 +1300,8 @@ export default function CampaignDetailPage() {
   const [limitData, setLimitData] = useState({ emails_used: 0, emails_limit: 10000 });
 
   useEffect(() => {
-    setSendLimit(audienceFilters.totalCount);
-  }, [audienceFilters.totalCount]);
+    setSendLimit(Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0)));
+  }, [audienceFilters.totalCount, campaign?.sent_count]);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1486,6 +1491,8 @@ export default function CampaignDetailPage() {
     (emailForm.html_content.trim().length > 0 || emailForm.text_content.trim().length > 0) &&
     audienceFilters.totalCount > 0;
 
+  const remainingCount = Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0));
+
   const handleContinue = async () => {
     if (currentStep === 1) {
       if (await saveEmailStep(false)) setCurrentStep(2);
@@ -1558,6 +1565,7 @@ export default function CampaignDetailPage() {
         {currentStep === 4 && !sendResult && (
           <SendStep
             audienceCount={audienceFilters.totalCount}
+            remainingCount={remainingCount}
             selectedAccountId={selectedAccountId}
             onAccountChange={setSelectedAccountId}
             confirmed={sendConfirmed}

@@ -182,24 +182,6 @@ export async function POST(
       );
     }
 
-    const { data: sentJobs, error: sentJobsError } = await supabase
-      .from('email_job_queue')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('status', 'sent')
-      .limit(1);
-
-    if (sentJobsError) {
-      return NextResponse.json({ error: 'Erro ao validar histÃ³rico de envio da campanha.' }, { status: 500 });
-    }
-
-    if (campaign.sent_at || (sentJobs?.length ?? 0) > 0) {
-      return NextResponse.json(
-        { error: 'A campanha jÃ¡ foi enviada e nÃ£o pode ser enfileirada novamente.' },
-        { status: 409 },
-      );
-    }
-
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
       .select('id, company_id, provider_type, is_active, smtp_password_encrypted, oauth_status, oauth_refresh_token_encrypted')
@@ -316,7 +298,38 @@ export async function POST(
     }
 
     const allRows = (emailRows ?? []) as EmailRow[];
-    const rows = allRows.slice(0, Math.min(sendLimit, totalAvailable));
+
+    // ── 5b. Busca emails já enviados nesta campanha ───────────────────────────
+    const { data: sentEmailRows, error: sentEmailError } = await supabase
+      .from('email_job_queue')
+      .select('recipient_email')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'sent');
+
+    if (sentEmailError) {
+      return NextResponse.json({ error: sentEmailError.message }, { status: 500 });
+    }
+
+    const alreadySentEmails = new Set(
+      (sentEmailRows ?? []).map((r) => r.recipient_email as string),
+    );
+
+    // ── 5c. Exclui já enviados + deduplica por email ──────────────────────────
+    const seenEmails = new Set<string>();
+    const remainingRows = allRows.filter((row) => {
+      if (alreadySentEmails.has(row.email)) return false;
+      if (seenEmails.has(row.email)) return false;
+      seenEmails.add(row.email);
+      return true;
+    });
+
+    console.log('[campaign-send] total elegível:', allRows.length);
+    console.log('[campaign-send] já enviados:', alreadySentEmails.size);
+    console.log('[campaign-send] restante:', remainingRows.length);
+
+    const rows = remainingRows.slice(0, Math.min(sendLimit, totalAvailable, remainingRows.length));
+
+    console.log('[campaign-send] sendLimit final aplicado:', rows.length);
 
     if (rows.length === 0) {
       return NextResponse.json({ queued: 0, total: 0 });
