@@ -58,6 +58,14 @@ export default function RichEmailEditor({ value, onChange, onSwitchToText }: Ric
   // Sync external value changes (e.g. IA generation) into editor
   useEffect(() => {
     if (!editor) return;
+
+    const isFullHtml =
+      value?.includes('<html') ||
+      value?.includes('<body') ||
+      value?.includes('<!DOCTYPE');
+
+    if (isFullHtml) return;
+
     const current = editor.getHTML();
     if (value !== current) {
       editor.commands.setContent(value || '');
