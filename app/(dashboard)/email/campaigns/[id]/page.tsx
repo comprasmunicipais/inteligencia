@@ -237,6 +237,9 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
   const [htmlSubTab, setHtmlSubTab] = useState<'visual' | 'raw'>('visual');
   const [isGenerating, setIsGenerating] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hasFullHtml =
+    form.html_content?.includes('<html') ||
+    form.html_content?.includes('<!DOCTYPE');
 
   async function handleGenerate() {
     setIsGenerating(true);
@@ -394,7 +397,12 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
                 HTML Raw
               </button>
             </div>
-            {htmlSubTab === 'visual' && (
+            {htmlSubTab === 'visual' && hasFullHtml && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Conteúdos em HTML completo devem ser editados no modo HTML Raw para preservar a estrutura original do e-mail.
+              </div>
+            )}
+            {htmlSubTab === 'visual' && !hasFullHtml && (
               // IMPORTANTE:
               // O html_content e compartilhado entre o modo "HTML Raw" e o editor visual (TipTap).
               // Quando HTML bruto passa pelo TipTap, ele e interpretado como texto e pode ser escapado
@@ -402,12 +410,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               // Por isso, o onChange do editor visual so e permitido quando a aba "visual" esta ativa.
               // NAO remover essa condicao sem tratar separacao de estados entre RAW e VISUAL.
               <RichEmailEditor
-                value={
-                  form.html_content?.includes('<html') ||
-                  form.html_content?.includes('<!DOCTYPE')
-                    ? ''
-                    : form.html_content
-                }
+                value={form.html_content}
                 onChange={
                   isReadOnly
                     ? () => {}
