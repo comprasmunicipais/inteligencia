@@ -12,7 +12,6 @@ type SendingAccount = {
   oauth_token_expires_at: string | null;
   oauth_status: 'active' | 'revoked' | 'error' | null;
   oauth_last_error: string | null;
-  oauth_connected_at: string | null;
   name: string;
   sender_name: string;
   sender_email: string;
@@ -625,6 +624,9 @@ export default function EmailAccountsPage() {
                     <input type="checkbox" checked={form.smtp_secure} onChange={(e) => updateField('smtp_secure', e.target.checked)} />
                     Usar conexão segura (SSL/TLS)
                   </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Porta 465 usa SSL/TLS direto. Porta 587 usa STARTTLS. Para portas 465 e 587, o CM Pro ajusta automaticamente o tipo de segurança.
+                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="flex items-center gap-2 text-sm font-medium text-slate-700">

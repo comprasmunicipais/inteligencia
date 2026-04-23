@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createClient } from '@/lib/supabase/server';
 import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
+import { resolveSmtpSecurity } from '@/lib/email/smtp-config';
 
 type TestConnectionPayload = {
   account_id?: string;
@@ -99,11 +100,12 @@ export async function POST(req: NextRequest) {
     }
 
     const smtpPassword = decryptEmailSettingSecret(account.smtp_password_encrypted);
+    const smtpSecurity = resolveSmtpSecurity(account.smtp_port, account.smtp_secure);
 
     const transporter = nodemailer.createTransport({
       host: account.smtp_host,
       port: Number(account.smtp_port),
-      secure: Boolean(account.smtp_secure),
+      secure: smtpSecurity.secure,
       auth: {
         user: account.smtp_username,
         pass: smtpPassword,
@@ -111,7 +113,7 @@ export async function POST(req: NextRequest) {
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 20000,
-      requireTLS: !account.smtp_secure,
+      requireTLS: smtpSecurity.requireTLS,
       tls: {
         rejectUnauthorized: true,
       },

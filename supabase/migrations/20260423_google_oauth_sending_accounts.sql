@@ -8,8 +8,7 @@ ALTER TABLE public.email_sending_accounts
   ADD COLUMN IF NOT EXISTS oauth_token_expires_at timestamptz NULL,
   ADD COLUMN IF NOT EXISTS oauth_scope text NULL,
   ADD COLUMN IF NOT EXISTS oauth_status text NULL,
-  ADD COLUMN IF NOT EXISTS oauth_last_error text NULL,
-  ADD COLUMN IF NOT EXISTS oauth_connected_at timestamptz NULL;
+  ADD COLUMN IF NOT EXISTS oauth_last_error text NULL;
 
 ALTER TABLE public.email_sending_accounts
   ALTER COLUMN provider_type SET DEFAULT 'smtp';

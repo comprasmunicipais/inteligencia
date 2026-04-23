@@ -81,7 +81,6 @@ export async function GET(req: NextRequest) {
       oauth_scope: tokens.scope || getGoogleOAuthScope(),
       oauth_status: 'active',
       oauth_last_error: null,
-      oauth_connected_at: now,
       name: `Google - ${oauthEmail}`,
       sender_name: oauthEmail,
       sender_email: oauthEmail,
