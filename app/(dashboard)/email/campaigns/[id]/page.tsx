@@ -392,7 +392,11 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
             {htmlSubTab === 'visual' && (
               <RichEmailEditor
                 value={form.html_content}
-                onChange={isReadOnly ? () => {} : (html) => onChange({ ...form, html_content: html })}
+                onChange={
+                  isReadOnly || htmlSubTab !== 'visual'
+                    ? () => {}
+                    : (html) => onChange({ ...form, html_content: html })
+                }
                 onSwitchToText={() => setTab('text')}
               />
             )}
