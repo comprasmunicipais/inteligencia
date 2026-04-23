@@ -6,6 +6,13 @@ import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
 type SendingAccount = {
   id: string;
+  provider_type: 'smtp' | 'google_oauth' | null;
+  oauth_provider: string | null;
+  oauth_email: string | null;
+  oauth_token_expires_at: string | null;
+  oauth_status: 'active' | 'revoked' | 'error' | null;
+  oauth_last_error: string | null;
+  oauth_connected_at: string | null;
   name: string;
   sender_name: string;
   sender_email: string;
@@ -63,10 +70,10 @@ function accountToForm(account: SendingAccount): FormState {
     sender_name: account.sender_name,
     sender_email: account.sender_email,
     reply_to_email: account.reply_to_email || '',
-    smtp_host: account.smtp_host,
-    smtp_port: account.smtp_port,
-    smtp_secure: account.smtp_secure,
-    smtp_username: account.smtp_username,
+    smtp_host: account.smtp_host || '',
+    smtp_port: account.smtp_port || 587,
+    smtp_secure: Boolean(account.smtp_secure),
+    smtp_username: account.smtp_username || '',
     smtp_password: '', // nunca preenche senha no edit
     daily_limit: account.daily_limit,
     hourly_limit: account.hourly_limit,
@@ -86,6 +93,7 @@ export default function EmailAccountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   async function loadAccounts() {
     try {
@@ -104,6 +112,19 @@ export default function EmailAccountsPage() {
 
   useEffect(() => { loadAccounts(); }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('google_oauth');
+    const oauthMessage = params.get('message');
+    if (!status) return;
+    if (status === 'success') {
+      toast.success(oauthMessage || 'Conta Google conectada.');
+    } else {
+      toast.error(oauthMessage || 'Falha ao conectar conta Google.');
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -117,6 +138,10 @@ export default function EmailAccountsPage() {
   }
 
   function openEdit(account: SendingAccount) {
+    if ((account.provider_type || 'smtp') === 'google_oauth') {
+      toast.info('Contas Google devem ser gerenciadas pelos botoes de testar ou desconectar.');
+      return;
+    }
     setEditingAccount(account);
     setForm(accountToForm(account));
     setError(null);
@@ -205,9 +230,24 @@ export default function EmailAccountsPage() {
   }
 
   async function handleTestConnection(accountId: string) {
+    const account = accounts.find((item) => item.id === accountId);
+    const isGoogle = (account?.provider_type || 'smtp') === 'google_oauth';
     setTestingId(accountId);
-    const toastId = toast.loading('Testando SMTP e DNS...');
+    const toastId = toast.loading(isGoogle ? 'Testando Google OAuth...' : 'Testando SMTP e DNS...');
     try {
+      if (isGoogle) {
+        const googleRes = await fetch('/api/integrations/google/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId }),
+        });
+        const googleResult = await googleRes.json();
+        if (!googleRes.ok) throw new Error(googleResult.error || 'Falha ao testar Google OAuth.');
+        toast.success('Google OAuth OK.', { id: toastId });
+        await loadAccounts();
+        return;
+      }
+
       const [smtpRes, dnsRes] = await Promise.all([
         fetch('/api/email/test-connection', {
           method: 'POST',
@@ -241,12 +281,39 @@ export default function EmailAccountsPage() {
     }
   }
 
+  async function handleDisconnectGoogle(accountId: string) {
+    setDisconnectingId(accountId);
+    try {
+      const response = await fetch('/api/integrations/google/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro ao desconectar conta Google.');
+      toast.success('Conta Google desconectada.');
+      await loadAccounts();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao desconectar conta Google.');
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
   function formatTestedAt(dateStr: string | null) {
     if (!dateStr) return null;
     return new Date(dateStr).toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  function formatExpiresAt(dateStr: string | null) {
+    if (!dateStr) return 'Sem expiracao registrada';
+    return `Expira em ${new Date(dateStr).toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })}`;
   }
 
   const isEditing = !!editingAccount;
@@ -292,13 +359,21 @@ export default function EmailAccountsPage() {
               </a>
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-bold text-white hover:bg-[#0a3690] transition-colors"
-          >
-            Nova conta
-          </button>
+          <div className="flex gap-2">
+            <a
+              href="/api/integrations/google/connect"
+              className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
+            >
+              Conectar com Google
+            </a>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-bold text-white hover:bg-[#0a3690] transition-colors"
+            >
+              Nova conta SMTP
+            </button>
+          </div>
         </div>
 
         {message && (
@@ -324,7 +399,7 @@ export default function EmailAccountsPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Conta</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Remetente</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">SMTP</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Limites</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Saúde</th>
@@ -336,17 +411,28 @@ export default function EmailAccountsPage() {
                   <tr key={account.id}>
                     <td className="px-4 py-4 text-sm text-slate-700">
                       <div className="font-medium text-slate-900">{account.name}</div>
-                      <div className="text-xs text-slate-500">Usuário SMTP: {account.smtp_username}</div>
+                      <div className="text-xs text-slate-500">
+                        {(account.provider_type || 'smtp') === 'google_oauth'
+                          ? `Google: ${account.oauth_email || account.sender_email}`
+                          : `Usuario SMTP: ${account.smtp_username || '-'}`}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">
                       <div>{account.sender_name}</div>
                       <div className="text-xs text-slate-500">{account.sender_email}</div>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">
-                      <div>{account.smtp_host}</div>
-                      <div className="text-xs text-slate-500">
-                        Porta {account.smtp_port} • {account.smtp_secure ? 'Seguro' : 'Não seguro'}
-                      </div>
+                      {(account.provider_type || 'smtp') === 'google_oauth' ? (
+                        <>
+                          <div className="font-medium text-emerald-700">Google OAuth</div>
+                          <div className="text-xs text-slate-500">{formatExpiresAt(account.oauth_token_expires_at)}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-medium text-slate-700">SMTP</div>
+                          <div className="text-xs text-slate-500">{account.smtp_host || '-'} - Porta {account.smtp_port}</div>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">
                       <div>Hora: {account.hourly_limit}</div>
@@ -361,9 +447,9 @@ export default function EmailAccountsPage() {
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">
                       <div className="flex flex-col gap-1">
-                        {/* SMTP */}
+                        {/* SMTP / OAuth */}
                         <div className="flex items-center gap-1.5">
-                          <span className="w-10 text-xs text-slate-400">SMTP</span>
+                          <span className="w-10 text-xs text-slate-400">{(account.provider_type || 'smtp') === 'google_oauth' ? 'OAuth' : 'SMTP'}</span>
                           {account.last_test_status === 'success' && (
                             <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">OK</span>
                           )}
@@ -374,6 +460,20 @@ export default function EmailAccountsPage() {
                             <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">?</span>
                           )}
                         </div>
+                        {(account.provider_type || 'smtp') === 'google_oauth' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-10 text-xs text-slate-400">Auth</span>
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              account.oauth_status === 'active'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : account.oauth_status === 'error'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {account.oauth_status === 'active' ? 'Conectada' : account.oauth_status === 'error' ? 'Erro' : 'Desconectada'}
+                            </span>
+                          </div>
+                        )}
                         {/* SPF */}
                         <div className="flex items-center gap-1.5">
                           <span className="w-10 text-xs text-slate-400">SPF</span>
@@ -415,13 +515,24 @@ export default function EmailAccountsPage() {
                         >
                           {testingId === account.id ? 'Testando...' : 'Testar'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(account)}
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          Editar
-                        </button>
+                        {(account.provider_type || 'smtp') === 'smtp' ? (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(account)}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            Editar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={disconnectingId === account.id}
+                            onClick={() => handleDisconnectGoogle(account.id)}
+                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            {disconnectingId === account.id ? 'Desconectando...' : 'Desconectar'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(account.id)}

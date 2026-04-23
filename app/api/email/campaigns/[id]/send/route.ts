@@ -202,7 +202,7 @@ export async function POST(
 
     const { data: account, error: accountError } = await supabase
       .from('email_sending_accounts')
-      .select('id, company_id, is_active, smtp_password_encrypted')
+      .select('id, company_id, provider_type, is_active, smtp_password_encrypted, oauth_status, oauth_refresh_token_encrypted')
       .eq('id', sendingAccountId)
       .single();
 
@@ -218,8 +218,12 @@ export async function POST(
       return NextResponse.json({ error: 'A conta de envio está inativa.' }, { status: 400 });
     }
 
-    if (!account.smtp_password_encrypted) {
+    if ((account.provider_type || 'smtp') === 'smtp' && !account.smtp_password_encrypted) {
       return NextResponse.json({ error: 'Senha SMTP não configurada na conta.' }, { status: 400 });
+    }
+
+    if (account.provider_type === 'google_oauth' && (!account.oauth_refresh_token_encrypted || account.oauth_status !== 'active')) {
+      return NextResponse.json({ error: 'Conta Google nao esta ativa para envio.' }, { status: 400 });
     }
 
     // ── 4b. Verificar limite de emails do plano ──────────────────────────────

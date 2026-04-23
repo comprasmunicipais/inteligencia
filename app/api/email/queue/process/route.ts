@@ -2,9 +2,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
 import { createAdminClient } from '@/lib/supabase/server';
-import { decryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
+import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -52,10 +51,7 @@ function substituteVars(
 }
 
 function sanitizeSmtpError(error: unknown): string {
-  const msg = error instanceof Error ? error.message : String(error);
-  return msg
-    .replace(/pass(wo)?rd\s*[:=]\s*[^\s]+/gi, 'password=[redacted]')
-    .replace(/user(name)?\s*[:=]\s*[^\s]+/gi, 'username=[redacted]');
+  return sanitizeEmailSendError(error);
 }
 
 function maskEmail(email: string): string {
@@ -140,7 +136,7 @@ export async function GET(req: NextRequest) {
   const [{ data: accounts }, { data: campaigns }] = await Promise.all([
     supabase
       .from('email_sending_accounts')
-      .select('id, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted, is_active, hourly_limit, daily_limit')
+      .select('id, company_id, provider_type, sender_name, sender_email, reply_to_email, smtp_host, smtp_port, smtp_secure, smtp_username, smtp_password_encrypted, oauth_access_token_encrypted, oauth_refresh_token_encrypted, oauth_token_expires_at, oauth_status, is_active, hourly_limit, daily_limit')
       .in('id', accountIds),
     supabase
       .from('email_campaigns')
@@ -159,8 +155,6 @@ export async function GET(req: NextRequest) {
   const campaignSent = new Map<string, number>();
   const campaignFailed = new Map<string, number>();
 
-  // Cache transporters per account
-  const transporterCache = new Map<string, nodemailer.Transporter>();
   const accountQuota = new Map<string, { hourlySent: number; dailySent: number; hourlyLimit: number; dailyLimit: number }>();
   const inactiveAccountsLogged = new Set<string>();
   const hourlyLimitLogged = new Set<string>();
@@ -254,36 +248,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Build transporter once per account
-    if (!transporterCache.has(job.sending_account_id)) {
-      try {
-        const smtpPassword = decryptEmailSettingSecret(account.smtp_password_encrypted);
-        const transporter = nodemailer.createTransport({
-          host: account.smtp_host,
-          port: Number(account.smtp_port),
-          secure: Boolean(account.smtp_secure),
-          auth: { user: account.smtp_username, pass: smtpPassword },
-          connectionTimeout: 15000,
-          greetingTimeout: 15000,
-          socketTimeout: 20000,
-          requireTLS: !account.smtp_secure,
-          tls: { rejectUnauthorized: true },
-        });
-        transporterCache.set(job.sending_account_id, transporter);
-      } catch (err) {
-        console.error('[queue-process] Falha ao criar transporter:', sanitizeSmtpError(err));
-        await supabase
-          .from('email_job_queue')
-          .update({ status: 'failed', sent_at: new Date().toISOString() })
-          .eq('id', job.id);
-        failed++;
-        campaignFailed.set(job.campaign_id, (campaignFailed.get(job.campaign_id) ?? 0) + 1);
-        continue;
-      }
-    }
-
-    const transporter = transporterCache.get(job.sending_account_id)!;
-
     try {
       const personalizedHtml = injectTracking(
         substituteVars(campaign.html_content!, job.recipient_name, job.municipality, job.state),
@@ -291,9 +255,7 @@ export async function GET(req: NextRequest) {
         job.recipient_email,
       );
 
-      await transporter.sendMail({
-        from: `"${account.sender_name}" <${account.sender_email}>`,
-        ...(account.reply_to_email ? { replyTo: account.reply_to_email } : {}),
+      await sendEmail(supabase, account, {
         to: job.recipient_email,
         subject: substituteVars(campaign.subject!, job.recipient_name, job.municipality, job.state),
         html: personalizedHtml,
