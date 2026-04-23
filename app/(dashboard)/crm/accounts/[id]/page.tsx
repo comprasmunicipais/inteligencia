@@ -499,6 +499,14 @@ export default function AccountDetailPage() {
       toast.error('Website não cadastrado.');
     }
   };
+
+  const rawWhatsapp = account.whatsapp;
+
+  const isValidWhatsapp =
+    rawWhatsapp &&
+    /^[0-9]{10,11}$/.test(rawWhatsapp) &&
+    !rawWhatsapp.startsWith('0800') &&
+    rawWhatsapp !== '3131313131';
  
   return (
     <>
@@ -545,6 +553,16 @@ export default function AccountDetailPage() {
                 >
                   <Globe className="size-4" /> Visitar Website Oficial
                 </button>
+                {isValidWhatsapp && (
+                  <a
+                    href={`https://wa.me/55${rawWhatsapp}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+                  >
+                    Falar no WhatsApp
+                  </a>
+                )}
               </div>
             </div>
  

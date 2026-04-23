@@ -23,6 +23,7 @@ export interface MunicipalityDTO {
   installation_year?: number;
   ddd?: string;
   phone?: string;
+  whatsapp?: string;
   email?: string;
   created_at?: string;
   updated_at?: string;

@@ -13,6 +13,7 @@ export const mapMunicipalityToDTO = (row: any): MunicipalityDTO => {
     address: row.address || undefined,
     ddd: row.ddd || undefined,
     phone: row.phone || undefined,
+    whatsapp: row.whatsapp || undefined,
     email: row.email || undefined,
     website: row.website || undefined,
     population: row.population || 0,
