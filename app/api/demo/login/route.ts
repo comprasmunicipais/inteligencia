@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 // Usa createClient() (com cookie handlers) para que a sessão seja gravada
 // no browser. createAdminClient() não tem cookie handlers e não estabelece
 // sessão para o cliente.
-export async function GET() {
+export async function GET(request: Request) {
   const email = process.env.DEMO_USER_EMAIL;
   const password = process.env.DEMO_USER_PASSWORD;
 
@@ -27,7 +27,9 @@ export async function GET() {
     );
   }
 
+  const requestUrl = new URL(request.url);
+
   return NextResponse.redirect(
-    new URL('/dashboard', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+    new URL('/dashboard', requestUrl.origin)
   );
 }
