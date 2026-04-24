@@ -273,10 +273,10 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
       ? unescapeHtml(form.html_content)
       : '<p style="font-family:sans-serif;color:#94a3b8;padding:24px">Nenhum HTML para pré-visualizar.</p>';
     const previewHtml = raw
-      .replace(/\[Nome\]/gi, 'Teste')
-      .replace(/\[Municipio\]/gi, 'Município de Teste')
+      .replace(/\[Nome\]/gi, 'Dr. Luiz Furlan')
+      .replace(/\[Municipio\]/gi, 'Campinas')
       .replace(/\[Estado\]/gi, 'SP')
-      .replace(/\[Prefeito\]/gi, 'Prefeito de Teste');
+      .replace(/\[Prefeito\]/gi, 'Dr. Luiz Furlan');
     doc.open();
     doc.write(previewHtml);
     doc.close();
