@@ -125,7 +125,7 @@ export default function EmailHistoryPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="min-h-full bg-[#f8fafc] p-6">
+    <div className="h-full overflow-y-auto bg-[#f8fafc] p-6">
       <div className="flex flex-col gap-6">
 
         {/* Header */}
