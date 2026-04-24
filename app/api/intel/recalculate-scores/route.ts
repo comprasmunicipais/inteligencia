@@ -285,18 +285,22 @@ export async function POST(request: Request) {
     }
 
     const opportunityIds = opportunities.map((opp) => opp.id);
-    const { data: opportunityItems, error: opportunityItemsError } = await adminSupabase
-      .from('opportunity_items')
-      .select('opportunity_id, item_original')
-      .in('opportunity_id', opportunityIds);
+    const ITEMS_CHUNK_SIZE = 500;
+    const allItems: { opportunity_id: string; item_original: string }[] = [];
 
-    if (opportunityItemsError) {
-      return NextResponse.json({ error: opportunityItemsError.message }, { status: 500 });
+    for (let i = 0; i < opportunityIds.length; i += ITEMS_CHUNK_SIZE) {
+      const chunk = opportunityIds.slice(i, i + ITEMS_CHUNK_SIZE);
+      const { data, error } = await adminSupabase
+        .from('opportunity_items')
+        .select('opportunity_id, item_original')
+        .in('opportunity_id', chunk);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (data) allItems.push(...data);
     }
 
     const itemsTextByOpportunityId = new Map<string, string>();
     const itemsOriginalsByOpportunityId = new Map<string, string[]>();
-    for (const item of opportunityItems || []) {
+    for (const item of allItems || []) {
       const currentText = itemsTextByOpportunityId.get(item.opportunity_id) || '';
       const nextText = [currentText, item.item_original || ''].filter(Boolean).join(' ').trim();
       itemsTextByOpportunityId.set(item.opportunity_id, nextText);
@@ -338,11 +342,14 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error: upsertError } = await adminSupabase
-      .from('company_opportunity_scores')
-      .upsert(upsertData, { onConflict: 'company_id,opportunity_id' });
-
-    if (upsertError) throw upsertError;
+    const UPSERT_CHUNK_SIZE = 300;
+    for (let i = 0; i < upsertData.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = upsertData.slice(i, i + UPSERT_CHUNK_SIZE);
+      const { error: upsertError } = await adminSupabase
+        .from('company_opportunity_scores')
+        .upsert(chunk, { onConflict: 'company_id,opportunity_id' });
+      if (upsertError) throw upsertError;
+    }
 
     return NextResponse.json({
       ok: true,
