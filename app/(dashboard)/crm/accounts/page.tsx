@@ -86,6 +86,7 @@ export default function AccountsPage() {
     min_year: undefined,
     max_year: undefined,
     has_opportunities: false,
+    apenasComWhatsapp: false,
   });
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -211,6 +212,7 @@ export default function AccountsPage() {
       min_year: undefined,
       max_year: undefined,
       has_opportunities: false,
+      apenasComWhatsapp: false,
     });
     setCurrentPage(1);
     toast.info('Filtros limpos.');
@@ -587,6 +589,20 @@ export default function AccountsPage() {
                     Apenas prefeituras com licitações abertas
                   </span>
                   <span className="text-xs text-gray-400">Exibe somente municípios que possuem licitações vinculadas</span>
+                </div>
+              </label>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:border-[#0f49bd] hover:bg-blue-50/30 transition-all">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[#0f49bd]"
+                  checked={!!filters.apenasComWhatsapp}
+                  onChange={(e) => setFilters({ ...filters, apenasComWhatsapp: e.target.checked })}
+                />
+                <div>
+                  <span className="text-sm font-bold text-gray-800">Apenas prefeituras com WhatsApp</span>
+                  <span className="text-xs text-gray-400 block">Exibe somente municípios com número de WhatsApp cadastrado</span>
                 </div>
               </label>
             </div>

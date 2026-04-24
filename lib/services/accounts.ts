@@ -16,6 +16,7 @@ export interface MunicipalityFilters {
   status?: string;
   searchTerm?: string;
   has_opportunities?: boolean;
+  apenasComWhatsapp?: boolean;
 }
 
 const supabase = createClient();
@@ -37,6 +38,7 @@ export const accountService = {
       if (filters.min_year) query = query.gte('installation_year', filters.min_year);
       if (filters.max_year) query = query.lte('installation_year', filters.max_year);
       if (filters.status) query = query.eq('status', filters.status);
+      if (filters.apenasComWhatsapp) query = query.not('whatsapp', 'is', null);
 
       if (filters.searchTerm) {
         query = query.or(`name.ilike.%${filters.searchTerm}%,city.ilike.%${filters.searchTerm}%,mayor_name.ilike.%${filters.searchTerm}%`);
