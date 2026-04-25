@@ -1,68 +1,198 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-type FilterSegment = {
-  region?: string;
-  state?: string;
-  municipalityId?: string;
-  populationRange?: string;
-  department?: string;
-  strategic?: 'all' | 'yes' | 'no';
-  minScore?: string;
-  emailSearch?: string;
-};
-
-type AudiencePreviewPayload = FilterSegment & {
-  segments?: FilterSegment[];
-  page?: number;
-  pageSize?: number;
-};
-
-type AudienceItem = {
-  id: string;
-  municipality_id: string;
-  email: string;
-  department_label: string | null;
-  priority_score: number | null;
-  is_strategic: boolean | null;
-  source: string | null;
-  municipalities:
-    | {
-        id: string;
-        name: string | null;
-        city: string | null;
-        state: string | null;
-        population_range?: string | null;
-      }
-    | {
-        id: string;
-        name: string | null;
-        city: string | null;
-        state: string | null;
-        population_range?: string | null;
-      }[]
-    | null;
-};
-
 const DEPARTMENT_RULES = [
-  { label: 'Saúde', terms: ['saude', 'secsaude', 'sms', 'ubs', 'secretariadesaude', 'hospital', 'semus', 'semsa', 'sus', 'vigilancia'] },
-  { label: 'Educação', terms: ['educacao', 'escola', 'creche', 'semed', 'sme', 'seceducacao', 'secretariadeeducacao', 'ensino'] },
-  { label: 'Compras / Licitação', terms: ['compras', 'licitacao', 'licitacoes', 'contratos', 'cpl', 'pregao', 'pregoeiro', 'cotacao'] },
-  { label: 'Administração', terms: ['administracao', 'gabinete', 'rh', 'semad', 'juridico', 'dp', 'pessoal', 'recursoshumanos'] },
-  { label: 'Financeiro', terms: ['sefin', 'financas', 'fazenda', 'financeiro', 'arrecadacao', 'tributos', 'contabilidade', 'tesouraria'] },
-  { label: 'Obras', terms: ['obras', 'engenharia', 'infra', 'infraestrutura', 'semob', 'semusp', 'urbanismo', 'seinfra'] },
-  { label: 'Prefeito', terms: ['prefeito', 'viceprefeito', 'chefedegabinete'] },
-  { label: 'Institucional', terms: ['prefeitura', 'contato'] },
-  { label: 'Social', terms: ['assistenciasocial', 'social', 'cras', 'creas', 'acaosocial', 'fundosocial', 'bolsafamilia'] },
-  { label: 'Meio Ambiente', terms: ['meioambiente', 'agricultura', 'defesacivil', 'ambiental', 'ambiente'] },
-  { label: 'Comunicacao', terms: ['comunicacao', 'imprensa', 'ascom', 'secom'] },
-  { label: 'Ouvidoria', terms: ['ouvidoria', 'procon', 'sic', 'faleconosco', 'atendimento'] },
-  { label: 'Planejamento', terms: ['planejamento', 'seplan', 'projetos', 'convenios', 'desenvolvimento'] },
-  { label: 'RH', terms: ['recursoshumanos', 'rh', 'pessoal', 'dp'] },
-  { label: 'TI', terms: ['informatica', 'ti', 'cpd'] },
-  { label: 'Esporte e Cultura', terms: ['esporte', 'esportes', 'cultura', 'turismo', 'biblioteca', 'lazer'] },
-  { label: 'Juridico', terms: ['procuradoria', 'controleinterno', 'controladoria', 'fiscalizacao'] },
-  { label: 'Camara Municipal', terms: ['camara', 'legislativo', 'vereador'] },
+  {
+    label: 'Saúde',
+    terms: [
+      'saude',
+      'secsaude',
+      'sms',
+      'ubs',
+      'secretariadesaude',
+      'hospital',
+      'semus',
+      'semsa',
+      'sus',
+      'vigilancia',
+    ],
+  },
+  {
+    label: 'Educação',
+    terms: [
+      'educacao',
+      'escola',
+      'creche',
+      'semed',
+      'sme',
+      'seceducacao',
+      'secretariadeeducacao',
+      'ensino',
+    ],
+  },
+  {
+    label: 'Compras / Licitação',
+    terms: [
+      'compras',
+      'licitacao',
+      'licitacoes',
+      'contratos',
+      'cpl',
+      'pregao',
+      'pregoeiro',
+      'cotacao',
+    ],
+  },
+  {
+    label: 'Administração',
+    terms: [
+      'administracao',
+      'gabinete',
+      'rh',
+      'semad',
+      'juridico',
+      'dp',
+      'pessoal',
+      'recursoshumanos',
+    ],
+  },
+  {
+    label: 'Financeiro',
+    terms: [
+      'sefin',
+      'financas',
+      'fazenda',
+      'financeiro',
+      'arrecadacao',
+      'tributos',
+      'contabilidade',
+      'tesouraria',
+    ],
+  },
+  {
+    label: 'Obras',
+    terms: [
+      'obras',
+      'engenharia',
+      'infra',
+      'infraestrutura',
+      'semob',
+      'semusp',
+      'urbanismo',
+      'seinfra',
+    ],
+  },
+  {
+    label: 'Prefeito',
+    terms: [
+      'prefeito',
+      'viceprefeito',
+      'chefedegabinete',
+    ],
+  },
+  {
+    label: 'Institucional',
+    terms: [
+      'prefeitura',
+      'contato',
+    ],
+  },
+  {
+    label: 'Social',
+    terms: [
+      'assistenciasocial',
+      'social',
+      'cras',
+      'creas',
+      'acaosocial',
+      'fundosocial',
+      'bolsafamilia',
+    ],
+  },
+  {
+    label: 'Meio Ambiente',
+    terms: [
+      'meioambiente',
+      'agricultura',
+      'defesacivil',
+      'ambiental',
+      'ambiente',
+    ],
+  },
+  {
+    label: 'Comunicacao',
+    terms: [
+      'comunicacao',
+      'imprensa',
+      'ascom',
+      'secom',
+    ],
+  },
+  {
+    label: 'Ouvidoria',
+    terms: [
+      'ouvidoria',
+      'procon',
+      'sic',
+      'faleconosco',
+      'atendimento',
+    ],
+  },
+  {
+    label: 'Planejamento',
+    terms: [
+      'planejamento',
+      'seplan',
+      'projetos',
+      'convenios',
+      'desenvolvimento',
+    ],
+  },
+  {
+    label: 'RH',
+    terms: [
+      'recursoshumanos',
+      'rh',
+      'pessoal',
+      'dp',
+    ],
+  },
+  {
+    label: 'TI',
+    terms: [
+      'informatica',
+      'ti',
+      'cpd',
+    ],
+  },
+  {
+    label: 'Esporte e Cultura',
+    terms: [
+      'esporte',
+      'esportes',
+      'cultura',
+      'turismo',
+      'biblioteca',
+      'lazer',
+    ],
+  },
+  {
+    label: 'Juridico',
+    terms: [
+      'procuradoria',
+      'controleinterno',
+      'controladoria',
+      'fiscalizacao',
+    ],
+  },
+  {
+    label: 'Camara Municipal',
+    terms: [
+      'camara',
+      'legislativo',
+      'vereador',
+    ],
+  },
 ];
 
 const REGIOES: Record<string, string[]> = {
@@ -73,25 +203,6 @@ const REGIOES: Record<string, string[]> = {
   'Camaras Nordeste': ['BA', 'SE', 'AL', 'PE', 'PB', 'RN', 'CE', 'PI', 'MA'],
 };
 
-const REGIONS: Record<string, string[]> = {
-  Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
-  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
-  'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
-  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
-  Sul: ['PR', 'RS', 'SC'],
-};
-
-const DEFAULT_SEGMENT: Required<FilterSegment> = {
-  region: '',
-  state: '',
-  municipalityId: '',
-  populationRange: '',
-  department: '',
-  strategic: 'all',
-  minScore: '',
-  emailSearch: '',
-};
-
 function getDepartmentTerms(department: string | null) {
   if (!department) return [];
 
@@ -99,101 +210,51 @@ function getDepartmentTerms(department: string | null) {
   return found ? found.terms : [];
 }
 
-function normalizeSegments(payload: AudiencePreviewPayload) {
-  if (Array.isArray(payload.segments) && payload.segments.length > 0) {
-    return payload.segments.map((segment) => ({ ...DEFAULT_SEGMENT, ...segment }));
-  }
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient();
 
-  return [{ ...DEFAULT_SEGMENT, ...payload }];
-}
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-function parseSearchParams(searchParams: URLSearchParams): AudiencePreviewPayload {
-  return {
-    region: searchParams.get('region') || '',
-    state: searchParams.get('state') || '',
-    municipalityId: searchParams.get('municipalityId') || '',
-    populationRange: searchParams.get('populationRange') || '',
-    department: searchParams.get('department') || '',
-    strategic: (searchParams.get('strategic') || 'all') as FilterSegment['strategic'],
-    minScore: searchParams.get('minScore') || '',
-    emailSearch: searchParams.get('emailSearch') || '',
-    page: Number(searchParams.get('page') || '1'),
-    pageSize: Number(searchParams.get('pageSize') || '50'),
-  };
-}
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
 
-function applySegmentFilters(query: any, segment: Required<FilterSegment>) {
-  const regionStates = !segment.state && segment.region ? (REGIONS[segment.region] ?? []) : [];
-  const regionStatesForCamaras = REGIOES[segment.department] ?? [];
-  const departmentTerms = getDepartmentTerms(segment.department);
+    const { searchParams } = new URL(request.url);
 
-  if (segment.state) {
-    query = query.eq('state_source', segment.state);
-  } else if (regionStates.length > 0) {
-    query = query.in('state_source', regionStates);
-  }
+    const region = searchParams.get('region') || '';
+    const state = searchParams.get('state') || '';
+    const municipalityId = searchParams.get('municipalityId') || '';
+    const populationRange = searchParams.get('populationRange') || '';
+    const department = searchParams.get('department') || '';
+    const strategic = searchParams.get('strategic') || 'all';
+    const minScoreRaw = searchParams.get('minScore') || '';
+    const emailSearch = searchParams.get('emailSearch') || '';
+    const pageRaw = searchParams.get('page') || '1';
+    const pageSizeRaw = searchParams.get('pageSize') || '50';
 
-  if (segment.populationRange) {
-    query = query.eq('population_range', segment.populationRange);
-  }
+    const REGIONS: Record<string, string[]> = {
+      Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+      Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+      'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+      Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+      Sul: ['PR', 'RS', 'SC'],
+    };
+    const regionStates = region ? (REGIONS[region] ?? []) : [];
 
-  if (segment.municipalityId) {
-    query = query.eq('municipality_id', segment.municipalityId);
-  }
+    const page = Math.max(Number(pageRaw) || 1, 1);
+    const pageSize = Math.min(Math.max(Number(pageSizeRaw) || 50, 1), 200);
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-  if (segment.strategic === 'yes') {
-    query = query.eq('is_strategic', true);
-  }
+    let baseCountQuery = supabase
+      .from('municipality_emails')
+      .select('id', { count: 'exact', head: true });
 
-  if (segment.strategic === 'no') {
-    query = query.eq('is_strategic', false);
-  }
-
-  if (segment.minScore.trim() !== '' && !Number.isNaN(Number(segment.minScore))) {
-    query = query.gte('priority_score', Number(segment.minScore));
-  }
-
-  if (segment.emailSearch.trim() !== '') {
-    query = query.ilike('email', `%${segment.emailSearch.trim()}%`);
-  }
-
-  if (regionStatesForCamaras.length > 0) {
-    query = query
-      .eq('department_label', 'Camara Municipal')
-      .in('state_source', regionStatesForCamaras);
-  } else if (departmentTerms.length > 0) {
-    const orExpression = departmentTerms.flatMap((term) => [
-      `email.ilike.%${term}%`,
-      `department_label.ilike.%${term}%`,
-    ]).join(',');
-    query = query.or(orExpression);
-  }
-
-  return query;
-}
-
-async function buildPreviewResponse(payload: AudiencePreviewPayload) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-  }
-
-  const page = Math.max(Number(payload.page) || 1, 1);
-  const pageSize = Math.min(Math.max(Number(payload.pageSize) || 50, 1), 200);
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  const segments = normalizeSegments(payload);
-
-  const allRows: AudienceItem[] = [];
-
-  for (const segment of segments) {
-    let query = supabase.from('municipality_emails').select(`
+    let baseDataQuery = supabase.from('municipality_emails').select(`
         id,
         municipality_id,
         email,
@@ -210,59 +271,99 @@ async function buildPreviewResponse(payload: AudiencePreviewPayload) {
         )
       `);
 
-    query = applySegmentFilters(query, segment);
+    if (state) {
+      baseCountQuery = baseCountQuery.eq('state_source', state);
+      baseDataQuery = baseDataQuery.eq('state_source', state);
+    } else if (regionStates.length > 0) {
+      baseCountQuery = baseCountQuery.in('state_source', regionStates);
+      baseDataQuery = baseDataQuery.in('state_source', regionStates);
+    }
 
-    const { data, error } = await query
+    if (populationRange) {
+      baseCountQuery = baseCountQuery.eq('population_range', populationRange);
+      baseDataQuery = baseDataQuery.eq('population_range', populationRange);
+    }
+
+    if (municipalityId) {
+      baseCountQuery = baseCountQuery.eq('municipality_id', municipalityId);
+      baseDataQuery = baseDataQuery.eq('municipality_id', municipalityId);
+    }
+
+    if (strategic === 'yes') {
+      baseCountQuery = baseCountQuery.eq('is_strategic', true);
+      baseDataQuery = baseDataQuery.eq('is_strategic', true);
+    }
+
+    if (strategic === 'no') {
+      baseCountQuery = baseCountQuery.eq('is_strategic', false);
+      baseDataQuery = baseDataQuery.eq('is_strategic', false);
+    }
+
+    if (minScoreRaw.trim() !== '' && !Number.isNaN(Number(minScoreRaw))) {
+      const minScore = Number(minScoreRaw);
+      baseCountQuery = baseCountQuery.gte('priority_score', minScore);
+      baseDataQuery = baseDataQuery.gte('priority_score', minScore);
+    }
+
+    if (emailSearch.trim() !== '') {
+      baseCountQuery = baseCountQuery.ilike('email', `%${emailSearch.trim()}%`);
+      baseDataQuery = baseDataQuery.ilike('email', `%${emailSearch.trim()}%`);
+    }
+
+    const regionStatesForCamaras = REGIOES[department] ?? [];
+    const departmentTerms = getDepartmentTerms(department);
+
+    if (regionStatesForCamaras.length > 0) {
+      baseCountQuery = baseCountQuery
+        .eq('department_label', 'Camara Municipal')
+        .in('state_source', regionStatesForCamaras);
+      baseDataQuery = baseDataQuery
+        .eq('department_label', 'Camara Municipal')
+        .in('state_source', regionStatesForCamaras);
+    } else if (departmentTerms.length > 0) {
+      const orConditions = departmentTerms.flatMap((term) => [
+        `email.ilike.%${term}%`,
+        `department_label.ilike.%${term}%`,
+      ]);
+
+      const orExpression = orConditions.join(',');
+
+      baseCountQuery = baseCountQuery.or(orExpression);
+      baseDataQuery = baseDataQuery.or(orExpression);
+    }
+
+    const { count, error: countError } = await baseCountQuery;
+
+    if (countError) {
+      return NextResponse.json({ error: countError.message }, { status: 500 });
+    }
+
+    const { data, error: dataError } = await baseDataQuery
       .order('priority_score', { ascending: false, nullsFirst: false })
-      .order('email', { ascending: true });
+      .order('email', { ascending: true })
+      .range(from, to);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (dataError) {
+      return NextResponse.json({ error: dataError.message }, { status: 500 });
     }
 
-    allRows.push(...((data || []) as AudienceItem[]));
-  }
+    const items = (data || []).map((item: any) => ({
+      id: item.id,
+      municipality_id: item.municipality_id,
+      email: item.email,
+      department_label: item.department_label,
+      priority_score: item.priority_score,
+      is_strategic: item.is_strategic,
+      source: item.source,
+      municipalities: item.municipalities,
+    }));
 
-  const dedupedMap = new Map<string, AudienceItem>();
-  for (const row of allRows) {
-    if (!dedupedMap.has(row.email)) {
-      dedupedMap.set(row.email, row);
-    }
-  }
-
-  const dedupedItems = Array.from(dedupedMap.values()).sort((a, b) => {
-    const scoreA = a.priority_score ?? -1;
-    const scoreB = b.priority_score ?? -1;
-    if (scoreA !== scoreB) {
-      return scoreB - scoreA;
-    }
-    return a.email.localeCompare(b.email, 'pt-BR');
-  });
-
-  return NextResponse.json({
-    items: dedupedItems.slice(from, to + 1),
-    total: dedupedItems.length,
-    page,
-    pageSize,
-  });
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    return await buildPreviewResponse(parseSearchParams(searchParams));
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || 'Erro interno ao gerar preview da audiência.' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const payload = (await request.json()) as AudiencePreviewPayload;
-    return await buildPreviewResponse(payload);
+    return NextResponse.json({
+      items,
+      total: count || 0,
+      page,
+      pageSize,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || 'Erro interno ao gerar preview da audiência.' },

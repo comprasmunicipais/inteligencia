@@ -6,7 +6,7 @@ import { checkCompanyAccess } from '@/lib/billing-guard';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type FilterSegment = {
+type AudienceFilters = {
   region?: string;
   state?: string;
   municipalityId?: string;
@@ -15,10 +15,6 @@ type FilterSegment = {
   strategic?: 'all' | 'yes' | 'no';
   minScore?: string;
   emailSearch?: string;
-};
-
-type AudienceFilters = FilterSegment & {
-  segments?: FilterSegment[];
   totalCount?: number;
 };
 
@@ -131,72 +127,6 @@ function getDepartmentTerms(department: string): string[] {
   return rule ? rule.terms : [];
 }
 
-const DEFAULT_SEGMENT: Required<FilterSegment> = {
-  region: '',
-  state: '',
-  municipalityId: '',
-  populationRange: '',
-  department: '',
-  strategic: 'all',
-  minScore: '',
-  emailSearch: '',
-};
-
-function normalizeSegments(
-  filters: AudienceFilters,
-  bodySegments?: FilterSegment[],
-): Required<FilterSegment>[] {
-  if (Array.isArray(bodySegments) && bodySegments.length > 0) {
-    return bodySegments.map((segment) => ({ ...DEFAULT_SEGMENT, ...segment }));
-  }
-
-  if (Array.isArray(filters.segments) && filters.segments.length > 0) {
-    return filters.segments.map((segment) => ({ ...DEFAULT_SEGMENT, ...segment }));
-  }
-
-  return [{ ...DEFAULT_SEGMENT, ...filters }];
-}
-
-function applySegmentFilters(query: any, segment: Required<FilterSegment>) {
-  if (segment.state) query = query.eq('state_source', segment.state);
-  if (segment.populationRange) query = query.eq('population_range', segment.populationRange);
-  if (segment.municipalityId) query = query.eq('municipality_id', segment.municipalityId);
-
-  if (segment.strategic === 'yes') query = query.eq('is_strategic', true);
-  if (segment.strategic === 'no') query = query.eq('is_strategic', false);
-
-  if (!segment.state && segment.region) {
-    const regionStates = REGIONS[segment.region] ?? [];
-    if (regionStates.length > 0) {
-      query = query.in('state_source', regionStates);
-    }
-  }
-
-  if (segment.minScore.trim() && !Number.isNaN(Number(segment.minScore))) {
-    query = query.gte('priority_score', Number(segment.minScore));
-  }
-
-  if (segment.emailSearch.trim()) {
-    query = query.ilike('email', `%${segment.emailSearch.trim()}%`);
-  }
-
-  const regionStatesForCamaras = REGIOES[segment.department] ?? [];
-  const deptTerms = getDepartmentTerms(segment.department);
-  if (regionStatesForCamaras.length > 0) {
-    query = query
-      .eq('department_label', 'Camara Municipal')
-      .in('state_source', regionStatesForCamaras);
-  } else if (deptTerms.length > 0) {
-    const orConditions = deptTerms.flatMap((t) => [
-      `email.ilike.%${t}%`,
-      `department_label.ilike.%${t}%`,
-    ]);
-    query = query.or(orConditions.join(','));
-  }
-
-  return query;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: extract municipality data from a row
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,7 +186,6 @@ export async function POST(
     // ── 2. Body ──────────────────────────────────────────────────────────────
     const body = await req.json();
     const sendingAccountId: string | undefined = body.sending_account_id?.trim();
-    const bodySegments = Array.isArray(body.segments) ? (body.segments as FilterSegment[]) : undefined;
 
     if (!sendingAccountId) {
       return NextResponse.json({ error: 'Informe a conta de envio (sending_account_id).' }, { status: 400 });
@@ -362,35 +291,71 @@ export async function POST(
 
     // ── 5. Build audience query (no limit — all recipients go to queue) ───────
     const filters = ((campaign.audience_filters ?? {}) as AudienceFilters);
-    const segments = normalizeSegments(filters, bodySegments);
-    const allRows: EmailRow[] = [];
 
-    for (const segment of segments) {
-      let emailQuery = supabase
-        .from('municipality_emails')
-        .select(`
-          id,
-          email,
-          municipalities:municipality_id (
-            name,
-            city,
-            state
-          )
-        `)
-        .order('priority_score', { ascending: false, nullsFirst: false })
-        .order('email', { ascending: true });
+    let emailQuery = supabase
+      .from('municipality_emails')
+      .select(`
+        id,
+        email,
+        municipalities:municipality_id (
+          name,
+          city,
+          state
+        )
+      `)
+      .order('priority_score', { ascending: false, nullsFirst: false })
+      .order('email', { ascending: true });
 
-      emailQuery = applySegmentFilters(emailQuery, segment);
+    // Filters applied directly on municipality_emails columns — mirrors audiences/preview logic
+    if (filters.state) emailQuery = emailQuery.eq('state_source', filters.state);
+    if (filters.populationRange) emailQuery = emailQuery.eq('population_range', filters.populationRange);
+    if (filters.municipalityId) emailQuery = emailQuery.eq('municipality_id', filters.municipalityId);
 
-      const { data: emailRows, error: emailError } = await emailQuery;
+    if (filters.strategic === 'yes') emailQuery = emailQuery.eq('is_strategic', true);
+    if (filters.strategic === 'no') emailQuery = emailQuery.eq('is_strategic', false);
 
-      if (emailError) {
-        return NextResponse.json({ error: emailError.message }, { status: 500 });
+    // Region filter: only applied when state is not set (mirrors audiences/preview logic)
+    if (!filters.state && filters.region) {
+      const regionStates = REGIONS[filters.region] ?? [];
+      if (regionStates.length > 0) {
+        emailQuery = emailQuery.in('state_source', regionStates);
       }
-
-      allRows.push(...((emailRows ?? []) as EmailRow[]));
     }
 
+    if (filters.minScore?.trim() && !Number.isNaN(Number(filters.minScore))) {
+      emailQuery = emailQuery.gte('priority_score', Number(filters.minScore));
+    }
+
+    if (filters.emailSearch?.trim()) {
+      emailQuery = emailQuery.ilike('email', `%${filters.emailSearch.trim()}%`);
+    }
+
+    const regionStatesForCamaras = REGIOES[filters.department ?? ''] ?? [];
+    const deptTerms = getDepartmentTerms(filters.department ?? '');
+    if (regionStatesForCamaras.length > 0) {
+      emailQuery = emailQuery
+        .eq('department_label', 'Camara Municipal')
+        .in('state_source', regionStatesForCamaras);
+    } else if (deptTerms.length > 0) {
+      const orConditions = deptTerms.flatMap((t) => [
+        `email.ilike.%${t}%`,
+        `department_label.ilike.%${t}%`,
+      ]);
+      emailQuery = emailQuery.or(orConditions.join(','));
+    }
+
+    const { data: emailRows, error: emailError } = await emailQuery;
+
+    if (emailError) {
+      return NextResponse.json({ error: emailError.message }, { status: 500 });
+    }
+
+    const allRows = (emailRows ?? []) as EmailRow[];
+
+    // ── 5b. Busca emails já enviados nesta campanha (paginado) ──────────────
+    // PostgREST aplica max-rows por requisição (padrão 1000 no Supabase).
+    // O loop com .range() garante que todos os enviados sejam coletados,
+    // independentemente do volume total da campanha.
     const alreadySentEmails = new Set<string>();
     let sentPage = 0;
     const SENT_PAGE_SIZE = 1000;
@@ -490,6 +455,3 @@ export async function POST(
     );
   }
 }
-
-
-

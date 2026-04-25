@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { ArrowRight, RefreshCw, Search, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -13,17 +13,6 @@ type MunicipalityOption = {
 
 type MunicipalityPopulationRangeRow = {
   population_range: string | null;
-};
-
-type FilterSegment = {
-  region: string;
-  state: string;
-  municipalityId: string;
-  populationRange: string;
-  department: string;
-  strategic: 'all' | 'yes' | 'no';
-  minScore: string;
-  emailSearch: string;
 };
 
 type AudiencePreviewResponse = {
@@ -124,17 +113,6 @@ const DEPARTMENT_OPTIONS = [
 
 const PAGE_SIZE = 50;
 
-const DEFAULT_SEGMENT: FilterSegment = {
-  region: '',
-  state: '',
-  municipalityId: '',
-  populationRange: '',
-  department: '',
-  strategic: 'all',
-  minScore: '',
-  emailSearch: '',
-};
-
 function orderPopulationRanges(ranges: string[]) {
   const preferredOrder = [
     'Menor que 15.000',
@@ -177,7 +155,15 @@ export default function EmailAudiencesPage() {
 
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
-  const [segments, setSegments] = useState<FilterSegment[]>([{ ...DEFAULT_SEGMENT }]);
+
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
+  const [selectedPopulationRange, setSelectedPopulationRange] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [strategicFilter, setStrategicFilter] = useState<'all' | 'yes' | 'no'>('all');
+  const [minScore, setMinScore] = useState('');
+  const [emailSearch, setEmailSearch] = useState('');
 
   async function loadFilterOptions() {
     try {
@@ -234,15 +220,46 @@ export default function EmailAudiencesPage() {
     try {
       setLoadingResults(true);
 
-      const response = await fetch('/api/email/audiences/preview', {
-        method: 'POST',
+      const params = new URLSearchParams();
+
+      if (selectedRegion) {
+        params.set('region', selectedRegion);
+      }
+
+      if (selectedState) {
+        params.set('state', selectedState);
+      }
+
+      if (selectedMunicipalityId) {
+        params.set('municipalityId', selectedMunicipalityId);
+      }
+
+      if (selectedPopulationRange) {
+        params.set('populationRange', selectedPopulationRange);
+      }
+
+      if (selectedDepartment) {
+        params.set('department', selectedDepartment);
+      }
+
+      if (strategicFilter) {
+        params.set('strategic', strategicFilter);
+      }
+
+      if (minScore.trim() !== '') {
+        params.set('minScore', minScore.trim());
+      }
+
+      if (emailSearch.trim() !== '') {
+        params.set('emailSearch', emailSearch.trim());
+      }
+
+      params.set('page', '1');
+      params.set('pageSize', String(PAGE_SIZE));
+
+      const response = await fetch(`/api/email/audiences/preview?${params.toString()}`, {
+        method: 'GET',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          segments,
-          page: 1,
-          pageSize: PAGE_SIZE,
-        }),
       });
 
       const result: AudiencePreviewResponse = await response.json();
@@ -266,56 +283,51 @@ export default function EmailAudiencesPage() {
 
   useEffect(() => {
     loadAudiencePreview();
-  }, [segments]);
+  }, [
+    selectedRegion,
+    selectedState,
+    selectedMunicipalityId,
+    selectedPopulationRange,
+    selectedDepartment,
+    strategicFilter,
+    minScore,
+    emailSearch,
+  ]);
+
+  useEffect(() => {
+    setSelectedState('');
+    setSelectedMunicipalityId('');
+  }, [selectedRegion]);
+
+  useEffect(() => {
+    setSelectedMunicipalityId('');
+  }, [selectedState]);
+
+  const filteredMunicipalities = useMemo(() => {
+    if (selectedState) {
+      return municipalities.filter((item) => item.state === selectedState);
+    }
+    if (selectedRegion) {
+      const regionStates = REGIONS[selectedRegion] ?? [];
+      return municipalities.filter((item) => regionStates.includes(item.state));
+    }
+    return municipalities;
+  }, [municipalities, selectedRegion, selectedState]);
 
   function clearFilters() {
-    setSegments([{ ...DEFAULT_SEGMENT }]);
+    setSelectedRegion('');
+    setSelectedState('');
+    setSelectedMunicipalityId('');
+    setSelectedPopulationRange('');
+    setSelectedDepartment('');
+    setStrategicFilter('all');
+    setMinScore('');
+    setEmailSearch('');
   }
 
   function handleAdvanceStep() {
     window.location.href = '/email/campaigns';
   }
-
-  function updateSegment(index: number, key: keyof FilterSegment, value: string) {
-    setSegments((current) =>
-      current.map((segment, segmentIndex) => {
-        if (segmentIndex !== index) return segment;
-
-        const next = { ...segment, [key]: value };
-        if (key === 'region') {
-          next.state = '';
-          next.municipalityId = '';
-        }
-        if (key === 'state') {
-          next.municipalityId = '';
-        }
-        return next;
-      }),
-    );
-  }
-
-  function addSegment() {
-    setSegments((current) => [...current, { ...DEFAULT_SEGMENT }]);
-  }
-
-  function removeSegment(index: number) {
-    setSegments((current) => current.filter((_, segmentIndex) => segmentIndex !== index));
-  }
-
-  function getFilteredMunicipalities(segment: FilterSegment) {
-    if (segment.state) {
-      return municipalities.filter((item) => item.state === segment.state);
-    }
-    if (segment.region) {
-      const regionStates = REGIONS[segment.region] ?? [];
-      return municipalities.filter((item) => regionStates.includes(item.state));
-    }
-    return municipalities;
-  }
-
-  const labelClass = 'text-sm font-medium text-slate-700';
-  const selectClass =
-    'rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]';
 
   return (
     <div className="min-h-full bg-[#f8fafc] p-6">
@@ -346,167 +358,153 @@ export default function EmailAudiencesPage() {
             </button>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {segments.map((segment, index) => {
-              const filteredMunicipalities = getFilteredMunicipalities(segment);
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="region" className="text-sm font-medium text-slate-700">
+                Região
+              </label>
+              <select
+                id="region"
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todas as regiões</option>
+                {Object.keys(REGIONS).map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              return (
-                <div key={index} className="rounded-xl border border-slate-200 p-4">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">Segmento {index + 1}</h3>
-                      <p className="text-xs text-slate-500">
-                        Os segmentos são combinados por união de e-mails.
-                      </p>
-                    </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="state" className="text-sm font-medium text-slate-700">
+                Estado
+              </label>
+              <select
+                id="state"
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os estados</option>
+                {(selectedRegion ? (REGIONS[selectedRegion] ?? []) : BRAZILIAN_STATES).map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    {segments.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeSegment(index)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-                        aria-label={`Remover segmento ${index + 1}`}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="municipality" className="text-sm font-medium text-slate-700">
+                Município
+              </label>
+              <select
+                id="municipality"
+                value={selectedMunicipalityId}
+                onChange={(e) => setSelectedMunicipalityId(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os municípios</option>
+                {filteredMunicipalities.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Região</label>
-                      <select
-                        value={segment.region}
-                        onChange={(e) => updateSegment(index, 'region', e.target.value)}
-                        disabled={loadingFilters}
-                        className={selectClass}
-                      >
-                        <option value="">Todas as regiões</option>
-                        {Object.keys(REGIONS).map((region) => (
-                          <option key={region} value={region}>
-                            {region}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="population-range" className="text-sm font-medium text-slate-700">
+                Faixa populacional
+              </label>
+              <select
+                id="population-range"
+                value={selectedPopulationRange}
+                onChange={(e) => setSelectedPopulationRange(e.target.value)}
+                disabled={loadingFilters}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todas as faixas</option>
+                {populationRanges.map((range) => (
+                  <option key={range} value={range}>
+                    {range}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Estado</label>
-                      <select
-                        value={segment.state}
-                        onChange={(e) => updateSegment(index, 'state', e.target.value)}
-                        disabled={loadingFilters}
-                        className={selectClass}
-                      >
-                        <option value="">Todos os estados</option>
-                        {(segment.region ? (REGIONS[segment.region] ?? []) : BRAZILIAN_STATES).map((state) => (
-                          <option key={state} value={state}>
-                            {state}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="department" className="text-sm font-medium text-slate-700">
+                Departamento
+              </label>
+              <select
+                id="department"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="">Todos os departamentos</option>
+                {DEPARTMENT_OPTIONS.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Município</label>
-                      <select
-                        value={segment.municipalityId}
-                        onChange={(e) => updateSegment(index, 'municipalityId', e.target.value)}
-                        disabled={loadingFilters}
-                        className={selectClass}
-                      >
-                        <option value="">Todos os municípios</option>
-                        {filteredMunicipalities.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="strategic" className="text-sm font-medium text-slate-700">
+                Estratégico
+              </label>
+              <select
+                id="strategic"
+                value={strategicFilter}
+                onChange={(e) => setStrategicFilter(e.target.value as 'all' | 'yes' | 'no')}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              >
+                <option value="all">Todos</option>
+                <option value="yes">Somente estratégicos</option>
+                <option value="no">Somente não estratégicos</option>
+              </select>
+            </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Faixa populacional</label>
-                      <select
-                        value={segment.populationRange}
-                        onChange={(e) => updateSegment(index, 'populationRange', e.target.value)}
-                        disabled={loadingFilters}
-                        className={selectClass}
-                      >
-                        <option value="">Todas as faixas</option>
-                        {populationRanges.map((range) => (
-                          <option key={range} value={range}>
-                            {range}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="score" className="text-sm font-medium text-slate-700">
+                Score mínimo
+              </label>
+              <input
+                id="score"
+                type="number"
+                min="0"
+                value={minScore}
+                onChange={(e) => setMinScore(e.target.value)}
+                placeholder="Ex.: 20"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+              />
+            </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Departamento</label>
-                      <select
-                        value={segment.department}
-                        onChange={(e) => updateSegment(index, 'department', e.target.value)}
-                        className={selectClass}
-                      >
-                        <option value="">Todos os departamentos</option>
-                        {DEPARTMENT_OPTIONS.map((department) => (
-                          <option key={department} value={department}>
-                            {department}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Estratégico</label>
-                      <select
-                        value={segment.strategic}
-                        onChange={(e) => updateSegment(index, 'strategic', e.target.value)}
-                        className={selectClass}
-                      >
-                        <option value="all">Todos</option>
-                        <option value="yes">Somente estratégicos</option>
-                        <option value="no">Somente não estratégicos</option>
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label className={labelClass}>Score mínimo</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={segment.minScore}
-                        onChange={(e) => updateSegment(index, 'minScore', e.target.value)}
-                        placeholder="Ex.: 20"
-                        className={selectClass}
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-2 xl:col-span-2">
-                      <label className={labelClass}>Buscar no e-mail</label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          value={segment.emailSearch}
-                          onChange={(e) => updateSegment(index, 'emailSearch', e.target.value)}
-                          placeholder="Ex.: saude, adm, compras"
-                          className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={addSegment}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              + Adicionar segmento
-            </button>
+            <div className="flex flex-col gap-2 xl:col-span-2">
+              <label htmlFor="email-search" className="text-sm font-medium text-slate-700">
+                Buscar no e-mail
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="email-search"
+                  type="text"
+                  value={emailSearch}
+                  onChange={(e) => setEmailSearch(e.target.value)}
+                  placeholder="Ex.: saude, adm, compras"
+                  className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -534,7 +532,7 @@ export default function EmailAudiencesPage() {
                     </div>
                   )}
                   <div className="text-sm text-slate-600">
-                    e-mails únicos disponíveis para esta segmentação
+                    e-mails disponíveis para esta segmentação
                   </div>
                 </div>
               </div>
