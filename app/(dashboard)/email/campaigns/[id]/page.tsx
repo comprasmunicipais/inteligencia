@@ -160,6 +160,11 @@ const DEPARTMENT_OPTIONS = [
   'Esporte e Cultura',
   'Juridico',
   'Camara Municipal',
+  'Camaras Sul',
+  'Camaras Sudeste',
+  'Camaras Centro-Oeste',
+  'Camaras Norte',
+  'Camaras Nordeste',
 ];
 
 const REGIONS: Record<string, string[]> = {

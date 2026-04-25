@@ -106,6 +106,14 @@ const DEPARTMENT_RULES = [
   },
 ];
 
+const REGIOES: Record<string, string[]> = {
+  'Camaras Sul': ['PR', 'SC', 'RS'],
+  'Camaras Sudeste': ['SP', 'RJ', 'MG', 'ES'],
+  'Camaras Centro-Oeste': ['MT', 'MS', 'GO', 'DF'],
+  'Camaras Norte': ['AM', 'PA', 'AC', 'RO', 'RR', 'AP', 'TO'],
+  'Camaras Nordeste': ['BA', 'SE', 'AL', 'PE', 'PB', 'RN', 'CE', 'PI', 'MA'],
+};
+
 const REGIONS: Record<string, string[]> = {
   Norte: ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
   Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
@@ -322,8 +330,13 @@ export async function POST(
       emailQuery = emailQuery.ilike('email', `%${filters.emailSearch.trim()}%`);
     }
 
+    const regionStatesForCamaras = REGIOES[filters.department ?? ''] ?? [];
     const deptTerms = getDepartmentTerms(filters.department ?? '');
-    if (deptTerms.length > 0) {
+    if (regionStatesForCamaras.length > 0) {
+      emailQuery = emailQuery
+        .eq('department_label', 'Camara Municipal')
+        .in('state_source', regionStatesForCamaras);
+    } else if (deptTerms.length > 0) {
       const orConditions = deptTerms.flatMap((t) => [
         `email.ilike.%${t}%`,
         `department_label.ilike.%${t}%`,
