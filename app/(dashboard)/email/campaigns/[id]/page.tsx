@@ -150,6 +150,16 @@ const DEPARTMENT_OPTIONS = [
   'Obras',
   'Prefeito',
   'Institucional',
+  'Social',
+  'Meio Ambiente',
+  'Comunicacao',
+  'Ouvidoria',
+  'Planejamento',
+  'RH',
+  'TI',
+  'Esporte e Cultura',
+  'Juridico',
+  'Camara Municipal',
 ];
 
 const REGIONS: Record<string, string[]> = {

@@ -94,6 +94,16 @@ const DEPARTMENT_OPTIONS = [
   'Obras',
   'Prefeito',
   'Institucional',
+  'Social',
+  'Meio Ambiente',
+  'Comunicacao',
+  'Ouvidoria',
+  'Planejamento',
+  'RH',
+  'TI',
+  'Esporte e Cultura',
+  'Juridico',
+  'Camara Municipal',
 ];
 
 const PAGE_SIZE = 50;

@@ -64,6 +64,46 @@ const DEPARTMENT_RULES = [
     label: 'Institucional',
     terms: ['prefeitura', 'contato'],
   },
+  {
+    label: 'Social',
+    terms: ['assistenciasocial', 'social', 'cras', 'creas', 'acaosocial', 'fundosocial', 'bolsafamilia'],
+  },
+  {
+    label: 'Meio Ambiente',
+    terms: ['meioambiente', 'agricultura', 'defesacivil', 'ambiental', 'ambiente'],
+  },
+  {
+    label: 'Comunicacao',
+    terms: ['comunicacao', 'imprensa', 'ascom', 'secom'],
+  },
+  {
+    label: 'Ouvidoria',
+    terms: ['ouvidoria', 'procon', 'sic', 'faleconosco', 'atendimento'],
+  },
+  {
+    label: 'Planejamento',
+    terms: ['planejamento', 'seplan', 'projetos', 'convenios', 'desenvolvimento'],
+  },
+  {
+    label: 'RH',
+    terms: ['recursoshumanos', 'rh', 'pessoal', 'dp'],
+  },
+  {
+    label: 'TI',
+    terms: ['informatica', 'ti', 'cpd'],
+  },
+  {
+    label: 'Esporte e Cultura',
+    terms: ['esporte', 'esportes', 'cultura', 'turismo', 'biblioteca', 'lazer'],
+  },
+  {
+    label: 'Juridico',
+    terms: ['procuradoria', 'controleinterno', 'controladoria', 'fiscalizacao'],
+  },
+  {
+    label: 'Camara Municipal',
+    terms: ['camara', 'legislativo', 'vereador'],
+  },
 ];
 
 const REGIONS: Record<string, string[]> = {
