@@ -194,6 +194,15 @@ export const opportunityService = {
 
   async getStats(companyId: string) {
     const supabase = createClient();
+    const { count: totalCount, error: totalError } = await supabase
+      .from('opportunities')
+      .select('id', { count: 'exact', head: true });
+
+    if (totalError) {
+      console.error('SUPABASE ERROR (opportunities.getStats):', totalError);
+      throw totalError;
+    }
+
     const { data, error } = await supabase
       .from('opportunities')
       .select('id, internal_status, match_score, opening_date, created_at');
@@ -217,7 +226,7 @@ export const opportunityService = {
 
     const merged = all;
 
-    const total = all.length;
+    const total = totalCount ?? 0;
     const highMatch = merged.filter(o => Number(o.match_score || 0) >= 70).length;
     const converted = merged.filter(o => String(o.internal_status || '').startsWith('converted_')).length;
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
