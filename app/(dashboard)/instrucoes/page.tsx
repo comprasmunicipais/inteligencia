@@ -78,7 +78,7 @@ const styles = {
     padding: "36px 24px 56px",
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 40,
   },
   sectionLabel: {
     display: "inline-block",
@@ -92,7 +92,7 @@ const styles = {
     marginBottom: 14,
   },
   moduleHeader: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   h2: {
     margin: "0 0 6px",
@@ -117,6 +117,7 @@ const styles = {
     borderRadius: 16,
     boxShadow: colors.shadow,
     padding: 24,
+    marginBottom: 14,
   },
   grid: {
     display: "grid",
@@ -138,6 +139,7 @@ const styles = {
     border: `1px solid ${colors.border}`,
     boxShadow: colors.shadow,
     overflow: "hidden" as const,
+    marginBottom: 14,
   },
   stepHead: {
     padding: 24,
@@ -214,6 +216,19 @@ const styles = {
     border: "1px solid",
     color: "#334155",
   },
+  confirm: {
+    marginTop: 18,
+    padding: "14px 16px",
+    borderRadius: 12,
+    fontSize: 14,
+    border: "1px solid",
+    background: "#e3faf0",
+    borderColor: "rgba(14, 159, 110, 0.25)",
+    color: "#065f46",
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+  },
   featureCard: {
     background: colors.card,
     border: `1px solid ${colors.border}`,
@@ -243,6 +258,38 @@ const styles = {
     borderRadius: 14,
     padding: "18px 20px",
     marginTop: 14,
+  },
+  pillarGrid: {
+    display: "grid",
+    gap: 14,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    marginTop: 14,
+  },
+  pillar: {
+    background: colors.card,
+    border: `1px solid ${colors.border}`,
+    borderRadius: 14,
+    padding: "16px 18px",
+    display: "flex",
+    gap: 12,
+    alignItems: "flex-start",
+    boxShadow: colors.shadow,
+  },
+  pillarIcon: {
+    fontSize: 20,
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  pillarLabel: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  pillarDesc: {
+    fontSize: 13,
+    color: colors.muted,
+    margin: 0,
   },
   journey: {
     display: "grid",
@@ -311,436 +358,506 @@ function timelineNum(color: string) {
 
 export default function InstrucoesPage() {
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div style={{ height: "100%", overflowY: "auto" }}>
       <div style={styles.page}>
-        <header className="hero" style={styles.hero}>
-          <div className="container" style={styles.container}>
-            <span className="badge" style={styles.badge}>Primeiros passos e operação prática</span>
-            <h1 style={styles.heroTitle}>Como começar a usar o CM Pro</h1>
+        <header style={styles.hero}>
+          <div style={styles.container}>
+            <span style={styles.badge}>Guia de uso</span>
+            <h1 style={styles.heroTitle}>Como usar o CM Pro</h1>
             <p style={styles.heroText}>
-              Siga esta sequência para configurar o sistema corretamente, entender cada módulo e transformar oportunidades em operação comercial organizada.
+              Um guia passo a passo para você começar a usar o sistema, mesmo que nunca tenha usado uma ferramenta desse tipo antes.
             </p>
-            <nav className="nav" style={styles.nav}>
+            <nav style={styles.nav}>
+              <a href="#antes" style={styles.navLink}>Antes de tudo</a>
               <a href="#primeiros-passos" style={styles.navLink}>Primeiros passos</a>
-              <a href="#visao-geral" style={styles.navLink}>Visão geral do sistema</a>
-              <a href="#crm" style={styles.navLink}>CRM Operacional</a>
+              <a href="#crm" style={styles.navLink}>CRM</a>
               <a href="#inteligencia" style={styles.navLink}>Inteligência</a>
               <a href="#email" style={styles.navLink}>Disparos de E-mail</a>
-              <a href="#operacao" style={styles.navLink}>Como operar na prática</a>
+              <a href="#dia-a-dia" style={styles.navLink}>Dia a dia</a>
             </nav>
           </div>
         </header>
 
         <main style={styles.main}>
-          <div className="container" style={styles.container}>
-            <section id="primeiros-passos" style={styles.section}>
-              <div className="section-label" style={styles.sectionLabel}>Etapa obrigatória</div>
-              <div className="module-header" style={styles.moduleHeader}>
-                <h2 style={styles.h2}>Primeiros passos</h2>
+          <div style={styles.container}>
+
+            {/* ANTES DE TUDO */}
+            <section id="antes" style={styles.section}>
+              <div style={styles.sectionLabel}>Antes de tudo</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>O que é o CM Pro e para que ele serve</h2>
                 <p style={styles.moduleText}>
-                  Antes de explorar qualquer módulo, o sistema precisa entender o perfil da sua empresa e recalcular o score das oportunidades disponíveis. Sem essa configuração inicial, a experiência perde precisão.
+                  Antes de abrir qualquer tela, entenda o que você vai encontrar aqui.
                 </p>
               </div>
 
-            <div className="grid" style={styles.grid}>
-              <article className="step-card blue" style={styles.stepCard}>
-                <div className="step-head" style={styles.stepHead}>
-                  <div className="step-icon" style={{ ...styles.stepIcon, ...blueTheme.icon }}>⚙</div>
-                  <div>
-                    <div className="step-meta" style={{ ...styles.stepMeta, ...blueTheme.meta }}>Passo 1 — Obrigatório</div>
-                    <h3 style={styles.h3}>Configure seu Perfil Estratégico</h3>
-                    <p style={styles.cardText}>Este é o passo mais importante. É ele que define como o sistema vai interpretar as oportunidades para a sua empresa.</p>
-                  </div>
-                </div>
-                <div className="step-body" style={styles.stepBody}>
-                  <ol className="step-list" style={styles.listReset}>
-                    <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>1</span>
-                      <div><strong>Acesse:</strong> menu lateral → Perfil Estratégico.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>2</span>
-                      <div><strong>Preencha os dados da empresa:</strong> razão social, CNPJ, segmento principal e subsegmentos do que você vende.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>3</span>
-                      <div><strong>Defina palavras-chave positivas:</strong> termos que identificam oportunidades relevantes para sua empresa.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>4</span>
-                      <div><strong>Defina palavras-chave negativas:</strong> termos que ajudam a eliminar oportunidades irrelevantes.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>5</span>
-                      <div><strong>Configure ticket mínimo e máximo:</strong> assim o sistema considera sua capacidade financeira e comercial.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>6</span>
-                      <div><strong>Selecione estados de atuação:</strong> escolha onde sua empresa realmente pode operar.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>7</span>
-                      <div><strong>Marque as modalidades aceitas:</strong> deixe selecionadas apenas as modalidades em que sua empresa participa.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...blueTheme.num }}>8</span>
-                      <div><strong>Salve o perfil:</strong> o sistema passa a usar essa configuração como base para o Match IA.</div>
-                    </li>
-                  </ol>
-                  <div className="tip" style={{ ...styles.tip, ...blueTheme.tip }}>
-                    Quanto mais preciso for o Perfil Estratégico, melhor será a qualidade dos resultados. Revise palavras-chave, regiões e modalidades com atenção.
-                  </div>
-                </div>
-              </article>
-
-              <article className="step-card green" style={styles.stepCard}>
-                <div className="step-head" style={styles.stepHead}>
-                  <div className="step-icon" style={{ ...styles.stepIcon, ...greenTheme.icon }}>◎</div>
-                  <div>
-                    <div className="step-meta" style={{ ...styles.stepMeta, ...greenTheme.meta }}>Passo 2 — Obrigatório</div>
-                    <h3 style={styles.h3}>Recalcule o Score em Oportunidades</h3>
-                    <p style={styles.cardText}>Depois de salvar o Perfil Estratégico, o sistema precisa reprocessar as oportunidades ativas com base nessa configuração.</p>
-                  </div>
-                </div>
-                <div className="step-body" style={styles.stepBody}>
-                  <ol className="step-list" style={styles.listReset}>
-                    <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}>
-                      <span className="num" style={{ ...styles.num, ...greenTheme.num }}>1</span>
-                      <div><strong>Acesse:</strong> menu lateral → Oportunidades.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...greenTheme.num }}>2</span>
-                      <div><strong>Clique em Recalcular Score:</strong> o botão fica no canto superior direito da tela.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...greenTheme.num }}>3</span>
-                      <div><strong>Aguarde o processamento:</strong> o sistema analisa as oportunidades ativas em relação ao seu perfil.</div>
-                    </li>
-                    <li style={styles.stepLi}>
-                      <span className="num" style={{ ...styles.num, ...greenTheme.num }}>4</span>
-                      <div><strong>Verifique os resultados:</strong> oportunidades com aderência mais alta passam a ser priorizadas.</div>
-                    </li>
-                  </ol>
-                  <div className="tip" style={{ ...styles.tip, ...greenTheme.tip }}>
-                    Sempre que alterar o Perfil Estratégico, repita este processo. É isso que mantém o sistema alinhado com o foco real da sua empresa.
-                  </div>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section id="visao-geral" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>Depois da configuração inicial</div>
-            <div className="intro-card" style={styles.introCard}>
-              <h3 style={{ marginTop: 0, fontSize: 24 }}>Agora você pode entender o sistema como um todo</h3>
-              <p style={styles.cardText}>
-                Depois de configurar o Perfil Estratégico e recalcular o score, o CM Pro passa a funcionar de forma prática para sua operação. A lógica do sistema é simples:
-              </p>
-              <div className="highlight-box" style={styles.highlightBox}>
-                <strong style={{ display: "block", marginBottom: 6, color: "#0f172a" }}>Fluxo principal do produto</strong>
-                <p style={{ margin: 0, color: colors.muted, fontSize: 15 }}>Inteligência identifica oportunidades relevantes, o CRM organiza o relacionamento com as prefeituras e os Disparos de E-mail ajudam sua empresa a atuar de forma ativa no mercado.</p>
+              <div style={styles.introCard}>
+                <h3 style={{ ...styles.h3, marginBottom: 10 }}>O CM Pro não é um sistema de alertas</h3>
+                <p style={{ ...styles.cardText, marginBottom: 0 }}>
+                  Você provavelmente já recebe alertas de licitações por e-mail ou WhatsApp. O CM Pro começa onde o alerta termina: ele te ajuda a organizar o que fazer depois que você recebe a oportunidade. Aqui você gerencia o relacionamento com as prefeituras, acompanha suas propostas, dispara e-mails de prospecção e decide para onde direcionar sua energia comercial.
+                </p>
               </div>
-            </div>
-          </section>
 
-          <section id="crm" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>CRM Operacional</div>
-            <div className="module-header" style={styles.moduleHeader}>
-              <h2 style={styles.h2}>Organização comercial da sua empresa</h2>
-              <p style={styles.moduleText}>
-                O CRM Operacional é o núcleo de gestão comercial do CM Pro. É aqui que sua empresa acompanha o relacionamento com prefeituras, registra contatos, negociações, propostas, contratos e ações do dia a dia.
-              </p>
-            </div>
-
-            <div className="grid grid-3" style={styles.grid3}>
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Dashboard</h3>
-                <p style={styles.cardText}>Apresenta uma visão rápida dos principais indicadores da operação comercial e da inteligência do sistema.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>andamento do funil de vendas</li>
-                  <li style={styles.li}>volume de propostas em aberto</li>
-                  <li style={styles.li}>contratos registrados</li>
-                  <li style={styles.li}>oportunidades recentes e visão geral da operação</li>
-                </ul>
-              </article>
-
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Funil de Vendas</h3>
-                <p style={styles.cardText}>Organiza o estágio de cada negociação com prefeituras ao longo do processo comercial.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>acompanha a evolução de cada negociação</li>
-                  <li style={styles.li}>ajuda a visualizar prioridades comerciais</li>
-                  <li style={styles.li}>centraliza o andamento das oportunidades em aberto</li>
-                  <li style={styles.li}>deve ser usado conforme os estágios configurados no seu ambiente</li>
-                </ul>
-              </article>
-
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Prefeituras</h3>
-                <p style={styles.cardText}>É a base do relacionamento comercial da empresa.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>cada prefeitura é um órgão</li>
-                  <li style={styles.li}>centraliza o histórico de relacionamento</li>
-                  <li style={styles.li}>serve como referência para propostas e contatos</li>
-                </ul>
-              </article>
-
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Contatos</h3>
-                <p style={styles.cardText}>São as pessoas dentro das prefeituras.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>secretários</li>
-                  <li style={styles.li}>responsáveis por compras</li>
-                  <li style={styles.li}>equipes técnicas</li>
-                  <li style={styles.li}>pontos de relacionamento do órgão</li>
-                </ul>
-              </article>
-
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Propostas</h3>
-                <p style={styles.cardText}>Organizam as negociações em andamento.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>controle do que foi enviado</li>
-                  <li style={styles.li}>acompanhamento do status comercial</li>
-                  <li style={styles.li}>vínculo com a prefeitura</li>
-                </ul>
-              </article>
-
-              <article className="feature-card blue-top" style={{ ...styles.featureCard, ...topBorder(colors.blue) }}>
-                <h3 style={styles.h3}>Contratos</h3>
-                <p style={styles.cardText}>Registram os negócios fechados.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>histórico de vendas</li>
-                  <li style={styles.li}>controle de contratos ativos</li>
-                  <li style={styles.li}>consolidação de resultado comercial</li>
-                </ul>
-              </article>
-            </div>
-
-            <div className="grid" style={{ ...styles.grid, marginTop: 18 }}>
-              <article className="card" style={styles.card}>
-                <h3 style={styles.h3}>Minhas Ações</h3>
-                <p style={styles.cardText}>É a área usada para organizar as tarefas e pendências da rotina comercial.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>registro de follow-ups</li>
-                  <li style={styles.li}>controle de pendências operacionais</li>
-                  <li style={styles.li}>organização das próximas ações da equipe</li>
-                  <li style={styles.li}>uso recomendado para não deixar negociações sem acompanhamento</li>
-                </ul>
-              </article>
-            </div>
-          </section>
-
-          <section id="inteligencia" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>Inteligência</div>
-            <div className="module-header" style={styles.moduleHeader}>
-              <h2 style={styles.h2}>O ponto de partida da operação</h2>
-              <p style={styles.moduleText}>
-                A área de Inteligência é onde o CM Pro cruza dados públicos com o Perfil Estratégico da sua empresa para destacar oportunidades com maior aderência e reduzir o tempo gasto com análise irrelevante.
-              </p>
-            </div>
-
-            <div className="grid grid-2" style={styles.grid2}>
-              <article className="feature-card purple-top" style={{ ...styles.featureCard, ...topBorder(colors.purple) }}>
-                <h3 style={styles.h3}>Oportunidades</h3>
-                <p style={styles.cardText}>Mostra as licitações disponíveis para análise, acompanhadas de score de aderência com base no Perfil Estratégico.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>use o filtro <strong>Alta Aderência</strong> para priorizar o que faz mais sentido</li>
-                  <li style={styles.li}>score acima de 70% indica oportunidade com aderência mais alta</li>
-                  <li style={styles.li}>mostra título, órgão responsável, valor estimado e modalidade</li>
-                  <li style={styles.li}>apresenta o motivo do match para apoiar a análise</li>
-                </ul>
-              </article>
-
-              <article className="feature-card purple-top" style={{ ...styles.featureCard, ...topBorder(colors.purple) }}>
-                <h3 style={styles.h3}>Perfil Estratégico</h3>
-                <p style={styles.cardText}>É a configuração que define como o sistema interpreta oportunidades para a sua empresa.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>o que sua empresa vende</li>
-                  <li style={styles.li}>palavras-chave positivas e negativas</li>
-                  <li style={styles.li}>ticket</li>
-                  <li style={styles.li}>regiões de atuação</li>
-                  <li style={styles.li}>modalidades aceitas</li>
-                </ul>
-              </article>
-
-              <article className="feature-card purple-top" style={{ ...styles.featureCard, ...topBorder(colors.purple) }}>
-                <h3 style={styles.h3}>Análise de Mercado</h3>
-                <p style={styles.cardText}>Entrega uma visão geral das oportunidades disponíveis e da distribuição do mercado.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>volume de oportunidades</li>
-                  <li style={styles.li}>distribuição por estado</li>
-                  <li style={styles.li}>comportamento do mercado</li>
-                  <li style={styles.li}>apoio para decisões estratégicas</li>
-                </ul>
-              </article>
-
-              <article className="feature-card purple-top" style={{ ...styles.featureCard, ...topBorder(colors.purple) }}>
-                <h3 style={styles.h3}>Relatórios</h3>
-                <p style={styles.cardText}>Consolidam indicadores das oportunidades e da aderência ao longo do tempo.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>volume de oportunidades analisadas</li>
-                  <li style={styles.li}>distribuição de aderência</li>
-                  <li style={styles.li}>visão estruturada para tomada de decisão</li>
-                </ul>
-              </article>
-            </div>
-          </section>
-
-          <section id="email" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>Disparos de E-mail</div>
-            <div className="module-header" style={styles.moduleHeader}>
-              <h2 style={styles.h2}>Prospecção ativa e relacionamento em escala</h2>
-              <p style={styles.moduleText}>
-                Esta área permite que sua empresa se comunique com prefeituras de forma estruturada, usando a própria conta de e-mail da empresa e audiências segmentadas dentro do sistema.
-              </p>
-            </div>
-
-            <div className="grid grid-3" style={styles.grid3}>
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Campanhas</h3>
-                <p style={styles.cardText}>Organizam a criação, revisão e disparo dos e-mails.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>assunto</li>
-                  <li style={styles.li}>conteúdo</li>
-                  <li style={styles.li}>audiência</li>
-                  <li style={styles.li}>conta de envio</li>
-                </ul>
-              </article>
-
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Audiências</h3>
-                <p style={styles.cardText}>Definem para quem os e-mails serão enviados.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>segmentação por estado</li>
-                  <li style={styles.li}>município</li>
-                  <li style={styles.li}>porte</li>
-                  <li style={styles.li}>secretaria ou área</li>
-                </ul>
-              </article>
-
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Contas de envio</h3>
-                <p style={styles.cardText}>São as contas SMTP da sua empresa utilizadas para realizar os disparos.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>Gmail</li>
-                  <li style={styles.li}>Outlook</li>
-                  <li style={styles.li}>servidor próprio</li>
-                  <li style={styles.li}>teste a conexão antes de disparar qualquer campanha</li>
-                </ul>
-              </article>
-
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Templates</h3>
-                <p style={styles.cardText}>Facilitam a produção do conteúdo das campanhas.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>criação manual</li>
-                  <li style={styles.li}>apoio de IA</li>
-                  <li style={styles.li}>modelos para prospecção e relacionamento</li>
-                </ul>
-              </article>
-
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Histórico</h3>
-                <p style={styles.cardText}>Registra os envios realizados e o status de execução das campanhas.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>campanhas já enviadas</li>
-                  <li style={styles.li}>quantidade de envios</li>
-                  <li style={styles.li}>status de envio</li>
-                </ul>
-              </article>
-
-              <article className="feature-card amber-top" style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Estatísticas</h3>
-                <p style={styles.cardText}>Mostram o desempenho das campanhas enviadas.</p>
-                <ul style={styles.ul}>
-                  <li style={styles.li}>taxa de abertura</li>
-                  <li style={styles.li}>cliques</li>
-                  <li style={styles.li}>engajamento das campanhas</li>
-                </ul>
-              </article>
-            </div>
-          </section>
-
-          <section id="operacao" style={styles.section}>
-            <div className="section-label" style={styles.sectionLabel}>Como operar o CM Pro na prática</div>
-            <div className="module-header" style={styles.moduleHeader}>
-              <h2 style={styles.h2}>Fluxo real de uso no dia a dia</h2>
-              <p style={styles.moduleText}>
-                Depois da configuração inicial, o CM Pro pode ser usado por dois caminhos principais: quando a oportunidade já existe e quando sua empresa quer atuar de forma antecipada no mercado.
-              </p>
-            </div>
-
-            <div className="journey" style={styles.journey}>
-              <article className="flow-card purple-top" style={{ ...styles.card, ...topBorder(colors.purple) }}>
-                <h3 style={styles.h3}>Caminho 1: Captação de Oportunidades</h3>
-                <p style={styles.cardText}>Quando sua empresa identifica uma licitação relevante e quer levar isso para a operação comercial.</p>
-                <ol className="timeline-list" style={styles.listReset}>
-                  <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}><span className="num" style={timelineNum(colors.purple)}>1</span><div><strong>Acesse Oportunidades:</strong> filtre por alta aderência.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.purple)}>2</span><div><strong>Analise a licitação:</strong> valor, prazo, escopo e órgão responsável.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.purple)}>3</span><div><strong>Leve para o CRM:</strong> localize ou adicione a prefeitura e registre contatos.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.purple)}>4</span><div><strong>Crie uma proposta:</strong> organize a negociação e acompanhe no funil.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.purple)}>5</span><div><strong>Registre ações:</strong> follow-ups, tarefas e próximos passos.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.purple)}>6</span><div><strong>Converta em contrato:</strong> quando o negócio for fechado.</div></li>
-                </ol>
-              </article>
-
-              <article className="flow-card amber-top" style={{ ...styles.card, ...topBorder(colors.amber) }}>
-                <h3 style={styles.h3}>Caminho 2: Prospecção Ativa</h3>
-                <p style={styles.cardText}>Quando sua empresa quer gerar relacionamento antes mesmo da licitação acontecer.</p>
-                <ol className="timeline-list" style={styles.listReset}>
-                  <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}><span className="num" style={timelineNum(colors.amber)}>1</span><div><strong>Configure e teste a conta SMTP:</strong> acesse Contas de envio, preencha os dados e clique em Testar Conexão antes de avançar.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.amber)}>2</span><div><strong>Monte a audiência:</strong> segmentando por região, município ou secretaria.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.amber)}>3</span><div><strong>Crie a campanha:</strong> com conteúdo manual ou com apoio de IA.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.amber)}>4</span><div><strong>Revise e dispare:</strong> validando conta, público e mensagem.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.amber)}>5</span><div><strong>Acompanhe as estatísticas:</strong> abertura, cliques e engajamento.</div></li>
-                  <li style={styles.stepLi}><span className="num" style={timelineNum(colors.amber)}>6</span><div><strong>Ajuste sua abordagem:</strong> com base no que performou melhor.</div></li>
-                </ol>
-              </article>
-            </div>
-
-            <div className="grid" style={{ ...styles.grid, marginTop: 18 }}>
-              <article className="note-card" style={styles.card}>
-                <h3 style={styles.h3}>Rotina recomendada</h3>
-                <div className="grid grid-3" style={{ ...styles.grid3, marginTop: 10 }}>
+              <div style={styles.pillarGrid}>
+                <div style={styles.pillar}>
+                  <div style={styles.pillarIcon}>🎯</div>
                   <div>
-                    <strong style={{ display: "block", marginBottom: 8, color: "#0f172a" }}>Diário</strong>
-                    <ul style={styles.ul}>
-                      <li style={styles.li}>verificar oportunidades com alta aderência</li>
-                      <li style={styles.li}>atualizar funil de vendas</li>
-                      <li style={styles.li}>revisar Minhas Ações</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <strong style={{ display: "block", marginBottom: 8, color: "#0f172a" }}>Semanal</strong>
-                    <ul style={styles.ul}>
-                      <li style={styles.li}>ajustar o Perfil Estratégico se necessário</li>
-                      <li style={styles.li}>rodar campanhas segmentadas</li>
-                      <li style={styles.li}>avaliar desempenho comercial</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <strong style={{ display: "block", marginBottom: 8, color: "#0f172a" }}>Mensal</strong>
-                    <ul style={styles.ul}>
-                      <li style={styles.li}>revisar estratégia de atuação</li>
-                      <li style={styles.li}>analisar resultados do período</li>
-                      <li style={styles.li}>ajustar palavras-chave, regiões e foco</li>
-                    </ul>
+                    <div style={styles.pillarLabel}>Captação de oportunidades</div>
+                    <p style={styles.pillarDesc}>Veja quais licitações têm mais a ver com a sua empresa</p>
                   </div>
                 </div>
-              </article>
-            </div>
-          </section>
-
-            <section style={styles.section}>
-              <div className="footer-help" style={styles.footerHelp}>
-                <div style={{ fontSize: 24, lineHeight: 1 }}>?</div>
-                <div>
-                  <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>Precisa de ajuda?</h3>
-                  <p style={styles.footerHelpText}>Se sua equipe precisar de apoio para configurar o sistema ou organizar a operação, entre em contato com a equipe do CM Pro pelo WhatsApp: (11) 3280-7010.</p>
+                <div style={styles.pillar}>
+                  <div style={styles.pillarIcon}>🏛</div>
+                  <div>
+                    <div style={styles.pillarLabel}>Gestão de prefeituras</div>
+                    <p style={styles.pillarDesc}>Acompanhe negociações, contatos e contratos com cada município</p>
+                  </div>
+                </div>
+                <div style={styles.pillar}>
+                  <div style={styles.pillarIcon}>📧</div>
+                  <div>
+                    <div style={styles.pillarLabel}>Disparo de e-mail</div>
+                    <p style={styles.pillarDesc}>Envie campanhas direto para dezenas de milhares de prefeituras</p>
+                  </div>
                 </div>
               </div>
             </section>
+
+            {/* PRIMEIROS PASSOS */}
+            <section id="primeiros-passos" style={styles.section}>
+              <div style={styles.sectionLabel}>Etapa obrigatória</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>Primeiros passos</h2>
+                <p style={styles.moduleText}>
+                  Faça isso antes de usar qualquer outra parte do sistema. Sem essa configuração, o CM Pro não sabe o que sua empresa vende e não consegue te mostrar as oportunidades certas.
+                </p>
+              </div>
+
+              {/* Passo 1 */}
+              <article style={styles.stepCard}>
+                <div style={styles.stepHead}>
+                  <div style={{ ...styles.stepIcon, ...blueTheme.icon }}>⚙</div>
+                  <div>
+                    <div style={{ ...styles.stepMeta, ...blueTheme.meta }}>Passo 1 — Obrigatório</div>
+                    <h3 style={styles.h3}>Configure o Perfil Estratégico</h3>
+                    <p style={styles.cardText}>
+                      O Perfil Estratégico é o coração do sistema. É como se você estivesse preenchendo um cadastro que diz ao CM Pro: "minha empresa vende isso, atua nessas regiões e aceita essas modalidades." Com base nisso, o sistema passa a filtrar e pontuar as licitações para você.
+                    </p>
+                  </div>
+                </div>
+                <div style={styles.stepBody}>
+                  <ol style={styles.listReset}>
+                    <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>1</span>
+                      <div>
+                        <strong>Abra o menu lateral</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>No lado esquerdo da tela, clique em "Perfil Estratégico".</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>2</span>
+                      <div>
+                        <strong>Informe os dados da empresa</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Razão social, CNPJ e o segmento principal do que você vende (ex: tecnologia, saúde, obras, limpeza).</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>3</span>
+                      <div>
+                        <strong>Digite palavras-chave positivas</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>São os termos que aparecem em licitações que interessam a sua empresa. Exemplos: "software", "licença de uso", "sistema de gestão". Quanto mais específico, melhor.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>4</span>
+                      <div>
+                        <strong>Digite palavras-chave negativas</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>São termos que aparecem em licitações que não têm nada a ver com você. Isso ajuda a eliminar resultados irrelevantes. Exemplo: se você vende software, pode adicionar "pavimentação" como palavra negativa.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>5</span>
+                      <div>
+                        <strong>Defina o valor mínimo e máximo das licitações</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Qual é o menor contrato que compensa para sua empresa participar? E o maior que você consegue atender? Isso filtra oportunidades fora do seu porte.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>6</span>
+                      <div>
+                        <strong>Escolha os estados onde você atua</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Se sua empresa não consegue atender o Acre, não precisa ver licitações do Acre. Marque apenas os estados onde você realmente opera.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>7</span>
+                      <div>
+                        <strong>Selecione as modalidades que você participa</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Modalidades são os tipos de processo de compra pública (pregão eletrônico, dispensa, etc.). Se tiver dúvida, deixe todas marcadas por enquanto e ajuste depois.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...blueTheme.num }}>8</span>
+                      <div>
+                        <strong>Clique em Salvar</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>O sistema grava suas preferências e já começa a usar essa configuração.</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <div style={styles.confirm}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
+                    <div><strong>Como saber que deu certo:</strong> após salvar, o sistema não exibe erro. Se quiser confirmar, reabra o Perfil Estratégico — seus dados devem aparecer preenchidos.</div>
+                  </div>
+                </div>
+              </article>
+
+              {/* Passo 2 */}
+              <article style={styles.stepCard}>
+                <div style={styles.stepHead}>
+                  <div style={{ ...styles.stepIcon, ...greenTheme.icon }}>◎</div>
+                  <div>
+                    <div style={{ ...styles.stepMeta, ...greenTheme.meta }}>Passo 2 — Obrigatório</div>
+                    <h3 style={styles.h3}>Recalcule o Score das Oportunidades</h3>
+                    <p style={styles.cardText}>
+                      Depois de salvar o Perfil Estratégico, o sistema ainda não aplicou suas preferências nas licitações. Você precisa pedir para ele fazer isso agora. É um processo automático que leva alguns segundos.
+                    </p>
+                  </div>
+                </div>
+                <div style={styles.stepBody}>
+                  <ol style={styles.listReset}>
+                    <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}>
+                      <span style={{ ...styles.num, ...greenTheme.num }}>1</span>
+                      <div>
+                        <strong>Acesse o menu "Oportunidades"</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Clique em "Oportunidades" no menu lateral esquerdo.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...greenTheme.num }}>2</span>
+                      <div>
+                        <strong>Localize o botão "Recalcular Score"</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Ele fica no canto superior direito da tela. Se não encontrar, role a página para cima.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...greenTheme.num }}>3</span>
+                      <div>
+                        <strong>Clique no botão e aguarde</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>O sistema vai analisar todas as licitações ativas com base no que você configurou. Isso leva alguns segundos.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, ...greenTheme.num }}>4</span>
+                      <div>
+                        <strong>Veja as oportunidades com pontuação</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Agora cada licitação terá um score (de 0 a 100%). Use o filtro "Alta Aderência" para ver só as que mais combinam com sua empresa.</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <div style={styles.confirm}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
+                    <div><strong>Como saber que deu certo:</strong> as oportunidades vão exibir uma porcentagem ao lado de cada item. Score acima de 70% indica boa compatibilidade com sua empresa.</div>
+                  </div>
+                  <div style={{ ...styles.tip, ...greenTheme.tip, marginTop: 14 }}>
+                    Toda vez que você alterar o Perfil Estratégico, repita esse processo. É isso que mantém o sistema atualizado com o foco atual da sua empresa.
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            {/* CRM */}
+            <section id="crm" style={styles.section}>
+              <div style={styles.sectionLabel}>CRM Operacional</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>Onde você organiza o relacionamento com as prefeituras</h2>
+                <p style={styles.moduleText}>
+                  O CRM é a parte do sistema onde você registra e acompanha tudo que acontece com cada prefeitura: contatos feitos, propostas enviadas, negociações em andamento e contratos fechados.
+                </p>
+              </div>
+
+              <div style={{ ...styles.card, marginBottom: 14 }}>
+                <h3 style={{ ...styles.h3, marginBottom: 16 }}>O que você vai encontrar no CRM</h3>
+                <div style={styles.grid2}>
+                  {[
+                    {
+                      title: "Dashboard",
+                      desc: "A tela inicial com um resumo de tudo: quantas propostas estão em aberto, quantos contratos registrados e as oportunidades mais recentes. É o ponto de partida para entender como está a operação.",
+                    },
+                    {
+                      title: "Funil de Vendas",
+                      desc: "Mostra em que fase está cada negociação com as prefeituras. Pense nele como uma lista que vai de \"primeiro contato\" até \"contrato assinado\". Ajuda você a saber o que precisa de atenção agora.",
+                    },
+                    {
+                      title: "Prefeituras",
+                      desc: "É o cadastro de cada município com quem você se relaciona. Aqui fica o histórico completo: o que já foi feito, quem são os contatos, quais propostas foram enviadas.",
+                    },
+                    {
+                      title: "Contatos",
+                      desc: "São as pessoas dentro das prefeituras: secretários, responsáveis por compras, equipes técnicas. Você registra nome, cargo, telefone e e-mail de quem já teve contato com sua empresa.",
+                    },
+                    {
+                      title: "Propostas",
+                      desc: "Registro das negociações em andamento. Cada proposta fica vinculada a uma prefeitura e você acompanha se foi aceita, recusada ou ainda está em análise.",
+                    },
+                    {
+                      title: "Contratos",
+                      desc: "Quando uma negociação é fechada, você registra o contrato aqui. Serve como histórico de vendas e controle do que está ativo.",
+                    },
+                  ].map((item) => (
+                    <div key={item.title}>
+                      <strong style={{ display: "block", marginBottom: 6, fontSize: 15 }}>{item.title}</strong>
+                      <p style={{ margin: 0, fontSize: 14, color: colors.muted }}>{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ ...styles.card, ...topBorder(colors.blue) }}>
+                <h3 style={styles.h3}>Minhas Ações</h3>
+                <p style={styles.cardText}>
+                  É a sua lista de tarefas dentro do CM Pro. Sempre que precisar fazer alguma coisa depois (ligar para alguém, enviar um documento, fazer um follow-up), registre aqui. Assim nenhuma negociação fica esquecida.
+                </p>
+                <ul style={styles.ul}>
+                  <li style={styles.li}>Registre o que precisa ser feito e quando</li>
+                  <li style={styles.li}>Vincule a ação a uma prefeitura específica</li>
+                  <li style={styles.li}>Marque como concluído quando fizer</li>
+                </ul>
+                <div style={{ ...styles.tip, ...{ background: colors.blueSoft, borderColor: "rgba(26, 86, 219, 0.18)" } }}>
+                  Dica: revise suas ações abertas toda manhã antes de começar o dia. É o jeito mais simples de não deixar nenhuma negociação sem resposta.
+                </div>
+              </div>
+            </section>
+
+            {/* INTELIGÊNCIA */}
+            <section id="inteligencia" style={styles.section}>
+              <div style={styles.sectionLabel}>Inteligência</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>Onde você encontra as oportunidades</h2>
+                <p style={styles.moduleText}>
+                  A área de Inteligência é onde o sistema mostra as licitações disponíveis, já filtradas e pontuadas de acordo com o seu Perfil Estratégico.
+                </p>
+              </div>
+
+              <div style={styles.grid2}>
+                {[
+                  {
+                    title: "Oportunidades",
+                    desc: "A lista de licitações ativas, com pontuação de aderência ao lado de cada uma.",
+                    items: [
+                      "Use o filtro \"Alta Aderência\" para ver primeiro as mais relevantes",
+                      "Clique em qualquer oportunidade para ver o detalhamento completo",
+                      "O sistema mostra o motivo pelo qual aquela licitação foi pontuada assim",
+                      "Score acima de 70% indica boa compatibilidade com sua empresa",
+                    ],
+                  },
+                  {
+                    title: "Análise de Mercado",
+                    desc: "Uma visão geral do que está acontecendo no mercado de licitações para prefeituras.",
+                    items: [
+                      "Volume total de oportunidades disponíveis",
+                      "Distribuição por estado",
+                      "Ajuda a identificar onde há mais demanda para o que você vende",
+                    ],
+                  },
+                  {
+                    title: "Perfil Estratégico",
+                    desc: "O mesmo que você configurou nos primeiros passos. Você pode voltar aqui a qualquer momento para ajustar palavras-chave, regiões ou ticket.",
+                    items: [],
+                  },
+                  {
+                    title: "Relatórios",
+                    desc: "Resumos do que o sistema encontrou ao longo do tempo: quantas oportunidades foram analisadas, como se distribuem as aderências, evolução mês a mês.",
+                    items: [],
+                  },
+                ].map((item) => (
+                  <div key={item.title} style={{ ...styles.featureCard, ...topBorder(colors.purple) }}>
+                    <h3 style={styles.h3}>{item.title}</h3>
+                    <p style={styles.cardText}>{item.desc}</p>
+                    {item.items.length > 0 && (
+                      <ul style={styles.ul}>
+                        {item.items.map((li) => (
+                          <li key={li} style={styles.li}>{li}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* EMAIL */}
+            <section id="email" style={styles.section}>
+              <div style={styles.sectionLabel}>Disparos de E-mail</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>Como enviar e-mails para prefeituras</h2>
+                <p style={styles.moduleText}>
+                  Uma das funcionalidades mais poderosas do CM Pro: você envia e-mails de prospecção diretamente para dezenas de milhares de prefeituras, segmentando por estado, porte, secretaria e mais. Tudo pela sua própria conta de e-mail.
+                </p>
+              </div>
+
+              <article style={{ ...styles.stepCard, marginBottom: 14 }}>
+                <div style={styles.stepHead}>
+                  <div style={{ ...styles.stepIcon, background: "#fef3c7", color: colors.amber }}>✉</div>
+                  <div>
+                    <div style={{ ...styles.stepMeta, color: colors.amber, background: "#fef3c7", border: "1px solid rgba(227, 160, 8, 0.25)" }}>Como funciona na prática</div>
+                    <h3 style={styles.h3}>Antes de enviar qualquer e-mail, configure três coisas</h3>
+                    <p style={styles.cardText}>Siga essa ordem e o disparo vai funcionar sem problemas.</p>
+                  </div>
+                </div>
+                <div style={styles.stepBody}>
+                  <ol style={styles.listReset}>
+                    <li style={{ ...styles.stepLi, borderTop: 0, paddingTop: 0 }}>
+                      <span style={{ ...styles.num, background: colors.amber }}>1</span>
+                      <div>
+                        <strong>Conta de envio</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>É o e-mail da sua empresa que vai ser usado para disparar as mensagens (Gmail, Outlook ou servidor próprio). Acesse "Contas de envio", preencha os dados e clique em "Testar Conexão" para confirmar que está funcionando antes de avançar.</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, background: colors.amber }}>2</span>
+                      <div>
+                        <strong>Audiência</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>Para quem você quer enviar. Você pode filtrar por estado, município, porte da prefeitura (pequena, média, grande) ou secretaria (saúde, educação, compras, etc.).</span>
+                      </div>
+                    </li>
+                    <li style={styles.stepLi}>
+                      <span style={{ ...styles.num, background: colors.amber }}>3</span>
+                      <div>
+                        <strong>Campanha</strong><br />
+                        <span style={{ fontSize: 14, color: colors.muted }}>O e-mail em si: assunto, conteúdo e qual conta vai enviar. Você pode criar o conteúdo manualmente ou usar o apoio de IA para gerar um texto de prospecção.</span>
+                      </div>
+                    </li>
+                  </ol>
+                  <div style={{ ...styles.tip, background: colors.blueSoft, borderColor: "rgba(26, 86, 219, 0.18)", marginTop: 14 }}>
+                    Sempre teste a conexão da conta de envio antes de disparar qualquer campanha. Um e-mail enviado de uma conta com problema não chega ao destinatário.
+                  </div>
+                </div>
+              </article>
+
+              <div style={styles.grid3}>
+                {[
+                  { title: "Templates", desc: "Modelos prontos de e-mail que você pode reutilizar. Economizam tempo quando você vai fazer campanhas frequentes com conteúdo parecido." },
+                  { title: "Histórico", desc: "Todas as campanhas que já foram enviadas, com data, quantidade de destinatários e status de envio." },
+                  { title: "Estatísticas", desc: "Desempenho das campanhas: quantos abriram, quantos clicaram. Serve para entender qual abordagem funciona melhor." },
+                ].map((item) => (
+                  <div key={item.title} style={{ ...styles.featureCard, ...topBorder(colors.amber) }}>
+                    <h3 style={{ ...styles.h3, fontSize: 17 }}>{item.title}</h3>
+                    <p style={{ ...styles.cardText, marginBottom: 0 }}>{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* DIA A DIA */}
+            <section id="dia-a-dia" style={styles.section}>
+              <div style={styles.sectionLabel}>Como operar na prática</div>
+              <div style={styles.moduleHeader}>
+                <h2 style={styles.h2}>O que fazer depois que tudo está configurado</h2>
+                <p style={styles.moduleText}>
+                  Com o Perfil Estratégico salvo e o score calculado, o CM Pro passa a funcionar como sua central de operação comercial. Existem dois caminhos principais de uso:
+                </p>
+              </div>
+
+              <div style={styles.journey}>
+                <div style={{ ...styles.card, ...topBorder(colors.purple) }}>
+                  <h3 style={styles.h3}>Quando você recebe um alerta de licitação</h3>
+                  <p style={{ ...styles.cardText }}>Use esse fluxo quando uma oportunidade aparece e você quer agir sobre ela.</p>
+                  <ol style={styles.listReset}>
+                    {[
+                      ["Abra Oportunidades", "filtre por alta aderência"],
+                      ["Analise a licitação", "valor estimado, prazo, escopo e qual prefeitura abriu"],
+                      ["Vá para o CRM", "localize ou adicione essa prefeitura"],
+                      ["Crie uma proposta", "vincule à prefeitura e mova para o funil"],
+                      ["Registre as ações", "follow-ups, tarefas e próximos passos"],
+                      ["Quando fechar", "converta a proposta em contrato"],
+                    ].map(([bold, rest], i) => (
+                      <li key={i} style={{ ...styles.stepLi, ...(i === 0 ? { borderTop: 0, paddingTop: 0 } : {}) }}>
+                        <span style={timelineNum(colors.purple)}>{i + 1}</span>
+                        <div><strong>{bold}:</strong> {rest}</div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div style={{ ...styles.card, ...topBorder(colors.amber) }}>
+                  <h3 style={styles.h3}>Quando você quer prospectar antes da licitação</h3>
+                  <p style={{ ...styles.cardText }}>Use esse fluxo para gerar relacionamento com prefeituras antes de uma licitação aparecer.</p>
+                  <ol style={styles.listReset}>
+                    {[
+                      ["Configure e teste", "sua conta de e-mail em \"Contas de envio\""],
+                      ["Monte a audiência", "escolha os estados, porte e secretaria que quer atingir"],
+                      ["Crie a campanha", "com assunto e conteúdo (manual ou com IA)"],
+                      ["Revise", "conta, público e mensagem antes de disparar"],
+                      ["Acompanhe as estatísticas", "abertura, cliques e engajamento"],
+                      ["Ajuste a abordagem", "com base no que performou melhor"],
+                    ].map(([bold, rest], i) => (
+                      <li key={i} style={{ ...styles.stepLi, ...(i === 0 ? { borderTop: 0, paddingTop: 0 } : {}) }}>
+                        <span style={timelineNum(colors.amber)}>{i + 1}</span>
+                        <div><strong>{bold}:</strong> {rest}</div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+
+              <div style={{ ...styles.card, marginTop: 18 }}>
+                <h3 style={styles.h3}>Rotina recomendada</h3>
+                <p style={styles.cardText}>Se você nunca usou um sistema assim, comece com essa rotina simples:</p>
+                <div style={styles.grid3}>
+                  {[
+                    {
+                      label: "Todo dia",
+                      items: [
+                        "Veja as oportunidades com alta aderência",
+                        "Revise suas ações abertas em \"Minhas Ações\"",
+                        "Atualize o funil com o que avançou",
+                      ],
+                    },
+                    {
+                      label: "Toda semana",
+                      items: [
+                        "Dispare uma campanha de e-mail segmentada",
+                        "Verifique as estatísticas da semana anterior",
+                        "Ajuste palavras-chave do perfil se necessário",
+                      ],
+                    },
+                    {
+                      label: "Todo mês",
+                      items: [
+                        "Revise os relatórios de oportunidades",
+                        "Analise quais estados geraram mais resultado",
+                        "Ajuste a estratégia com base nos dados",
+                      ],
+                    },
+                  ].map((col) => (
+                    <div key={col.label}>
+                      <strong style={{ display: "block", marginBottom: 10, color: colors.text }}>{col.label}</strong>
+                      <ul style={{ ...styles.ul, listStyle: "none", paddingLeft: 0 }}>
+                        {col.items.map((item) => (
+                          <li key={item} style={{ ...styles.li, paddingLeft: 12, borderLeft: `2px solid ${colors.border}` }}>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* FOOTER */}
+            <section style={styles.section}>
+              <div style={styles.footerHelp}>
+                <div style={{ fontSize: 24, lineHeight: 1 }}>?</div>
+                <div>
+                  <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>Precisa de ajuda?</h3>
+                  <p style={styles.footerHelpText}>
+                    Se tiver dúvida em qualquer passo, entre em contato com a equipe do CM Pro pelo WhatsApp: (11) 3280-7010. Podemos ajudar você a configurar o sistema e organizar a operação.
+                  </p>
+                </div>
+              </div>
+            </section>
+
           </div>
         </main>
       </div>
