@@ -22,6 +22,8 @@ async function asaasRequest(path: string, method = 'GET', body?: object) {
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
+    const errorBody = await res.json().catch(() => null)
+    console.error('ASAAS_API_ERROR', { path, method, status: res.status, body: errorBody })
     throw new AsaasRequestError(res.status)
   }
   return res.json()
