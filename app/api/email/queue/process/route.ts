@@ -9,7 +9,7 @@ import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 300;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
