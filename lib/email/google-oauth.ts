@@ -7,8 +7,9 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_TOKEN_INFO_URL = 'https://www.googleapis.com/oauth2/v3/tokeninfo';
 const GOOGLE_GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
+const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 const STATE_COOKIE = 'cm_google_oauth_state';
-const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send email';
 const REFRESH_WINDOW_MS = 5 * 60 * 1000;
 
 type SupabaseClientLike = {
@@ -144,21 +145,13 @@ export async function exchangeGoogleAuthorizationCode(code: string): Promise<Tok
 }
 
 export async function fetchGoogleOAuthEmail(accessToken: string): Promise<string> {
-  const [profileResponse, tokenInfoResponse] = await Promise.all([
-    fetch(GOOGLE_GMAIL_PROFILE_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }),
-    fetch(`${GOOGLE_TOKEN_INFO_URL}?access_token=${encodeURIComponent(accessToken)}`),
-  ]);
+  const response = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
-  if (profileResponse.ok) {
-    const profile = await profileResponse.json() as { emailAddress?: string };
-    if (profile.emailAddress) return profile.emailAddress.toLowerCase();
-  }
-
-  if (tokenInfoResponse.ok) {
-    const tokenInfo = await tokenInfoResponse.json() as { email?: string };
-    if (tokenInfo.email) return tokenInfo.email.toLowerCase();
+  if (response.ok) {
+    const info = await response.json() as { email?: string };
+    if (info.email) return info.email.toLowerCase();
   }
 
   throw new Error('Nao foi possivel identificar o e-mail Google conectado.');
