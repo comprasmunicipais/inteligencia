@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/cron/trial-expiring') ||
     pathname.startsWith('/api/billing/webhook') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/integrations/google/callback') ||
     pathname.startsWith('/api/plans') ||
     pathname.startsWith('/api/signup') ||
     pathname.startsWith('/login') ||
@@ -29,9 +30,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Cria um response mutável para que o Supabase possa escrever cookies de
-  // refresh de token de volta ao browser. Sem isso, setAll() é no-op e sessões
-  // com access token expirado aparecem como não autenticadas.
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -41,7 +39,6 @@ export async function middleware(request: NextRequest) {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll(cookiesToSet) {
-          // Propaga os cookies atualizados tanto no request quanto na response
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -52,12 +49,10 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  // getUser() valida o JWT com o servidor e renova via refresh token se necessário
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 🔐 sem sessão válida
   if (!user) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -68,7 +63,6 @@ export async function middleware(request: NextRequest) {
   const isDemoRecalculateScoresRoute =
     request.method === 'POST' && pathname === '/api/intel/recalculate-scores';
 
-  // 🔒 modo demo — bloqueia escrita
   const isWriteMethod = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method);
   if (isWriteMethod && !isDemoRecalculateScoresRoute && user.user_metadata?.is_demo === true) {
     return NextResponse.json(
@@ -77,10 +71,8 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // 🔐 rotas admin → exige platform_admin
   const isAdminPage = pathname.startsWith('/admin');
   const isAdminApi = pathname.startsWith('/api/admin');
-
   if (isAdminPage || isAdminApi) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -96,7 +88,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Retorna o response com os cookies de sessão atualizados
   return response;
 }
 
