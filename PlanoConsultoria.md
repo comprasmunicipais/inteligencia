@@ -91,3 +91,22 @@ Garantir evolução do produto com:
 Este não é um projeto de melhoria do sistema atual.
 👉 É a criação de uma NOVA CAMADA dentro do produto.
 E deve ser tratado como tal em todas as decisões técnicas.
+
+## Regras de Deploy e Segurança
+
+1. ENCODING: Quando o Claude Code mencionar "substituição mecânica" ou "problema de encoding", parar imediatamente. Pedir para recriar o arquivo do zero em UTF-8 limpo antes de continuar.
+
+2. BUILD: Sempre rodar `npm run build` antes do push — nunca apenas `npx tsc --noEmit`. São validações diferentes. O TypeScript não pega erro de encoding, só o webpack do Next.js pega.
+
+3. PROMPTS GRANDES: Prompts que mexem em mais de 2 arquivos críticos devem ser divididos em etapas com validação de build entre elas.
+
+4. REVERT: Para reverter um commit específico com alterações locais pendentes:
+   git stash push
+   git revert <hash> --no-edit
+   git push
+   git stash drop (descartar — não fazer stash pop se o arquivo revertido estava no stash)
+
+5. COMMIT: Formato obrigatório de commit:
+   git add <apenas os arquivos da tarefa atual — nunca git add .>
+   git commit -m "tipo(escopo): descricao curta"
+   git push

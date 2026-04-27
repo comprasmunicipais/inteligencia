@@ -5,6 +5,13 @@ export interface DashboardMetrics {
   sentProposals: number;
   activeTenders: number;
   activeContracts: number;
+  lastCampaign: {
+    name: string;
+    status: string;
+    sent_at: string | null;
+    sent_count: number;
+    failed_count: number;
+  } | null;
   salesPerformance: { name: string; value: number }[];
   recentOpportunities: any[];
   pendingTasks: any[];
@@ -26,7 +33,8 @@ export const dashboardService = {
       { count: activeTendersCount },
       { data: recentDeals },
       { data: pendingTasks },
-      { data: dealsForChart }
+      { data: dealsForChart },
+      { data: lastCampaign }
     ] = await Promise.all([
       supabase.from('deals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
@@ -46,7 +54,13 @@ export const dashboardService = {
       supabase.from('deals')
         .select('estimated_value, created_at')
         .eq('company_id', companyId)
-        .gte('created_at', sixMonthsAgo.toISOString())
+        .gte('created_at', sixMonthsAgo.toISOString()),
+      supabase.from('email_campaigns')
+        .select('name, status, sent_at, sent_count, failed_count')
+        .eq('company_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
     ]);
 
     const mappedRecent = (recentDeals || []).map(d => {
@@ -99,6 +113,7 @@ export const dashboardService = {
       sentProposals: proposalsCount || 0,
       activeTenders: activeTendersCount || 0,
       activeContracts: contractsCount || 0,
+      lastCampaign: lastCampaign || null,
       salesPerformance,
       recentOpportunities: mappedRecent,
       pendingTasks: mappedTasks

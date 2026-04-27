@@ -8,6 +8,7 @@ import {
   Send, 
   Gavel, 
   ShieldCheck, 
+  Mail,
   ArrowUpRight,
   Clock,
   AlertCircle,
@@ -63,6 +64,30 @@ export default function DashboardPage() {
     return data.reduce((acc, curr) => acc + curr.value, 0);
   };
 
+  const formatCampaignDate = (date: string | null) => {
+    if (!date) return '--';
+
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    }).format(new Date(date));
+  };
+
+  const getCampaignStatusStyles = (status?: string) => {
+    const normalizedStatus = status?.toLowerCase();
+
+    if (normalizedStatus === 'enviada') {
+      return 'bg-green-100 text-green-700';
+    }
+
+    if (normalizedStatus === 'enviando') {
+      return 'bg-blue-100 text-blue-700';
+    }
+
+    return 'bg-gray-100 text-gray-700';
+  };
+
   const kpis = [
     { name: 'Oportunidades Novas', value: metrics?.newOpportunities.toString() || '0', change: '+12%', icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
     { name: 'Propostas Enviadas', value: metrics?.sentProposals.toString() || '0', change: '+5%', icon: Send, color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -101,6 +126,37 @@ export default function DashboardPage() {
                   <p className="text-3xl font-bold text-gray-900">{kpi.value}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <button
+                type="button"
+                onClick={() => router.push('/email/campaigns')}
+                className="lg:col-span-4 bg-gradient-to-r from-[#fff8ed] via-white to-[#eef4ff] p-6 rounded-xl border border-[#f3d7a6] shadow-sm hover:shadow-md transition-all text-left"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-[#fff1d6] text-[#c27a00]">
+                      <Mail className="size-6" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#9a6700]">Última Campanha</h3>
+                        <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${getCampaignStatusStyles(metrics?.lastCampaign?.status)}`}>
+                          {metrics?.lastCampaign?.status || 'rascunho'}
+                        </span>
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">{metrics?.lastCampaign?.name || 'Nenhuma'}</p>
+                      <p className="text-sm text-gray-600">
+                        {metrics?.lastCampaign?.sent_count || 0} enviados · {metrics?.lastCampaign?.failed_count || 0} falhas · {formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-sm font-medium text-[#0f49bd]">
+                    Ver campanhas <ChevronRight className="size-4 ml-1" />
+                  </div>
+                </div>
+              </button>
             </div>
 
             {/* Chart Section */}

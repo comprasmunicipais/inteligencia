@@ -142,7 +142,11 @@ const BRAZILIAN_STATES = [
 ];
 
 const DEPARTMENT_OPTIONS = [
+<<<<<<< Updated upstream
   'Saúde',
+=======
+  'Sa?de',
+>>>>>>> Stashed changes
   'Educação',
   'Compras / Licitação',
   'Administração',
@@ -243,9 +247,15 @@ function Stepper({ current }: { current: number }) {
   );
 }
 
+<<<<<<< Updated upstream
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 1 — Email editor
 // ─────────────────────────────────────────────────────────────────────────────
+=======
+// -----------------------------------------------------------------------------
+// Step 1 - Email editor
+// -----------------------------------------------------------------------------
+>>>>>>> Stashed changes
 
 function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailForm; onChange: (f: EmailForm) => void; isReadOnly?: boolean }) {
   const [tab, setTab] = useState<EditorTab>('preview');
@@ -380,7 +390,11 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
               ) : (
                 <Sparkles className="size-3.5" />
               )}
+<<<<<<< Updated upstream
               {isGenerating ? 'Gerando…' : 'Gerar com IA'}
+=======
+              {isGenerating ? 'Gerando...' : 'Gerar com IA'}
+>>>>>>> Stashed changes
             </button>
             <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
               {tabBtn('html', <Code className="size-3.5" />, 'HTML')}
@@ -393,15 +407,17 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
         {tab === 'html' && (
           <div className="p-4">
             <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 w-fit">
-              <button
-                type="button"
-                onClick={() => setHtmlSubTab('visual')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
-                  htmlSubTab === 'visual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Visual
-              </button>
+              {!hasFullHtml && (
+                <button
+                  type="button"
+                  onClick={() => setHtmlSubTab('visual')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                    htmlSubTab === 'visual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Visual
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setHtmlSubTab('raw')}
@@ -412,7 +428,7 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
                 HTML Raw
               </button>
             </div>
-            {htmlSubTab === 'visual' && hasFullHtml && (
+            {hasFullHtml && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                 Conteúdos em HTML completo devem ser editados no modo HTML Raw para preservar a estrutura original do e-mail.
               </div>
@@ -512,9 +528,15 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
   );
 }
 
+<<<<<<< Updated upstream
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 2 — Audience selector
 // ─────────────────────────────────────────────────────────────────────────────
+=======
+// -----------------------------------------------------------------------------
+// Step 2 - Audience selector
+// -----------------------------------------------------------------------------
+>>>>>>> Stashed changes
 
 function AudienceStep({
   filters,
@@ -573,7 +595,11 @@ function AudienceStep({
           }),
         );
       } catch (err) {
+<<<<<<< Updated upstream
         console.error('Erro ao carregar opções de audiência:', err);
+=======
+        console.error('Erro ao carregar opÃ§Ãµes de audiÃªncia:', err);
+>>>>>>> Stashed changes
       } finally {
         setLoadingFilters(false);
       }
@@ -607,7 +633,11 @@ function AudienceStep({
         const json = await res.json();
         onChange({ ...filters, totalCount: json.total ?? 0 });
       } catch (err: any) {
+<<<<<<< Updated upstream
         if (err.name !== 'AbortError') console.error('Erro ao contar audiência:', err);
+=======
+        if (err.name !== 'AbortError') console.error('Erro ao contar audiÃªncia:', err);
+>>>>>>> Stashed changes
       } finally {
         setLoadingCount(false);
       }
@@ -685,6 +715,7 @@ function AudienceStep({
             </select>
           </div>
 
+<<<<<<< Updated upstream
           <div className="flex flex-col gap-2">
             <label className={labelClass}>Estado</label>
             <select
@@ -714,6 +745,45 @@ function AudienceStep({
               ))}
             </select>
           </div>
+=======
+            return (
+              <div key={index} className="rounded-xl border border-slate-200 p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Segmento {index + 1}</h3>
+                    <p className="text-xs text-slate-500">
+                      Os segmentos são combinados por união de e-mails.
+                    </p>
+                  </div>
+                  {filters.segments.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSegment(index)}
+                      disabled={isReadOnly}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50"
+                      aria-label={`Remover segmento ${index + 1}`}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="flex flex-col gap-2">
+                    <label className={labelClass}>Região</label>
+                    <select
+                      value={segment.region}
+                      onChange={(e) => updateSegment(index, 'region', e.target.value)}
+                      disabled={loadingFilters || isReadOnly}
+                      className={selectClass}
+                    >
+                      <option value="">Todas as regiões</option>
+                      {Object.keys(REGIONS).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+>>>>>>> Stashed changes
 
           <div className="flex flex-col gap-2">
             <label className={labelClass}>Faixa populacional</label>
@@ -730,6 +800,7 @@ function AudienceStep({
             </select>
           </div>
 
+<<<<<<< Updated upstream
           <div className="flex flex-col gap-2">
             <label className={labelClass}>Departamento</label>
             <select
@@ -744,6 +815,22 @@ function AudienceStep({
               ))}
             </select>
           </div>
+=======
+                  <div className="flex flex-col gap-2">
+                    <label className={labelClass}>Município</label>
+                    <select
+                      value={segment.municipalityId}
+                      onChange={(e) => updateSegment(index, 'municipalityId', e.target.value)}
+                      disabled={loadingFilters || isReadOnly}
+                      className={selectClass}
+                    >
+                      <option value="">Todos os municípios</option>
+                      {filteredMunicipalities.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+>>>>>>> Stashed changes
 
           <div className="flex flex-col gap-2">
             <label className={labelClass}>Estratégico</label>
@@ -772,6 +859,7 @@ function AudienceStep({
             />
           </div>
 
+<<<<<<< Updated upstream
           <div className="flex flex-col gap-2 xl:col-span-2">
             <label className={labelClass}>Buscar no e-mail</label>
             <div className="relative">
@@ -786,6 +874,62 @@ function AudienceStep({
               />
             </div>
           </div>
+=======
+                  <div className="flex flex-col gap-2">
+                    <label className={labelClass}>Estratégico</label>
+                    <select
+                      value={segment.strategic}
+                      onChange={(e) => updateSegment(index, 'strategic', e.target.value)}
+                      disabled={isReadOnly}
+                      className={selectClass}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="yes">Somente estratégicos</option>
+                      <option value="no">Somente não estratégicos</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className={labelClass}>Score mínimo</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={segment.minScore}
+                      onChange={(e) => updateSegment(index, 'minScore', e.target.value)}
+                      disabled={isReadOnly}
+                      placeholder="Ex.: 20"
+                      className={selectClass}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 xl:col-span-2">
+                    <label className={labelClass}>Buscar no e-mail</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={segment.emailSearch}
+                        onChange={(e) => updateSegment(index, 'emailSearch', e.target.value)}
+                        disabled={isReadOnly}
+                        placeholder="Ex.: saude, adm, compras"
+                        className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={addSegment}
+            disabled={isReadOnly}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            + Adicionar segmento
+          </button>
+>>>>>>> Stashed changes
         </div>
       </div>
 
@@ -836,6 +980,7 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
   const hasAudience = audienceFilters.totalCount > 0;
   const isReady = hasSubject && (hasHtml || hasText) && hasAudience;
 
+<<<<<<< Updated upstream
   // Build active audience filter tags
   const audienceTags: string[] = [];
   if (audienceFilters.region) audienceTags.push(`Região: ${audienceFilters.region}`);
@@ -847,6 +992,24 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
   if (audienceFilters.strategic === 'no') audienceTags.push('Somente não estratégicos');
   if (audienceFilters.minScore.trim()) audienceTags.push(`Score ≥ ${audienceFilters.minScore}`);
   if (audienceFilters.emailSearch.trim()) audienceTags.push(`Contém "${audienceFilters.emailSearch.trim()}"`);
+=======
+  const audienceTags = audienceFilters.segments.flatMap((segment, index) => {
+    const tags: string[] = [];
+    const prefix = audienceFilters.segments.length > 1 ? `Segmento ${index + 1}: ` : '';
+
+    if (segment.region) tags.push(`${prefix}Região: ${segment.region}`);
+    if (segment.state) tags.push(`${prefix}Estado: ${segment.state}`);
+    if (segment.municipalityId) tags.push(`${prefix}1 município específico`);
+    if (segment.populationRange) tags.push(`${prefix}Pop.: ${segment.populationRange}`);
+    if (segment.department) tags.push(`${prefix}Depto.: ${segment.department}`);
+    if (segment.strategic === 'yes') tags.push(`${prefix}Somente estratégicos`);
+    if (segment.strategic === 'no') tags.push(`${prefix}Somente não estratégicos`);
+    if (segment.minScore.trim()) tags.push(`${prefix}Score = ${segment.minScore}`);
+    if (segment.emailSearch.trim()) tags.push(`${prefix}Contém "${segment.emailSearch.trim()}"`);
+
+    return tags;
+  });
+>>>>>>> Stashed changes
 
   const objectiveLabel: Record<string, string> = {
     Prospecção: 'Prospecção',
@@ -907,7 +1070,11 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
         />
       </SummaryCard>
 
+<<<<<<< Updated upstream
       {/* ── Audience ─────────────────────────────────────────────────────── */}
+=======
+      {/* -- Audience ------------------------------------------------------- */}
+>>>>>>> Stashed changes
       <SummaryCard title="Audiência" icon={<Users className="size-4 text-[#0f49bd]" />}>
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold text-[#0f172a]">
@@ -1010,9 +1177,15 @@ function CheckRow({
   );
 }
 
+<<<<<<< Updated upstream
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 4 — Send
 // ─────────────────────────────────────────────────────────────────────────────
+=======
+// -----------------------------------------------------------------------------
+// Step 4 - Send
+// -----------------------------------------------------------------------------
+>>>>>>> Stashed changes
 
 function SendStep({
   audienceCount,
@@ -1083,7 +1256,11 @@ function SendStep({
             <option value="">Selecionar conta de envio...</option>
             {accounts.filter((a) => a.is_active).map((a) => (
               <option key={a.id} value={a.id}>
+<<<<<<< Updated upstream
                 {a.name} — {a.sender_email}
+=======
+                {a.name} - {a.sender_email}
+>>>>>>> Stashed changes
               </option>
             ))}
           </select>
@@ -1343,7 +1520,11 @@ export default function CampaignDetailPage() {
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
+<<<<<<< Updated upstream
     // id === 'new': não buscar no banco — apenas inicializar com query params do template
+=======
+    // id === 'new': não buscar no banco - apenas inicializar com query params do template
+>>>>>>> Stashed changes
     if (isNew) {
       const rawBody = searchParams.get('template_body') ?? '';
       const htmlBody = rawBody
@@ -1622,7 +1803,11 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
+<<<<<<< Updated upstream
       {/* Footer — hidden after successful send */}
+=======
+      {/* Footer - hidden after successful send */}
+>>>>>>> Stashed changes
       {!sendResult && (
         <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
