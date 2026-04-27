@@ -1,0 +1,19 @@
+name: Process Email Queue
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  process-email-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call email queue processor
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/email/queue/process"
