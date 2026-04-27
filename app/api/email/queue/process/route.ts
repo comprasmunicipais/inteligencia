@@ -213,6 +213,11 @@ export async function GET(req: NextRequest) {
     const campaign = campaignMap.get(job.campaign_id);
 
     if (!account || !campaign) {
+      console.log('[EMAIL_DEBUG] job sem account ou campaign', {
+        jobId: job.id,
+        sending_account_id: job.sending_account_id,
+        campaign_id: job.campaign_id
+      });
       // Mark as failed — missing config (job was already claimed as 'processing')
       await supabase
         .from('email_job_queue')
@@ -224,6 +229,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (!account.is_active) {
+      console.log('[EMAIL_DEBUG] conta inativa', {
+        jobId: job.id,
+        sending_account_id: account?.id
+      });
       if (!inactiveAccountsLogged.has(job.sending_account_id)) {
         console.warn('[queue-process] Conta SMTP inativa; jobs mantidos na fila.', {
           sendingAccountId: job.sending_account_id,
@@ -246,6 +255,10 @@ export async function GET(req: NextRequest) {
     const quota = accountQuota.get(job.sending_account_id);
     if (quota) {
       if (quota.hourlySent >= quota.hourlyLimit) {
+        console.log('[EMAIL_DEBUG] limite horario atingido', {
+          jobId: job.id,
+          sending_account_id: account.id
+        });
         if (!hourlyLimitLogged.has(job.sending_account_id)) {
           console.warn('[queue-process] Limite horário da conta SMTP atingido; jobs mantidos na fila.', {
             sendingAccountId: job.sending_account_id,
@@ -268,6 +281,10 @@ export async function GET(req: NextRequest) {
       }
 
       if (quota.dailySent >= quota.dailyLimit) {
+        console.log('[EMAIL_DEBUG] limite diario atingido', {
+          jobId: job.id,
+          sending_account_id: account.id
+        });
         if (!dailyLimitLogged.has(job.sending_account_id)) {
           console.warn('[queue-process] Limite diário da conta SMTP atingido; jobs mantidos na fila.', {
             sendingAccountId: job.sending_account_id,
@@ -298,6 +315,10 @@ export async function GET(req: NextRequest) {
         job.recipient_email,
       );
 
+      console.log('[EMAIL_DEBUG] enviando email', {
+        jobId: job.id,
+        to: job.recipient_email
+      });
       await sendEmail(supabase, account, {
         to: job.recipient_email,
         subject: substituteVars(campaign.subject!, job.recipient_name, job.municipality, job.state, mayor),
