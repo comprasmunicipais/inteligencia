@@ -51,13 +51,15 @@ export const accountService = {
           .select('municipality_id')
           .not('municipality_id', 'is', null);
 
-        const ids = [...new Set((oppMunicipalities || []).map(o => o.municipality_id))];
+        const municipalityIds = [...new Set((oppMunicipalities || []).map(o => o.municipality_id))];
 
-        if (ids.length === 0) {
-          return { data: [], count: 0 };
+        if (municipalityIds.length === 0) {
+          query = query.in('id', ['__none__']);
+        } else {
+          // Limita a 500 IDs para evitar falha silenciosa do Supabase
+          const chunk = municipalityIds.slice(0, 500);
+          query = query.in('id', chunk);
         }
-
-        query = query.in('id', ids);
       }
     }
 
