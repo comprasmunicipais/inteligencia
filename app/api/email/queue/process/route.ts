@@ -10,6 +10,9 @@ import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 300;
+const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
+const HOURLY_LIMIT_RETRY_MINUTES = 10;
+const DAILY_LIMIT_RETRY_HOURS = 24;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
@@ -60,6 +63,10 @@ function maskEmail(email: string): string {
   const [localPart = '', domain = ''] = email.split('@');
   const visibleLocal = localPart.slice(0, 2);
   return `${visibleLocal || '**'}***@${domain || 'redacted'}`;
+}
+
+function getDeferredAttemptIso(minutesFromNow: number): string {
+  return new Date(Date.now() + minutesFromNow * 60 * 1000).toISOString();
 }
 
 async function countSentForWindow(
@@ -226,7 +233,11 @@ export async function GET(req: NextRequest) {
 
       await supabase
         .from('email_job_queue')
-        .update({ status: 'pending', claimed_at: null })
+        .update({
+          status: 'pending',
+          claimed_at: null,
+          next_attempt_at: getDeferredAttemptIso(INACTIVE_ACCOUNT_RETRY_MINUTES),
+        })
         .eq('id', job.id);
 
       continue;
@@ -246,7 +257,11 @@ export async function GET(req: NextRequest) {
 
         await supabase
           .from('email_job_queue')
-          .update({ status: 'pending', claimed_at: null })
+          .update({
+            status: 'pending',
+            claimed_at: null,
+            next_attempt_at: getDeferredAttemptIso(HOURLY_LIMIT_RETRY_MINUTES),
+          })
           .eq('id', job.id);
 
         continue;
@@ -264,7 +279,11 @@ export async function GET(req: NextRequest) {
 
         await supabase
           .from('email_job_queue')
-          .update({ status: 'pending', claimed_at: null })
+          .update({
+            status: 'pending',
+            claimed_at: null,
+            next_attempt_at: getDeferredAttemptIso(DAILY_LIMIT_RETRY_HOURS * 60),
+          })
           .eq('id', job.id);
 
         continue;
@@ -293,7 +312,11 @@ export async function GET(req: NextRequest) {
 
       await supabase
         .from('email_job_queue')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          next_attempt_at: null,
+        })
         .eq('id', job.id);
 
       sent++;
