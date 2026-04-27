@@ -94,6 +94,7 @@ async function countSentForWindow(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  const debug = [];
   // ── 1. Auth via CRON_SECRET ─────────────────────────────────────────────
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization') ?? '';
@@ -213,6 +214,7 @@ export async function GET(req: NextRequest) {
     const campaign = campaignMap.get(job.campaign_id);
 
     if (!account || !campaign) {
+      debug.push('job_sem_account_ou_campaign');
       console.log('[EMAIL_DEBUG] job sem account ou campaign', {
         jobId: job.id,
         sending_account_id: job.sending_account_id,
@@ -229,6 +231,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!account.is_active) {
+      debug.push('conta_inativa');
       console.log('[EMAIL_DEBUG] conta inativa', {
         jobId: job.id,
         sending_account_id: account?.id
@@ -255,6 +258,7 @@ export async function GET(req: NextRequest) {
     const quota = accountQuota.get(job.sending_account_id);
     if (quota) {
       if (quota.hourlySent >= quota.hourlyLimit) {
+        debug.push('limite_horario');
         console.log('[EMAIL_DEBUG] limite horario atingido', {
           jobId: job.id,
           sending_account_id: account.id
@@ -281,6 +285,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (quota.dailySent >= quota.dailyLimit) {
+        debug.push('limite_diario');
         console.log('[EMAIL_DEBUG] limite diario atingido', {
           jobId: job.id,
           sending_account_id: account.id
@@ -315,6 +320,7 @@ export async function GET(req: NextRequest) {
         job.recipient_email,
       );
 
+      debug.push('tentando_enviar');
       console.log('[EMAIL_DEBUG] enviando email', {
         jobId: job.id,
         to: job.recipient_email
@@ -383,5 +389,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ processed: jobs.length, sent, failed });
+  return NextResponse.json({ processed: jobs.length, sent, failed, debug });
 }
