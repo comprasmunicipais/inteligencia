@@ -9,6 +9,7 @@ import {
   sanitizeGoogleOAuthError,
   validateGoogleOAuthState,
 } from '@/lib/email/google-oauth';
+import { encryptEmailSettingSecret } from '@/lib/security/email-settings-crypto';
 
 const REDIRECT_PATH = '/email/accounts';
 
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
       sender_email: oauthEmail,
       reply_to_email: null,
       smtp_username: oauthEmail,
+      smtp_password_encrypted: encryptEmailSettingSecret('GOOGLE_OAUTH_ACCOUNT'),
       smtp_host: 'smtp.gmail.com',
       smtp_port: 587,
       smtp_secure: false,
