@@ -17,14 +17,11 @@ const CODIGOS_COMPRAS_GOV = {
   'luva de procedimento': { tipo: 'material', codigo: '269892' },
   'mascara descartavel': { tipo: 'material', codigo: '341922' },
   'alcool 70': { tipo: 'material', codigo: '383664' },
-  'manutencao de ar-condicionado': { tipo: 'servico', codigo: '20060' },
-  'limpeza predial': { tipo: 'servico', codigo: '24023' },
-  'dedetizacao': { tipo: 'servico', codigo: '13595' },
 };
 
 const BASE_URLS = {
   material: 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial',
-  servico: 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarServico',
+  servico: 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/3_consultarServico',
 };
 
 const SPEC_URLS = [
@@ -37,6 +34,8 @@ const SPEC_URLS = [
 ];
 
 const KEYWORDS = ['pesquisa', 'preco', 'precos', 'material', 'servico', 'catmat', 'catser'];
+const CATSER_DISCOVERY_TERMS = ['catalogo', 'servico', 'catser', 'itemcatalogo', 'codigoitemcatalogo'];
+const TEXT_SEARCH_TERMS = ['descricao', 'nome', 'texto', 'termo', 'pesquisa', 'palavra', 'titulo'];
 
 function normalizeText(value) {
   return String(value || '')
@@ -104,6 +103,7 @@ async function diagnosticarSpecUrl(url) {
       statusHttp: response.status,
       jsonValido: Boolean(json),
       endpoints,
+      spec: json,
     };
   } catch (error) {
     const mensagem = error instanceof Error ? error.message : String(error);
@@ -138,6 +138,49 @@ function coletarEndpointsEncontrados(diagnosticos) {
   }
 
   return Array.from(unicos);
+}
+
+function encontrarSpecPrincipal(diagnosticos) {
+  return (
+    diagnosticos.find((diagnostico) => diagnostico.url === 'https://dadosabertos.compras.gov.br/v3/api-docs' && diagnostico.spec)
+    ?? diagnosticos.find((diagnostico) => diagnostico.spec)
+    ?? null
+  );
+}
+
+function extrairParametros(operation) {
+  return (operation?.parameters || []).map((parameter) => ({
+    nome: parameter.name,
+    local: parameter.in,
+    descricao: parameter.description || '',
+  }));
+}
+
+function encontrarEndpointsCandidatosCatser(paths) {
+  if (!paths || typeof paths !== 'object') return [];
+
+  return Object.entries(paths)
+    .filter(([path]) => {
+      const normalizedPath = normalizeText(path);
+      return CATSER_DISCOVERY_TERMS.some((term) => normalizedPath.includes(term));
+    })
+    .map(([path, methods]) => {
+      const operation = methods?.get;
+      const parametros = extrairParametros(operation);
+      const normalizedFields = parametros.map((parameter) =>
+        normalizeText(`${parameter.nome} ${parameter.descricao}`),
+      );
+      const permiteBuscaPorTexto = normalizedFields.some((field) =>
+        TEXT_SEARCH_TERMS.some((term) => field.includes(term)),
+      );
+
+      return {
+        path,
+        operationId: operation?.operationId || 'sem_operation_id',
+        parametros,
+        permiteBuscaPorTexto,
+      };
+    });
 }
 
 function endpointConsultaFoiConfirmado(endpoints) {
@@ -206,6 +249,18 @@ async function consultarItem({ item, segmento }) {
   }
 }
 
+function criarResultadoPendenteCatser(item, segmento) {
+  return {
+    item,
+    segmento,
+    fonte: 'compras_gov',
+    quantidade_resultados: 0,
+    preco_exemplo: null,
+    status: 'pendente_codigo_catser',
+    observacoes: 'CATSER não descoberto automaticamente nesta execução',
+  };
+}
+
 function criarRelatorioSemEndpointConfirmado() {
   return ITENS.map(({ item, segmento }) => ({
     item,
@@ -238,18 +293,46 @@ function imprimirDiagnostico(diagnosticos, endpointsEncontrados) {
   }
 }
 
+function imprimirCandidatosCatser(candidatos) {
+  console.log('\nEndpoints candidatos para descoberta de CATSER:');
+
+  if (candidatos.length === 0) {
+    console.log('- nenhum endpoint candidato encontrado');
+    return;
+  }
+
+  for (const candidato of candidatos) {
+    const parametros = candidato.parametros
+      .map((parameter) => `${parameter.local}:${parameter.nome}`)
+      .join(', ');
+    console.log(
+      `- ${candidato.path} | operationId=${candidato.operationId} | permiteBuscaPorTexto=${candidato.permiteBuscaPorTexto} | parametros=${parametros}`,
+    );
+  }
+}
+
 async function main() {
   const diagnosticos = await diagnosticarSpecs();
   const endpointsEncontrados = coletarEndpointsEncontrados(diagnosticos);
+  const specPrincipal = encontrarSpecPrincipal(diagnosticos);
+  const candidatosCatser = encontrarEndpointsCandidatosCatser(specPrincipal?.spec?.paths);
   const consultaConfirmada = endpointConsultaFoiConfirmado(endpointsEncontrados);
 
   imprimirDiagnostico(diagnosticos, endpointsEncontrados);
+  imprimirCandidatosCatser(candidatosCatser);
 
   const relatorio = [];
 
   if (consultaConfirmada) {
     for (const item of ITENS) {
-      relatorio.push(await consultarItem(item));
+      const mapeamento = CODIGOS_COMPRAS_GOV[item.item];
+
+      if (mapeamento?.tipo === 'material') {
+        relatorio.push(await consultarItem(item));
+        continue;
+      }
+
+      relatorio.push(criarResultadoPendenteCatser(item.item, item.segmento));
     }
   } else {
     relatorio.push(...criarRelatorioSemEndpointConfirmado());
