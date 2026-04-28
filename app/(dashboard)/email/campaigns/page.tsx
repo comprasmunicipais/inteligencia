@@ -219,7 +219,7 @@ export default function EmailCampaignsPage() {
   const sentCampaignsCount = campaigns.filter((c) => c.status === 'Ativa' || c.status === 'Enviada').length;
 
   return (
-    <div className="min-h-full bg-[#f8fafc] p-6">
+    <div className="min-h-full overflow-y-auto bg-[#f8fafc] p-6">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-[#0f172a]">Campanhas</h1>
