@@ -95,6 +95,7 @@ async function countSentForWindow(
 
 export async function GET(req: NextRequest) {
   const debug = [];
+  const errors = [];
   // ── 1. Auth via CRON_SECRET ─────────────────────────────────────────────
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization') ?? '';
@@ -353,10 +354,15 @@ export async function GET(req: NextRequest) {
       }
       await supabase.rpc('increment_emails_used', { company_id_param: job.company_id });
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
-      } catch (err) {
+      } catch (error: any) {
+        errors.push({
+          jobId: job.id,
+          email: job.recipient_email,
+          error: error.message
+        });
         console.error('[queue-process] Falha para destinatário:', {
           recipient: maskEmail(job.recipient_email),
-          error: sanitizeSmtpError(err),
+          error: sanitizeSmtpError(error),
         });
 
       await supabase
@@ -389,5 +395,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ processed: jobs.length, sent, failed, debug });
+  return NextResponse.json({ processed: jobs.length, sent, failed, debug, errors });
 }
