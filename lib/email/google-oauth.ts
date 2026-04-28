@@ -9,7 +9,7 @@ const GOOGLE_TOKEN_INFO_URL = 'https://www.googleapis.com/oauth2/v3/tokeninfo';
 const GOOGLE_GMAIL_PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 const STATE_COOKIE = 'cm_google_oauth_state';
-const GMAIL_SEND_SCOPE = 'openid email profile https://www.googleapis.com/auth/gmail.send';
+const GMAIL_SEND_SCOPE = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.send';
 const REFRESH_WINDOW_MS = 5 * 60 * 1000;
 
 type SupabaseClientLike = {
