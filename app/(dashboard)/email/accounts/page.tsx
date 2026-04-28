@@ -357,6 +357,9 @@ export default function EmailAccountsPage() {
                 Como configurar SPF e DKIM
               </a>
             </p>
+            <p className="text-xs text-slate-500">
+              Importante: contas Gmail pessoais podem ter bloqueios de envio. Para melhor entrega, utilize um e-mail com domínio próprio (Google Workspace).
+            </p>
           </div>
           <div className="flex gap-2">
             <a
