@@ -36,6 +36,8 @@ const SPEC_URLS = [
 const KEYWORDS = ['pesquisa', 'preco', 'precos', 'material', 'servico', 'catmat', 'catser'];
 const CATSER_DISCOVERY_TERMS = ['catalogo', 'servico', 'catser', 'itemcatalogo', 'codigoitemcatalogo'];
 const TEXT_SEARCH_TERMS = ['descricao', 'nome', 'texto', 'termo', 'pesquisa', 'palavra', 'titulo'];
+const PNCP_BASE_URL = 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao';
+const PNCP_TIMEOUT_MS = 8000;
 
 function normalizeText(value) {
   return String(value || '')
@@ -73,6 +75,116 @@ function extrairPrimeiroPreco(registros) {
 
   const preco = candidatos.find((valor) => valor !== undefined && valor !== null && valor !== '');
   return preco ?? null;
+}
+
+function formatDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function montarUrlPncp(palavraChave) {
+  const hoje = new Date();
+  const inicio = new Date(hoje);
+  inicio.setDate(inicio.getDate() - 30);
+
+  const url = new URL(PNCP_BASE_URL);
+  url.searchParams.set('dataInicial', formatDate(inicio));
+  url.searchParams.set('dataFinal', formatDate(hoje));
+  url.searchParams.set('palavraChave', palavraChave);
+  url.searchParams.set('tamanhoPagina', '10');
+  return url.toString();
+}
+
+function extrairRegistrosPncp(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.resultado)) return payload.resultado;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.conteudo)) return payload.conteudo;
+  return [];
+}
+
+function extrairPrimeiroValorPncp(registros) {
+  if (!Array.isArray(registros) || registros.length === 0) return null;
+
+  const primeiroRegistro = registros[0];
+  const candidatos = [
+    primeiroRegistro.valorTotalEstimado,
+    primeiroRegistro.valorTotalHomologado,
+    primeiroRegistro.valorEstimado,
+    primeiroRegistro.valorHomologado,
+    primeiroRegistro.valorGlobalEstimado,
+    primeiroRegistro.valorGlobalHomologado,
+    primeiroRegistro.valorTotal,
+    primeiroRegistro.valor,
+  ];
+
+  const valor = candidatos.find((item) => item !== undefined && item !== null && item !== '');
+  return valor ?? null;
+}
+
+async function consultarPncp(item) {
+  const url = montarUrlPncp(item);
+
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(PNCP_TIMEOUT_MS) });
+    const body = await response.text();
+
+    let payload = null;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      const mensagemErro =
+        payload?.message || payload?.detail || payload?.error || `HTTP ${response.status}`;
+
+      return {
+        quantidade_resultados: 0,
+        preco_exemplo: null,
+        status: 'erro',
+        observacoes: mensagemErro,
+      };
+    }
+
+    const registros = extrairRegistrosPncp(payload);
+    const precoExemplo = extrairPrimeiroValorPncp(registros);
+
+    if (registros.length === 0) {
+      return {
+        quantidade_resultados: 0,
+        preco_exemplo: null,
+        status: 'sem_preco',
+        observacoes: '',
+      };
+    }
+
+    if (precoExemplo === null) {
+      return {
+        quantidade_resultados: registros.length,
+        preco_exemplo: null,
+        status: 'sem_preco',
+        observacoes: '',
+      };
+    }
+
+    return {
+      quantidade_resultados: registros.length,
+      preco_exemplo: precoExemplo,
+      status: 'ok',
+      observacoes: '',
+    };
+  } catch (error) {
+    const mensagem = error instanceof Error ? error.message : String(error);
+
+    return {
+      quantidade_resultados: 0,
+      preco_exemplo: null,
+      status: 'erro',
+      observacoes: mensagem,
+    };
+  }
 }
 
 function extrairEndpointsRelacionados(paths) {
@@ -348,6 +460,23 @@ function imprimirRelatorioExecutivo(relatorio) {
   );
 }
 
+function imprimirRelatorioExecutivoPncp(relatorio) {
+  const pncpResultados = relatorio.map((item) => item.fonte_pncp).filter(Boolean);
+  const itensComResultados = pncpResultados.filter((item) => item.quantidade_resultados > 0).length;
+  const itensComPrecoIdentificado = pncpResultados.filter((item) => item.status === 'ok').length;
+  const itensSemPreco = pncpResultados.filter((item) => item.status === 'sem_preco').length;
+  const conclusao =
+    itensComPrecoIdentificado > 0
+      ? 'PNCP é fonte complementar viável para expansão de cobertura'
+      : 'PNCP possui baixa qualidade de preço para uso direto';
+
+  console.log('\nRELATÓRIO EXECUTIVO — PNCP');
+  console.log(`1. Total de itens com resultados: ${itensComResultados}`);
+  console.log(`2. Itens com preço identificado: ${itensComPrecoIdentificado}`);
+  console.log(`3. Itens sem preço: ${itensSemPreco}`);
+  console.log(`4. Conclusão automática: ${conclusao}`);
+}
+
 async function main() {
   const diagnosticos = await diagnosticarSpecs();
   const endpointsEncontrados = coletarEndpointsEncontrados(diagnosticos);
@@ -361,18 +490,35 @@ async function main() {
   const relatorio = [];
 
   if (consultaConfirmada) {
-    for (const item of ITENS) {
-      const mapeamento = CODIGOS_COMPRAS_GOV[item.item];
+    relatorio.push(
+      ...(await Promise.all(
+        ITENS.map(async (item) => {
+          const mapeamento = CODIGOS_COMPRAS_GOV[item.item];
+          const fontePncp = await consultarPncp(item.item);
 
-      if (mapeamento?.tipo === 'material') {
-        relatorio.push(await consultarItem(item));
-        continue;
-      }
+          if (mapeamento?.tipo === 'material') {
+            return {
+              ...(await consultarItem(item)),
+              fonte_pncp: fontePncp,
+            };
+          }
 
-      relatorio.push(criarResultadoPendenteCatser(item.item, item.segmento));
-    }
+          return {
+            ...criarResultadoPendenteCatser(item.item, item.segmento),
+            fonte_pncp: fontePncp,
+          };
+        }),
+      )),
+    );
   } else {
-    relatorio.push(...criarRelatorioSemEndpointConfirmado());
+    relatorio.push(
+      ...(await Promise.all(
+        criarRelatorioSemEndpointConfirmado().map(async (item) => ({
+          ...item,
+          fonte_pncp: await consultarPncp(item.item),
+        })),
+      )),
+    );
   }
 
   console.log('\nRelatorio final:');
@@ -386,6 +532,7 @@ async function main() {
   }
 
   imprimirRelatorioExecutivo(relatorio);
+  imprimirRelatorioExecutivoPncp(relatorio);
 }
 
 main().catch((error) => {
