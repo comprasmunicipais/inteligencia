@@ -27,13 +27,35 @@ const BASE_URLS = {
   servico: 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarServico',
 };
 
+const SPEC_URLS = [
+  'https://dadosabertos.compras.gov.br/swagger-ui/index.html',
+  'https://dadosabertos.compras.gov.br/v3/api-docs',
+  'https://dadosabertos.compras.gov.br/v3/api-docs/swagger-config',
+  'https://dadosabertos.compras.gov.br/api-docs',
+  'https://dadosabertos.compras.gov.br/openapi.json',
+  'https://dadosabertos.compras.gov.br/swagger.json',
+];
+
+const KEYWORDS = ['pesquisa', 'preco', 'precos', 'material', 'servico', 'catmat', 'catser'];
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function montarUrl(tipo, codigo) {
   const baseUrl = BASE_URLS[tipo];
   if (!baseUrl) {
     throw new Error(`Tipo de consulta invalido: ${tipo}`);
   }
 
-  return `${baseUrl}/${codigo}/resultados`;
+  const url = new URL(baseUrl);
+  url.searchParams.set('codigoItemCatalogo', codigo);
+  url.searchParams.set('pagina', '1');
+  url.searchParams.set('tamanhoPagina', '10');
+  return url.toString();
 }
 
 function extrairPrimeiroPreco(registros) {
@@ -52,6 +74,81 @@ function extrairPrimeiroPreco(registros) {
 
   const preco = candidatos.find((valor) => valor !== undefined && valor !== null && valor !== '');
   return preco ?? null;
+}
+
+function extrairEndpointsRelacionados(paths) {
+  if (!paths || typeof paths !== 'object') return [];
+
+  return Object.keys(paths).filter((path) => {
+    const normalizedPath = normalizeText(path);
+    return KEYWORDS.some((keyword) => normalizedPath.includes(keyword));
+  });
+}
+
+async function diagnosticarSpecUrl(url) {
+  try {
+    const response = await fetch(url);
+    const body = await response.text();
+
+    let json = null;
+    try {
+      json = JSON.parse(body);
+    } catch {
+      json = null;
+    }
+
+    const endpoints = json ? extrairEndpointsRelacionados(json.paths) : [];
+
+    return {
+      url,
+      statusHttp: response.status,
+      jsonValido: Boolean(json),
+      endpoints,
+    };
+  } catch (error) {
+    const mensagem = error instanceof Error ? error.message : String(error);
+
+    return {
+      url,
+      statusHttp: 'erro_fetch',
+      jsonValido: false,
+      endpoints: [],
+      erro: mensagem,
+    };
+  }
+}
+
+async function diagnosticarSpecs() {
+  const resultados = [];
+
+  for (const url of SPEC_URLS) {
+    resultados.push(await diagnosticarSpecUrl(url));
+  }
+
+  return resultados;
+}
+
+function coletarEndpointsEncontrados(diagnosticos) {
+  const unicos = new Set();
+
+  for (const diagnostico of diagnosticos) {
+    for (const endpoint of diagnostico.endpoints) {
+      unicos.add(endpoint);
+    }
+  }
+
+  return Array.from(unicos);
+}
+
+function endpointConsultaFoiConfirmado(endpoints) {
+  return endpoints.some((endpoint) => {
+    const normalized = normalizeText(endpoint);
+    return (
+      normalized.includes('consultarmaterial') ||
+      normalized.includes('consultarservico') ||
+      normalized.includes('modulo-pesquisa-preco')
+    );
+  });
 }
 
 async function consultarItem({ item, segmento }) {
@@ -79,7 +176,11 @@ async function consultarItem({ item, segmento }) {
     }
 
     const data = await response.json();
-    const registros = Array.isArray(data) ? data : [];
+    const registros = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.resultado)
+        ? data.resultado
+        : [];
 
     return {
       item,
@@ -105,14 +206,56 @@ async function consultarItem({ item, segmento }) {
   }
 }
 
-async function main() {
-  const relatorio = [];
+function criarRelatorioSemEndpointConfirmado() {
+  return ITENS.map(({ item, segmento }) => ({
+    item,
+    segmento,
+    fonte: 'compras_gov',
+    quantidade_resultados: 0,
+    preco_exemplo: null,
+    status: 'erro_endpoint_nao_confirmado',
+    observacoes: 'Nenhum endpoint JSON valido de precos praticados foi confirmado na especificacao publica.',
+  }));
+}
 
-  for (const item of ITENS) {
-    const resultado = await consultarItem(item);
-    relatorio.push(resultado);
+function imprimirDiagnostico(diagnosticos, endpointsEncontrados) {
+  console.log('URLs testadas:');
+  for (const diagnostico of diagnosticos) {
+    const sufixoErro = diagnostico.erro ? `, erro=${diagnostico.erro}` : '';
+    console.log(
+      `- ${diagnostico.url} -> status=${diagnostico.statusHttp}, jsonValido=${diagnostico.jsonValido}${sufixoErro}`,
+    );
   }
 
+  console.log('\nEndpoints encontrados relacionados a precos praticados:');
+  if (endpointsEncontrados.length === 0) {
+    console.log('- nenhum endpoint relacionado encontrado');
+    return;
+  }
+
+  for (const endpoint of endpointsEncontrados) {
+    console.log(`- ${endpoint}`);
+  }
+}
+
+async function main() {
+  const diagnosticos = await diagnosticarSpecs();
+  const endpointsEncontrados = coletarEndpointsEncontrados(diagnosticos);
+  const consultaConfirmada = endpointConsultaFoiConfirmado(endpointsEncontrados);
+
+  imprimirDiagnostico(diagnosticos, endpointsEncontrados);
+
+  const relatorio = [];
+
+  if (consultaConfirmada) {
+    for (const item of ITENS) {
+      relatorio.push(await consultarItem(item));
+    }
+  } else {
+    relatorio.push(...criarRelatorioSemEndpointConfirmado());
+  }
+
+  console.log('\nRelatorio final:');
   console.log(JSON.stringify(relatorio, null, 2));
   console.log('\nResumo por item:');
 
