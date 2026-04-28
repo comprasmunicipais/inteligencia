@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
       sender_name: oauthEmail,
       sender_email: oauthEmail,
       reply_to_email: null,
+      smtp_username: oauthEmail,
       smtp_host: 'smtp.gmail.com',
       smtp_port: 587,
       smtp_secure: false,
