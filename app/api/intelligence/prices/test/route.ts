@@ -3,11 +3,9 @@ import { NextRequest } from 'next/server';
 const COMPRAS_GOV_URL = 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial';
 
 const ITEM_MAP: Record<string, { item: string; codigo: string }> = {
-  papel: { item: 'papel A4', codigo: '150119' },
   caneta: { item: 'caneta esferografica azul', codigo: '233255' },
   toner: { item: 'toner impressora HP', codigo: '150422' },
   luva: { item: 'luva de procedimento', codigo: '269892' },
-  mascara: { item: 'mascara descartavel', codigo: '341922' },
   alcool: { item: 'alcool 70', codigo: '383664' },
 };
 
