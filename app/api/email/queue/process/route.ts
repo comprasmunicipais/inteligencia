@@ -10,6 +10,7 @@ import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 300;
+const DEFAULT_CRON_INTERVAL_MINUTES = 5;
 const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
 const DAILY_LIMIT_RETRY_HOURS = 24;
@@ -105,11 +106,57 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createAdminClient();
 
+  const cronIntervalMinutesRaw = Number(process.env.CRON_INTERVAL_MINUTES);
+  const cronIntervalMinutes =
+    Number.isFinite(cronIntervalMinutesRaw) && cronIntervalMinutesRaw > 0
+      ? cronIntervalMinutesRaw
+      : DEFAULT_CRON_INTERVAL_MINUTES;
+
+  const { data: nextPendingJob, error: nextPendingJobError } = await supabase
+    .from('email_job_queue')
+    .select('sending_account_id')
+    .eq('status', 'pending')
+    .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (nextPendingJobError) {
+    console.error('[queue-process] Erro ao identificar proximo job elegivel:', nextPendingJobError.message);
+    return NextResponse.json({ error: nextPendingJobError.message }, { status: 500 });
+  }
+
+  if (!nextPendingJob?.sending_account_id) {
+    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: 0 });
+  }
+
+  const { data: sendingAccount, error: sendingAccountError } = await supabase
+    .from('email_sending_accounts')
+    .select('hourly_limit')
+    .eq('id', nextPendingJob.sending_account_id)
+    .maybeSingle();
+
+  if (sendingAccountError) {
+    console.error('[queue-process] Erro ao buscar hourly_limit da conta:', sendingAccountError.message);
+    return NextResponse.json({ error: sendingAccountError.message }, { status: 500 });
+  }
+
+  const hourlyLimit = sendingAccount?.hourly_limit ?? 50;
+  const limitPerRun = Math.min(
+    BATCH_SIZE,
+    Math.floor(hourlyLimit / (60 / cronIntervalMinutes)),
+  );
+
+  if (limitPerRun <= 0) {
+    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: hourlyLimit });
+  }
+
   // ── 2. Atomically claim up to BATCH_SIZE pending jobs ───────────────────
   // UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING *
   // guarantees two concurrent workers never claim the same job.
   const { data: jobs, error: jobsError } = await supabase.rpc('claim_email_jobs', {
-    p_limit: BATCH_SIZE,
+    p_limit: limitPerRun,
+    p_sending_account_id: nextPendingJob.sending_account_id,
   });
 
   if (jobsError) {
@@ -118,7 +165,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!jobs || jobs.length === 0) {
-    return NextResponse.json({ processed: 0, sent: 0, failed: 0 });
+    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: limitPerRun, hourly_limit: hourlyLimit });
   }
 
   // ── 3. Group jobs by sending_account_id to reuse transporters ──────────
@@ -395,5 +442,13 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ processed: jobs.length, sent, failed, debug, errors });
+  return NextResponse.json({
+    processed: jobs.length,
+    sent,
+    failed,
+    limit_per_run: limitPerRun,
+    hourly_limit: hourlyLimit,
+    debug,
+    errors,
+  });
 }
