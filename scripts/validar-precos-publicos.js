@@ -311,6 +311,43 @@ function imprimirCandidatosCatser(candidatos) {
   }
 }
 
+function imprimirRelatorioExecutivo(relatorio) {
+  const totalItensTestados = relatorio.length;
+  const materiais = relatorio.filter((item) => item.status !== 'pendente_codigo_catser');
+  const servicos = relatorio.filter((item) => item.status === 'pendente_codigo_catser');
+  const materiaisComResultadoReal = materiais.filter((item) => item.quantidade_resultados > 0).length;
+  const materiaisSemResultado = materiais.filter((item) => item.quantidade_resultados === 0).length;
+  const servicosComPrecoReal = servicos.filter((item) => item.quantidade_resultados > 0).length;
+  const servicosPendentesCatser = servicos.filter((item) => item.status === 'pendente_codigo_catser').length;
+
+  const conclusoes = [];
+  if (materiaisComResultadoReal >= 2) {
+    conclusoes.push('Fonte viável para materiais em MVP controlado');
+  }
+  if (servicosPendentesCatser > 0) {
+    conclusoes.push('Serviços exigem camada adicional de mapeamento CATSER ou outra fonte complementar');
+  }
+
+  console.log('\nRELATÓRIO EXECUTIVO — COMPRAS.GOV');
+  console.log(`1. Total de itens testados: ${totalItensTestados}`);
+  console.log(`2. Total de materiais testados: ${materiais.length}`);
+  console.log(`3. Total de serviços testados: ${servicos.length}`);
+  console.log(`4. Materiais com resultado real: ${materiaisComResultadoReal}`);
+  console.log(`5. Materiais sem resultado: ${materiaisSemResultado}`);
+  console.log(`6. Serviços com preço real: ${servicosComPrecoReal}`);
+  console.log(`7. Serviços pendentes por falta de CATSER: ${servicosPendentesCatser}`);
+
+  if (conclusoes.length === 0) {
+    console.log('8. Conclusão automática: sem conclusão adicional com base na execução atual');
+  } else {
+    console.log(`8. Conclusão automática: ${conclusoes.join(' | ')}`);
+  }
+
+  console.log(
+    '9. Próxima recomendação automática: Avançar para validação PNCP como segunda fonte complementar, mantendo a funcionalidade 100% isolada do MVP.',
+  );
+}
+
 async function main() {
   const diagnosticos = await diagnosticarSpecs();
   const endpointsEncontrados = coletarEndpointsEncontrados(diagnosticos);
@@ -347,6 +384,8 @@ async function main() {
       `- ${item.item}: status=${item.status}, resultados=${item.quantidade_resultados}, preco_exemplo=${item.preco_exemplo ?? 'null'}`,
     );
   }
+
+  imprimirRelatorioExecutivo(relatorio);
 }
 
 main().catch((error) => {
