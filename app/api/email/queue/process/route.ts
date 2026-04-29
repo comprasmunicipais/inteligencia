@@ -63,6 +63,37 @@ function sanitizeSmtpError(error: unknown): string {
   return sanitizeEmailSendError(error);
 }
 
+function extractSmtpFailureDetails(error: unknown) {
+  const errorLike =
+    error && typeof error === 'object'
+      ? (error as {
+          message?: unknown;
+          code?: unknown;
+          response?: unknown;
+          responseCode?: unknown;
+        })
+      : null;
+
+  return {
+    failure_reason:
+      typeof errorLike?.message === 'string' && errorLike.message.trim()
+        ? errorLike.message
+        : null,
+    failure_code:
+      typeof errorLike?.code === 'string' && errorLike.code.trim()
+        ? errorLike.code
+        : null,
+    smtp_response:
+      typeof errorLike?.response === 'string' && errorLike.response.trim()
+        ? errorLike.response
+        : null,
+    smtp_response_code:
+      typeof errorLike?.responseCode === 'number' && Number.isInteger(errorLike.responseCode)
+        ? errorLike.responseCode
+        : null,
+  };
+}
+
 function maskEmail(email: string): string {
   const [localPart = '', domain = ''] = email.split('@');
   const visibleLocal = localPart.slice(0, 2);
@@ -552,6 +583,7 @@ export async function GET(req: NextRequest) {
       await supabase.rpc('increment_emails_used', { company_id_param: job.company_id });
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
       } catch (error: any) {
+        const failureDetails = extractSmtpFailureDetails(error);
         errors.push({
           jobId: job.id,
           email: job.recipient_email,
@@ -564,7 +596,14 @@ export async function GET(req: NextRequest) {
 
       await supabase
         .from('email_job_queue')
-        .update({ status: 'failed', sent_at: new Date().toISOString() })
+        .update({
+          status: 'failed',
+          sent_at: new Date().toISOString(),
+          failure_reason: failureDetails.failure_reason,
+          failure_code: failureDetails.failure_code,
+          smtp_response: failureDetails.smtp_response,
+          smtp_response_code: failureDetails.smtp_response_code,
+        })
         .eq('id', job.id);
 
       if (job.municipality_email_id) {
