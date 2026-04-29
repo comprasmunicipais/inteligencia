@@ -94,6 +94,52 @@ function extractSmtpFailureDetails(error: unknown) {
   };
 }
 
+function isHardBounceFailure(details: {
+  failure_reason: string | null;
+  failure_code: string | null;
+  smtp_response: string | null;
+  smtp_response_code: number | null;
+}): boolean {
+  const transientResponseCodes = new Set([421, 450, 451, 452]);
+  const permanentRecipientResponseCodes = new Set([550, 551, 552, 553, 554]);
+  const excludedFailureCodes = new Set(['EAUTH', 'ECONNECTION', 'ETIMEDOUT']);
+  const permanentRecipientMessages = [
+    'user unknown',
+    'mailbox unavailable',
+    'no such user',
+    'recipient rejected',
+    'address rejected',
+    'invalid recipient',
+    'account disabled',
+    'mailbox not found',
+  ];
+
+  if (details.failure_code && excludedFailureCodes.has(details.failure_code.toUpperCase())) {
+    return false;
+  }
+
+  if (
+    details.smtp_response_code !== null &&
+    transientResponseCodes.has(details.smtp_response_code)
+  ) {
+    return false;
+  }
+
+  if (
+    details.smtp_response_code === null ||
+    !permanentRecipientResponseCodes.has(details.smtp_response_code)
+  ) {
+    return false;
+  }
+
+  const combinedMessage = [details.failure_reason, details.smtp_response]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  return permanentRecipientMessages.some((message) => combinedMessage.includes(message));
+}
+
 function maskEmail(email: string): string {
   const [localPart = '', domain = ''] = email.split('@');
   const visibleLocal = localPart.slice(0, 2);
@@ -584,6 +630,8 @@ export async function GET(req: NextRequest) {
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
       } catch (error: any) {
         const failureDetails = extractSmtpFailureDetails(error);
+        const isHardBounce = isHardBounceFailure(failureDetails);
+        const failureTimestamp = new Date().toISOString();
         errors.push({
           jobId: job.id,
           email: job.recipient_email,
@@ -598,7 +646,7 @@ export async function GET(req: NextRequest) {
         .from('email_job_queue')
         .update({
           status: 'failed',
-          sent_at: new Date().toISOString(),
+          sent_at: failureTimestamp,
           failure_reason: failureDetails.failure_reason,
           failure_code: failureDetails.failure_code,
           smtp_response: failureDetails.smtp_response,
@@ -611,9 +659,15 @@ export async function GET(req: NextRequest) {
           await supabase
             .from('municipality_emails')
             .update({
-              deliverability_status: 'failed',
-              deliverability_last_event_at: new Date().toISOString(),
-              deliverability_last_failure_at: new Date().toISOString(),
+              deliverability_status: isHardBounce ? 'hard_bounce' : 'failed',
+              deliverability_last_event_at: failureTimestamp,
+              deliverability_last_failure_at: failureTimestamp,
+              ...(isHardBounce
+                ? {
+                    deliverability_last_failure_reason: failureDetails.failure_reason,
+                    deliverability_hard_bounced_at: failureTimestamp,
+                  }
+                : {}),
             })
             .eq('id', job.municipality_email_id)
             .is('deliverability_hard_bounced_at', null);
