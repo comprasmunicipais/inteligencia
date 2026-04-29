@@ -71,6 +71,17 @@ function getDeferredAttemptIso(minutesFromNow: number): string {
   return new Date(Date.now() + minutesFromNow * 60 * 1000).toISOString();
 }
 
+function pickRandomItems<T>(items: T[], limit: number): T[] {
+  const shuffled = [...items];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled.slice(0, limit);
+}
+
 async function countSentForWindow(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
   sendingAccountId: string,
@@ -120,32 +131,20 @@ export async function GET(req: NextRequest) {
 
   const { data: eligibleJobs, error: eligibleJobsError } = await supabase
     .from('email_job_queue')
-    .select('sending_account_id, created_at')
+    .select('sending_account_id')
     .eq('status', 'pending')
     .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
-    .order('created_at', { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(BATCH_SIZE * MAX_SENDING_ACCOUNTS_PER_RUN);
 
   if (eligibleJobsError) {
     console.error('[queue-process] Erro ao identificar contas elegiveis:', eligibleJobsError.message);
     return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
   }
 
-  const eligibleSendingAccountIds: string[] = [];
-  const seenSendingAccounts = new Set<string>();
-
-  for (const job of eligibleJobs ?? []) {
-    if (!job.sending_account_id || seenSendingAccounts.has(job.sending_account_id)) {
-      continue;
-    }
-
-    seenSendingAccounts.add(job.sending_account_id);
-    eligibleSendingAccountIds.push(job.sending_account_id);
-
-    if (eligibleSendingAccountIds.length >= MAX_SENDING_ACCOUNTS_PER_RUN) {
-      break;
-    }
-  }
+  const eligibleSendingAccountIds = pickRandomItems(
+    [...new Set((eligibleJobs ?? []).map((job) => job.sending_account_id).filter(Boolean))],
+    MAX_SENDING_ACCOUNTS_PER_RUN,
+  );
 
   if (eligibleSendingAccountIds.length === 0) {
     return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: 0 });
