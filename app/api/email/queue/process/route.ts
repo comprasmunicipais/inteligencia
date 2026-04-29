@@ -298,6 +298,7 @@ export async function GET(req: NextRequest) {
     campaign_id: string;
     company_id: string;
     sending_account_id: string;
+    municipality_email_id?: string | null;
     recipient_email: string;
     recipient_name: string;
     municipality: string;
@@ -394,6 +395,20 @@ export async function GET(req: NextRequest) {
         .from('email_job_queue')
         .update({ status: 'failed', sent_at: new Date().toISOString() })
         .eq('id', job.id);
+
+      if (job.municipality_email_id) {
+        try {
+          await supabase
+            .from('municipality_emails')
+            .update({
+              deliverability_status: 'failed',
+              deliverability_last_event_at: new Date().toISOString(),
+              deliverability_last_failure_at: new Date().toISOString(),
+            })
+            .eq('id', job.municipality_email_id)
+            .is('deliverability_hard_bounced_at', null);
+        } catch {}
+      }
       failed++;
       campaignFailed.set(job.campaign_id, (campaignFailed.get(job.campaign_id) ?? 0) + 1);
       continue;
@@ -515,6 +530,20 @@ export async function GET(req: NextRequest) {
         })
         .eq('id', job.id);
 
+      if (job.municipality_email_id) {
+        try {
+          await supabase
+            .from('municipality_emails')
+            .update({
+              deliverability_status: 'delivered',
+              deliverability_last_event_at: new Date().toISOString(),
+              deliverability_last_success_at: new Date().toISOString(),
+            })
+            .eq('id', job.municipality_email_id)
+            .is('deliverability_hard_bounced_at', null);
+        } catch {}
+      }
+
       sent++;
       if (quota) {
         quota.hourlySent += 1;
@@ -537,6 +566,20 @@ export async function GET(req: NextRequest) {
         .from('email_job_queue')
         .update({ status: 'failed', sent_at: new Date().toISOString() })
         .eq('id', job.id);
+
+      if (job.municipality_email_id) {
+        try {
+          await supabase
+            .from('municipality_emails')
+            .update({
+              deliverability_status: 'failed',
+              deliverability_last_event_at: new Date().toISOString(),
+              deliverability_last_failure_at: new Date().toISOString(),
+            })
+            .eq('id', job.municipality_email_id)
+            .is('deliverability_hard_bounced_at', null);
+        } catch {}
+      }
 
       failed++;
       campaignFailed.set(job.campaign_id, (campaignFailed.get(job.campaign_id) ?? 0) + 1);
