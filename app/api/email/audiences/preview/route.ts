@@ -252,7 +252,8 @@ export async function GET(request: NextRequest) {
 
     let baseCountQuery = supabase
       .from('municipality_emails')
-      .select('id', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .neq('deliverability_status', 'hard_bounce');
 
     let baseDataQuery = supabase.from('municipality_emails').select(`
         id,
@@ -269,7 +270,8 @@ export async function GET(request: NextRequest) {
           state,
           population_range
         )
-      `);
+      `)
+      .neq('deliverability_status', 'hard_bounce');
 
     if (state) {
       baseCountQuery = baseCountQuery.eq('state_source', state);

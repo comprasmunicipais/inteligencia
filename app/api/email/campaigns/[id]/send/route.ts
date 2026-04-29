@@ -303,6 +303,7 @@ export async function POST(
           state
         )
       `)
+      .neq('deliverability_status', 'hard_bounce')
       .order('priority_score', { ascending: false, nullsFirst: false })
       .order('email', { ascending: true });
 
