@@ -274,6 +274,23 @@ export async function GET(req: NextRequest) {
   }
 
   processed = jobs.length;
+  const claimedCampaignIds = [...new Set(jobs.map((job) => job.campaign_id).filter(Boolean))];
+
+  for (const campaignId of claimedCampaignIds) {
+    const { error: activateCampaignError } = await supabase
+      .from('email_campaigns')
+      .update({ status: 'Ativa' })
+      .eq('id', campaignId)
+      .eq('status', 'Agendada');
+
+    if (activateCampaignError) {
+      console.error('[queue-process] Erro ao ativar campanha em processamento:', {
+        campaignId,
+        error: activateCampaignError.message,
+      });
+      return NextResponse.json({ error: activateCampaignError.message }, { status: 500 });
+    }
+  }
 
   // ── 3. Group jobs by sending_account_id to reuse transporters ──────────
   type Job = {
