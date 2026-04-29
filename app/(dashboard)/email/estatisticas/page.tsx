@@ -45,9 +45,9 @@ type TrackingEvent = {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function successRate(sent: number, failed: number): number {
+function successRate(sent: number, failed: number): number | null {
   const total = sent + failed;
-  if (total === 0) return 100;
+  if (total === 0) return null;
   return Math.round((sent / total) * 100);
 }
 
@@ -82,7 +82,8 @@ function truncateLabel(name: string, maxLen = 20): string {
 
 function ChartTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
-  const d = payload[0].payload as SentCampaign & { rate: number; opens: number; clicks: number };
+  const d = payload[0].payload as SentCampaign & { rate: number | null; opens: number; clicks: number };
+  const rateColors = d.rate !== null ? rateColor(d.rate) : null;
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg text-xs min-w-[160px]">
       <p className="font-semibold text-slate-900 mb-2">{d.name}</p>
@@ -90,7 +91,12 @@ function ChartTooltip({ active, payload }: any) {
       <p className="text-slate-600">Falhas: <span className="font-medium text-red-600">{d.failed_count.toLocaleString('pt-BR')}</span></p>
       <p className="text-slate-600">Aberturas: <span className="font-medium text-violet-600">{d.opens.toLocaleString('pt-BR')}</span></p>
       <p className="text-slate-600">Cliques: <span className="font-medium text-blue-600">{d.clicks.toLocaleString('pt-BR')}</span></p>
-      <p className="text-slate-600 mt-1">Entrega: <span className={`font-medium ${rateColor(d.rate).text}`}>{d.rate}%</span></p>
+      <p className="text-slate-600 mt-1">
+        Entrega:{' '}
+        <span className={`font-medium ${rateColors?.text ?? 'text-slate-400'}`}>
+          {d.rate !== null ? `${d.rate}%` : '—'}
+        </span>
+      </p>
     </div>
   );
 }
@@ -119,7 +125,7 @@ export default function EmailEstatisticasPage() {
           supabase
             .from('email_campaigns')
             .select('id, name, objective, sent_at, sent_count, failed_count')
-            .not('sent_at', 'is', null)
+            .or('sent_count.gt.0,failed_count.gt.0')
             .order('sent_at', { ascending: false }),
           fetch('/api/email/tracking-stats'),
         ]);
@@ -270,7 +276,7 @@ export default function EmailEstatisticasPage() {
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f1f5f9' }} />
                   <Bar dataKey="sent_count" radius={[4, 4, 0, 0]} maxBarSize={48}>
                     {chartData.map((entry) => (
-                      <Cell key={entry.id} fill={rateColor(entry.rate).bar} />
+                      <Cell key={entry.id} fill={entry.rate !== null ? rateColor(entry.rate).bar : '#cbd5e1'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -308,7 +314,7 @@ export default function EmailEstatisticasPage() {
                       const opens = tracking[campaign.id]?.opens ?? 0;
                       const clicks = tracking[campaign.id]?.clicks ?? 0;
                       const rate = successRate(sent, failed);
-                      const colors = rateColor(rate);
+                      const colors = rate !== null ? rateColor(rate) : null;
 
                       return (
                         <tr key={campaign.id} className="border-b border-slate-100 last:border-0">
@@ -354,10 +360,12 @@ export default function EmailEstatisticasPage() {
                               <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-100">
                                 <div
                                   className="h-full rounded-full transition-all"
-                                  style={{ width: `${rate}%`, backgroundColor: colors.bar }}
+                                  style={{ width: `${rate ?? 0}%`, backgroundColor: colors?.bar ?? '#cbd5e1' }}
                                 />
                               </div>
-                              <span className={`text-xs font-semibold ${colors.text}`}>{rate}%</span>
+                              <span className={`text-xs font-semibold ${colors?.text ?? 'text-slate-400'}`}>
+                                {rate !== null ? `${rate}%` : '—'}
+                              </span>
                             </div>
                           </td>
                           <td className="px-5 py-4 text-right">
