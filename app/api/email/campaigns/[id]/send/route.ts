@@ -409,6 +409,7 @@ export async function POST(
         campaign_id: campaignId,
         company_id: companyId,
         sending_account_id: sendingAccountId,
+        municipality_email_id: row.id ?? null,
         recipient_email: row.email,
         recipient_name: name,
         municipality: city,
