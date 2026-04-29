@@ -15,6 +15,8 @@ const DEFAULT_CRON_INTERVAL_MINUTES = 5;
 const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
 const DAILY_LIMIT_RETRY_HOURS = 24;
+const CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES = 30;
+const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 10;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
@@ -101,6 +103,25 @@ async function countSentForWindow(
   return count ?? 0;
 }
 
+async function countFailedForWindow(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  sendingAccountId: string,
+  from: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .from('email_job_queue')
+    .select('id', { count: 'exact', head: true })
+    .eq('sending_account_id', sendingAccountId)
+    .eq('status', 'failed')
+    .gte('sent_at', from);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Route handler — called by Vercel Cron every hour
 // Auth: Authorization: Bearer <CRON_SECRET>
@@ -109,6 +130,11 @@ async function countSentForWindow(
 export async function GET(req: NextRequest) {
   const debug = [];
   const errors = [];
+  const skippedAccounts: Array<{
+    sending_account_id: string;
+    reason: 'too_many_recent_failures';
+    recent_failures: number;
+  }> = [];
   let processed = 0;
   let sent = 0;
   let failed = 0;
@@ -141,13 +167,48 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
   }
 
-  const eligibleSendingAccountIds = pickRandomItems(
+  const randomizedEligibleSendingAccountIds = pickRandomItems(
     [...new Set((eligibleJobs ?? []).map((job) => job.sending_account_id).filter(Boolean))],
-    MAX_SENDING_ACCOUNTS_PER_RUN,
+    (eligibleJobs ?? []).length,
   );
 
+  const eligibleSendingAccountIds: string[] = [];
+  const circuitBreakerWindowStart = new Date(
+    Date.now() - CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES * 60 * 1000,
+  ).toISOString();
+
+  for (const sendingAccountId of randomizedEligibleSendingAccountIds) {
+    const recentFailures = await countFailedForWindow(
+      supabase,
+      sendingAccountId,
+      circuitBreakerWindowStart,
+    );
+
+    if (recentFailures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+      skippedAccounts.push({
+        sending_account_id: sendingAccountId,
+        reason: 'too_many_recent_failures',
+        recent_failures: recentFailures,
+      });
+      continue;
+    }
+
+    eligibleSendingAccountIds.push(sendingAccountId);
+
+    if (eligibleSendingAccountIds.length >= MAX_SENDING_ACCOUNTS_PER_RUN) {
+      break;
+    }
+  }
+
   if (eligibleSendingAccountIds.length === 0) {
-    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: 0 });
+    return NextResponse.json({
+      processed: 0,
+      sent: 0,
+      failed: 0,
+      limit_per_run: 0,
+      hourly_limit: 0,
+      skipped_accounts: skippedAccounts,
+    });
   }
 
   const { data: sendingAccounts, error: sendingAccountsError } = await supabase
@@ -202,7 +263,14 @@ export async function GET(req: NextRequest) {
   }
 
   if (jobs.length === 0) {
-    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: totalLimitPerRun, hourly_limit: totalHourlyLimit });
+    return NextResponse.json({
+      processed: 0,
+      sent: 0,
+      failed: 0,
+      limit_per_run: totalLimitPerRun,
+      hourly_limit: totalHourlyLimit,
+      skipped_accounts: skippedAccounts,
+    });
   }
 
   processed = jobs.length;
@@ -484,6 +552,7 @@ export async function GET(req: NextRequest) {
     failed,
     limit_per_run: totalLimitPerRun,
     hourly_limit: totalHourlyLimit,
+    skipped_accounts: skippedAccounts,
     debug,
     errors,
   });
