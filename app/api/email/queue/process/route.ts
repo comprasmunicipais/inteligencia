@@ -10,6 +10,7 @@ import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 300;
+const MAX_SENDING_ACCOUNTS_PER_RUN = 5;
 const DEFAULT_CRON_INTERVAL_MINUTES = 5;
 const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
@@ -97,6 +98,11 @@ async function countSentForWindow(
 export async function GET(req: NextRequest) {
   const debug = [];
   const errors = [];
+  let processed = 0;
+  let sent = 0;
+  let failed = 0;
+  let totalLimitPerRun = 0;
+  let totalHourlyLimit = 0;
   // ── 1. Auth via CRON_SECRET ─────────────────────────────────────────────
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization') ?? '';
@@ -112,61 +118,95 @@ export async function GET(req: NextRequest) {
       ? cronIntervalMinutesRaw
       : DEFAULT_CRON_INTERVAL_MINUTES;
 
-  const { data: nextPendingJob, error: nextPendingJobError } = await supabase
+  const { data: eligibleJobs, error: eligibleJobsError } = await supabase
     .from('email_job_queue')
-    .select('sending_account_id')
+    .select('sending_account_id, created_at')
     .eq('status', 'pending')
     .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
     .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(BATCH_SIZE);
 
-  if (nextPendingJobError) {
-    console.error('[queue-process] Erro ao identificar proximo job elegivel:', nextPendingJobError.message);
-    return NextResponse.json({ error: nextPendingJobError.message }, { status: 500 });
+  if (eligibleJobsError) {
+    console.error('[queue-process] Erro ao identificar contas elegiveis:', eligibleJobsError.message);
+    return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
   }
 
-  if (!nextPendingJob?.sending_account_id) {
+  const eligibleSendingAccountIds: string[] = [];
+  const seenSendingAccounts = new Set<string>();
+
+  for (const job of eligibleJobs ?? []) {
+    if (!job.sending_account_id || seenSendingAccounts.has(job.sending_account_id)) {
+      continue;
+    }
+
+    seenSendingAccounts.add(job.sending_account_id);
+    eligibleSendingAccountIds.push(job.sending_account_id);
+
+    if (eligibleSendingAccountIds.length >= MAX_SENDING_ACCOUNTS_PER_RUN) {
+      break;
+    }
+  }
+
+  if (eligibleSendingAccountIds.length === 0) {
     return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: 0 });
   }
 
-  const { data: sendingAccount, error: sendingAccountError } = await supabase
+  const { data: sendingAccounts, error: sendingAccountsError } = await supabase
     .from('email_sending_accounts')
-    .select('hourly_limit')
-    .eq('id', nextPendingJob.sending_account_id)
-    .maybeSingle();
+    .select('id, hourly_limit')
+    .in('id', eligibleSendingAccountIds);
 
-  if (sendingAccountError) {
-    console.error('[queue-process] Erro ao buscar hourly_limit da conta:', sendingAccountError.message);
-    return NextResponse.json({ error: sendingAccountError.message }, { status: 500 });
+  if (sendingAccountsError) {
+    console.error('[queue-process] Erro ao buscar hourly_limit das contas:', sendingAccountsError.message);
+    return NextResponse.json({ error: sendingAccountsError.message }, { status: 500 });
   }
 
-  const hourlyLimit = sendingAccount?.hourly_limit ?? 50;
-  const limitPerRun = Math.min(
-    BATCH_SIZE,
-    Math.floor(hourlyLimit / (60 / cronIntervalMinutes)),
+  const sendingAccountLimits = new Map(
+    (sendingAccounts ?? []).map((account) => [account.id, account.hourly_limit ?? 50]),
   );
-
-  if (limitPerRun <= 0) {
-    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: 0, hourly_limit: hourlyLimit });
-  }
 
   // ── 2. Atomically claim up to BATCH_SIZE pending jobs ───────────────────
   // UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING *
   // guarantees two concurrent workers never claim the same job.
-  const { data: jobs, error: jobsError } = await supabase.rpc('claim_email_jobs', {
-    p_limit: limitPerRun,
-    p_sending_account_id: nextPendingJob.sending_account_id,
-  });
+  const jobs: any[] = [];
 
-  if (jobsError) {
-    console.error('[queue-process] Erro ao buscar jobs:', jobsError.message);
-    return NextResponse.json({ error: jobsError.message }, { status: 500 });
+  for (const sendingAccountId of eligibleSendingAccountIds) {
+    const hourlyLimit = sendingAccountLimits.get(sendingAccountId) ?? 50;
+    const limitPerRun = Math.min(
+      BATCH_SIZE,
+      Math.floor(hourlyLimit / (60 / cronIntervalMinutes)),
+    );
+
+    totalHourlyLimit += hourlyLimit;
+
+    if (limitPerRun <= 0) {
+      continue;
+    }
+
+    totalLimitPerRun += limitPerRun;
+
+    const { data: claimedJobs, error: jobsError } = await supabase.rpc('claim_email_jobs', {
+      p_limit: limitPerRun,
+      p_sending_account_id: sendingAccountId,
+    });
+
+    if (jobsError) {
+      console.error('[queue-process] Erro ao buscar jobs:', jobsError.message, {
+        sendingAccountId,
+      });
+      return NextResponse.json({ error: jobsError.message }, { status: 500 });
+    }
+
+    if (claimedJobs?.length) {
+      jobs.push(...claimedJobs);
+    }
   }
 
-  if (!jobs || jobs.length === 0) {
-    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: limitPerRun, hourly_limit: hourlyLimit });
+  if (jobs.length === 0) {
+    return NextResponse.json({ processed: 0, sent: 0, failed: 0, limit_per_run: totalLimitPerRun, hourly_limit: totalHourlyLimit });
   }
+
+  processed = jobs.length;
 
   // ── 3. Group jobs by sending_account_id to reuse transporters ──────────
   type Job = {
@@ -227,9 +267,6 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 5. Process each job ──────────────────────────────────────────────────
-  let sent = 0;
-  let failed = 0;
-
   // Track per-campaign counts for updating sent_count
   const campaignSent = new Map<string, number>();
   const campaignFailed = new Map<string, number>();
@@ -443,11 +480,11 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    processed: jobs.length,
+    processed,
     sent,
     failed,
-    limit_per_run: limitPerRun,
-    hourly_limit: hourlyLimit,
+    limit_per_run: totalLimitPerRun,
+    hourly_limit: totalHourlyLimit,
     debug,
     errors,
   });
