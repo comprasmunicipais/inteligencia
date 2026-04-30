@@ -15,8 +15,15 @@ const DEFAULT_CRON_INTERVAL_MINUTES = 5;
 const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
 const DAILY_LIMIT_RETRY_HOURS = 24;
+const DOMAIN_LIMIT_RETRY_MINUTES = 5;
 const CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES = 30;
 const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 10;
+const PUBLIC_RECIPIENT_DOMAIN_LIMITS: Record<string, number> = {
+  'gmail.com': 5,
+  'outlook.com': 5,
+  'hotmail.com': 5,
+  'yahoo.com': 3,
+};
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
@@ -144,6 +151,16 @@ function maskEmail(email: string): string {
   const [localPart = '', domain = ''] = email.split('@');
   const visibleLocal = localPart.slice(0, 2);
   return `${visibleLocal || '**'}***@${domain || 'redacted'}`;
+}
+
+function getRecipientDomain(email: string): string | null {
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex === -1 || atIndex === email.length - 1) {
+    return null;
+  }
+
+  const domain = email.slice(atIndex + 1).trim().toLowerCase();
+  return domain || null;
 }
 
 function getDeferredAttemptIso(minutesFromNow: number): string {
@@ -434,9 +451,11 @@ export async function GET(req: NextRequest) {
   const campaignFailed = new Map<string, number>();
 
   const accountQuota = new Map<string, { hourlySent: number; dailySent: number; hourlyLimit: number; dailyLimit: number }>();
+  const accountPublicDomainCounts = new Map<string, Map<string, number>>();
   const inactiveAccountsLogged = new Set<string>();
   const hourlyLimitLogged = new Set<string>();
   const dailyLimitLogged = new Set<string>();
+  const domainLimitLogged = new Set<string>();
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -571,6 +590,48 @@ export async function GET(req: NextRequest) {
 
         continue;
       }
+    }
+
+    const recipientDomain = getRecipientDomain(job.recipient_email);
+    const publicDomainLimit = recipientDomain ? PUBLIC_RECIPIENT_DOMAIN_LIMITS[recipientDomain] : undefined;
+
+    if (recipientDomain && publicDomainLimit) {
+      const accountDomainCounts = accountPublicDomainCounts.get(job.sending_account_id) ?? new Map<string, number>();
+      const domainSendCount = accountDomainCounts.get(recipientDomain) ?? 0;
+
+      if (domainSendCount >= publicDomainLimit) {
+        debug.push('limite_dominio_destinatario');
+        console.log('[EMAIL_DEBUG] limite dominio destinatario atingido', {
+          jobId: job.id,
+          sending_account_id: account.id,
+          recipient_domain: recipientDomain,
+        });
+
+        const domainLogKey = `${job.sending_account_id}:${recipientDomain}`;
+        if (!domainLimitLogged.has(domainLogKey)) {
+          console.warn('[queue-process] Limite por dominio do destinatario atingido; job mantido na fila.', {
+            sendingAccountId: job.sending_account_id,
+            recipientDomain,
+            domainSendCount,
+            publicDomainLimit,
+          });
+          domainLimitLogged.add(domainLogKey);
+        }
+
+        await supabase
+          .from('email_job_queue')
+          .update({
+            status: 'pending',
+            claimed_at: null,
+            next_attempt_at: getDeferredAttemptIso(DOMAIN_LIMIT_RETRY_MINUTES),
+          })
+          .eq('id', job.id);
+
+        continue;
+      }
+
+      accountDomainCounts.set(recipientDomain, domainSendCount + 1);
+      accountPublicDomainCounts.set(job.sending_account_id, accountDomainCounts);
     }
 
     try {
