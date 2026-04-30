@@ -278,21 +278,56 @@ export async function GET(req: NextRequest) {
       ? cronIntervalMinutesRaw
       : DEFAULT_CRON_INTERVAL_MINUTES;
 
-  const { data: eligibleJobs, error: eligibleJobsError } = await supabase
-    .from('email_job_queue')
-    .select('sending_account_id')
-    .eq('status', 'pending')
-    .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
-    .limit(BATCH_SIZE * MAX_SENDING_ACCOUNTS_PER_RUN);
+  const candidateSendingAccountIds = new Set<string>();
+  const candidateAccountTarget = MAX_SENDING_ACCOUNTS_PER_RUN * 5;
+  const eligibleJobPageSize = 250;
+  const eligibleJobPageLimit = 20;
 
-  if (eligibleJobsError) {
-    console.error('[queue-process] Erro ao identificar contas elegiveis:', eligibleJobsError.message);
-    return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
+  for (let page = 0; page < eligibleJobPageLimit; page += 1) {
+    const fromIndex = page * eligibleJobPageSize;
+    const toIndex = fromIndex + eligibleJobPageSize - 1;
+
+    const { data: eligibleJobs, error: eligibleJobsError } = await supabase
+      .from('email_job_queue')
+      .select('sending_account_id')
+      .eq('status', 'pending')
+      .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
+      .order('created_at', { ascending: true })
+      .range(fromIndex, toIndex);
+
+    if (eligibleJobsError) {
+      console.error('[queue-process] Erro ao identificar contas elegiveis:', eligibleJobsError.message);
+      return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
+    }
+
+    for (const job of eligibleJobs ?? []) {
+      if (job.sending_account_id) {
+        candidateSendingAccountIds.add(job.sending_account_id);
+      }
+    }
+
+    if ((eligibleJobs?.length ?? 0) < eligibleJobPageSize || candidateSendingAccountIds.size >= candidateAccountTarget) {
+      break;
+    }
   }
 
   const randomizedEligibleSendingAccountIds = pickRandomItems(
-    [...new Set((eligibleJobs ?? []).map((job) => job.sending_account_id).filter(Boolean))],
-    (eligibleJobs ?? []).length,
+    [...candidateSendingAccountIds],
+    candidateSendingAccountIds.size,
+  );
+
+  const { data: candidateSendingAccounts, error: candidateSendingAccountsError } = await supabase
+    .from('email_sending_accounts')
+    .select('id, is_active')
+    .in('id', randomizedEligibleSendingAccountIds);
+
+  if (candidateSendingAccountsError) {
+    console.error('[queue-process] Erro ao buscar status das contas candidatas:', candidateSendingAccountsError.message);
+    return NextResponse.json({ error: candidateSendingAccountsError.message }, { status: 500 });
+  }
+
+  const candidateSendingAccountStatus = new Map(
+    (candidateSendingAccounts ?? []).map((account) => [account.id, account.is_active]),
   );
 
   const eligibleSendingAccountIds: string[] = [];
@@ -301,6 +336,10 @@ export async function GET(req: NextRequest) {
   ).toISOString();
 
   for (const sendingAccountId of randomizedEligibleSendingAccountIds) {
+    if (candidateSendingAccountStatus.get(sendingAccountId) === false) {
+      continue;
+    }
+
     const recentFailures = await countFailedForWindow(
       supabase,
       sendingAccountId,
