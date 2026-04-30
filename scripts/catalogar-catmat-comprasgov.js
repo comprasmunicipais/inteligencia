@@ -1,17 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const TERMS = [
-  'caneta esferografica azul',
-  'luva de procedimento',
-];
-
-const CATALOG_URL = 'https://dadosabertos.compras.gov.br/modulo-material/4_consultarItemMaterial';
+const GROUP_URL = 'https://dadosabertos.compras.gov.br/modulo-material/1_consultarGrupoMaterial';
+const CLASS_URL = 'https://dadosabertos.compras.gov.br/modulo-material/2_consultarClasseMaterial';
+const ITEM_URL = 'https://dadosabertos.compras.gov.br/modulo-material/4_consultarItemMaterial';
 const PRICE_URL = 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial';
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'catalogo-catmat-validado.json');
-const CATALOG_PAGE_SIZE = 10;
-const CANDIDATE_LIMIT = 2;
+const ITEM_PAGE_SIZE = 10;
+const GROUP_LIMIT = 2;
+const CLASS_LIMIT = 2;
+const ITEM_LIMIT = 2;
 const PRICE_PAGE_SIZE = 10;
 const MAX_FETCH_ATTEMPTS = 1;
 
@@ -25,18 +24,6 @@ function buildUrl(baseUrl, params) {
   });
 
   return url.toString();
-}
-
-function normalizeSearchTerm(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-}
-
-function buildSearchVariants(term) {
-  const normalized = normalizeSearchTerm(term);
-  return normalized ? [normalized] : [];
 }
 
 async function fetchJson(url) {
@@ -78,27 +65,7 @@ async function fetchJson(url) {
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-function extractCatalogItems(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.resultado)) {
-    return payload.resultado;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  if (Array.isArray(payload?.content)) {
-    return payload.content;
-  }
-
-  return [];
-}
-
-function extractPriceItems(payload) {
+function extractApiItems(payload) {
   if (Array.isArray(payload)) {
     return payload;
   }
@@ -215,35 +182,35 @@ function getConfidence(summary) {
   return 'baixa';
 }
 
-async function fetchCatalogCandidates(term) {
-  const candidates = [];
-  const seenCodes = new Set();
+async function fetchGroups() {
+  const url = buildUrl(GROUP_URL, {
+    pagina: 1,
+  });
 
-  for (const variant of buildSearchVariants(term)) {
-    const url = buildUrl(CATALOG_URL, {
-      pagina: 1,
-      tamanhoPagina: CATALOG_PAGE_SIZE,
-      descricaoItem: variant,
-    });
+  const payload = await fetchJson(url);
+  return extractApiItems(payload);
+}
 
-    const payload = await fetchJson(url);
-    const items = extractCatalogItems(payload);
+async function fetchClassesByGroup(codigoGrupo) {
+  const url = buildUrl(CLASS_URL, {
+    pagina: 1,
+    codigoGrupo,
+  });
 
-    for (const item of items) {
-      if (!item?.codigoItem || seenCodes.has(item.codigoItem)) {
-        continue;
-      }
+  const payload = await fetchJson(url);
+  return extractApiItems(payload);
+}
 
-      seenCodes.add(item.codigoItem);
-      candidates.push(item);
+async function fetchItemsByGroupAndClass(codigoGrupo, codigoClasse) {
+  const url = buildUrl(ITEM_URL, {
+    pagina: 1,
+    tamanhoPagina: ITEM_PAGE_SIZE,
+    codigoGrupo,
+    codigoClasse,
+  });
 
-      if (candidates.length >= CANDIDATE_LIMIT) {
-        return candidates;
-      }
-    }
-  }
-
-  return candidates;
+  const payload = await fetchJson(url);
+  return extractApiItems(payload);
 }
 
 async function fetchPriceSummary(codigoItem) {
@@ -254,22 +221,23 @@ async function fetchPriceSummary(codigoItem) {
   });
 
   const payload = await fetchJson(url);
-  return summarizePrices(extractPriceItems(payload).slice(0, PRICE_PAGE_SIZE));
+  return summarizePrices(extractApiItems(payload).slice(0, PRICE_PAGE_SIZE));
 }
 
-async function analyzeCandidate(term, candidate) {
-  console.log(`[catmat] Validando candidato ${candidate.codigoItem ?? 'sem-codigo'} para "${term}"`);
+async function analyzeCandidate(candidate) {
+  const codigoItem = candidate.codigoItem ?? null;
+  console.log(`[catmat] Item validado: ${codigoItem ?? 'sem-codigo'}`);
 
   try {
-    const summary = await fetchPriceSummary(candidate.codigoItem);
+    const summary = await fetchPriceSummary(codigoItem);
     const status = getValidationStatus(summary);
     const confidence = getConfidence(summary);
 
-    console.log(`[catmat] Candidato ${candidate.codigoItem ?? 'sem-codigo'} finalizado com status ${status}`);
+    console.log(`[catmat] status_validacao=${status} confianca_inicial=${confidence} item=${codigoItem ?? 'sem-codigo'}`);
 
     return {
-      termo_consultado: term,
-      codigoItem: candidate.codigoItem ?? null,
+      termo_consultado: null,
+      codigoItem,
       descricaoItem: candidate.descricaoItem ?? null,
       codigoGrupo: candidate.codigoGrupo ?? null,
       nomeGrupo: candidate.nomeGrupo ?? null,
@@ -285,11 +253,11 @@ async function analyzeCandidate(term, candidate) {
       erro_tecnico: null,
     };
   } catch (error) {
-    console.log(`[catmat] Candidato ${candidate.codigoItem ?? 'sem-codigo'} finalizado com status erro`);
+    console.log(`[catmat] status_validacao=erro confianca_inicial=baixa item=${codigoItem ?? 'sem-codigo'}`);
 
     return {
-      termo_consultado: term,
-      codigoItem: candidate.codigoItem ?? null,
+      termo_consultado: null,
+      codigoItem,
       descricaoItem: candidate.descricaoItem ?? null,
       codigoGrupo: candidate.codigoGrupo ?? null,
       nomeGrupo: candidate.nomeGrupo ?? null,
@@ -313,37 +281,64 @@ async function analyzeCandidate(term, candidate) {
   }
 }
 
-async function analyzeTerm(term) {
-  console.log(`[catmat] Consultando termo: "${term}"`);
+async function analyzeGroup(group) {
+  const codigoGrupo = group.codigoGrupo ?? null;
+  const nomeGrupo = group.nomeGrupo ?? group.descricaoGrupo ?? null;
+  console.log(`[catmat] Consultando grupo ${codigoGrupo ?? 'sem-codigo'} - ${nomeGrupo ?? 'sem-nome'}`);
 
   try {
-    const candidates = await fetchCatalogCandidates(term);
-    console.log(`[catmat] ${candidates.length} candidato(s) encontrado(s) para "${term}"`);
+    const classes = await fetchClassesByGroup(codigoGrupo);
+    console.log(`[catmat] Classes encontradas no grupo ${codigoGrupo ?? 'sem-codigo'}: ${classes.length}`);
 
-    if (candidates.length === 0) {
-      return {
-        termo_consultado: term,
-        erro_tecnico: null,
-        candidatos: [],
-      };
-    }
+    const selectedClasses = classes.slice(0, CLASS_LIMIT);
+    console.log(
+      `[catmat] Classes selecionadas no grupo ${codigoGrupo ?? 'sem-codigo'}: ${selectedClasses.map((item) => item.codigoClasse ?? 'sem-codigo').join(', ') || 'nenhuma'}`,
+    );
 
     const analyzedCandidates = [];
 
-    for (const candidate of candidates) {
-      analyzedCandidates.push(await analyzeCandidate(term, candidate));
+    for (const materialClass of selectedClasses) {
+      const codigoClasse = materialClass.codigoClasse ?? null;
+      const nomeClasse = materialClass.nomeClasse ?? materialClass.descricaoClasse ?? null;
+
+      try {
+        const items = await fetchItemsByGroupAndClass(codigoGrupo, codigoClasse);
+        console.log(`[catmat] Itens encontrados na classe ${codigoClasse ?? 'sem-codigo'}: ${items.length}`);
+
+        const selectedItems = items.slice(0, ITEM_LIMIT);
+
+        for (const item of selectedItems) {
+          const candidate = {
+            ...item,
+            codigoGrupo: item.codigoGrupo ?? codigoGrupo,
+            nomeGrupo: item.nomeGrupo ?? nomeGrupo,
+            codigoClasse: item.codigoClasse ?? codigoClasse,
+            nomeClasse: item.nomeClasse ?? nomeClasse,
+          };
+
+          analyzedCandidates.push(await analyzeCandidate(candidate));
+        }
+      } catch (error) {
+        console.log(
+          `[catmat] Erro ao consultar itens da classe ${codigoClasse ?? 'sem-codigo'} no grupo ${codigoGrupo ?? 'sem-codigo'}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     return {
-      termo_consultado: term,
+      termo_consultado: nomeGrupo,
+      codigoGrupo,
+      nomeGrupo,
       erro_tecnico: null,
       candidatos: analyzedCandidates,
     };
   } catch (error) {
-    console.log(`[catmat] Falha ao consultar termo "${term}": ${error instanceof Error ? error.message : String(error)}`);
+    console.log(`[catmat] Erro ao consultar grupo ${codigoGrupo ?? 'sem-codigo'}: ${error instanceof Error ? error.message : String(error)}`);
 
     return {
-      termo_consultado: term,
+      termo_consultado: nomeGrupo,
+      codigoGrupo,
+      nomeGrupo,
       erro_tecnico: error instanceof Error ? error.message : String(error),
       candidatos: [],
     };
@@ -351,11 +346,24 @@ async function analyzeTerm(term) {
 }
 
 async function main() {
-  console.log('[catmat] Iniciando catalogacao CATMAT em modo leve');
+  console.log('[catmat] Iniciando catalogacao CATMAT com navegacao estrutural leve');
+
   const results = [];
 
-  for (const term of TERMS) {
-    results.push(await analyzeTerm(term));
+  try {
+    const groups = await fetchGroups();
+    console.log(`[catmat] Grupos encontrados: ${groups.length}`);
+
+    const selectedGroups = groups.slice(0, GROUP_LIMIT);
+    console.log(
+      `[catmat] Grupos selecionados: ${selectedGroups.map((group) => group.codigoGrupo ?? 'sem-codigo').join(', ') || 'nenhum'}`,
+    );
+
+    for (const group of selectedGroups) {
+      results.push(await analyzeGroup(group));
+    }
+  } catch (error) {
+    console.log(`[catmat] Erro ao consultar grupos: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
