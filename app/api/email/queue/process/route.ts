@@ -226,9 +226,9 @@ async function countFailedForWindow(
   sendingAccountId: string,
   from: string,
 ): Promise<number> {
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from('email_job_queue')
-    .select('id', { count: 'exact', head: true })
+    .select('failure_reason, failure_code, smtp_response, smtp_response_code')
     .eq('sending_account_id', sendingAccountId)
     .eq('status', 'failed')
     .gte('sent_at', from);
@@ -237,7 +237,12 @@ async function countFailedForWindow(
     throw new Error(error.message);
   }
 
-  return count ?? 0;
+  return (data ?? []).filter((job) => !isTemporarySmtpFailure({
+    failure_reason: job.failure_reason,
+    failure_code: job.failure_code,
+    smtp_response: job.smtp_response,
+    smtp_response_code: job.smtp_response_code,
+  })).length;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
