@@ -2,11 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const TERMS = [
-  'caneta esferográfica azul',
+  'caneta esferografica azul',
   'luva de procedimento',
-  'álcool 70',
-  'toner impressora HP',
-  'papel A4',
 ];
 
 const CATALOG_URL = 'https://dadosabertos.compras.gov.br/modulo-material/4_consultarItemMaterial';
@@ -14,9 +11,9 @@ const PRICE_URL = 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_c
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'catalogo-catmat-validado.json');
 const CATALOG_PAGE_SIZE = 10;
-const CANDIDATE_LIMIT = 5;
+const CANDIDATE_LIMIT = 2;
 const PRICE_PAGE_SIZE = 10;
-const MAX_FETCH_ATTEMPTS = 3;
+const MAX_FETCH_ATTEMPTS = 1;
 
 function buildUrl(baseUrl, params) {
   const url = new URL(baseUrl);
@@ -39,17 +36,7 @@ function normalizeSearchTerm(value) {
 
 function buildSearchVariants(term) {
   const normalized = normalizeSearchTerm(term);
-  const tokens = normalized
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-  return [...new Set([
-    normalized,
-    tokens.slice(0, 3).join(' '),
-    tokens.slice(0, 2).join(' '),
-    tokens[0] ?? '',
-  ].filter(Boolean))];
+  return normalized ? [normalized] : [];
 }
 
 async function fetchJson(url) {
@@ -271,8 +258,14 @@ async function fetchPriceSummary(codigoItem) {
 }
 
 async function analyzeCandidate(term, candidate) {
+  console.log(`[catmat] Validando candidato ${candidate.codigoItem ?? 'sem-codigo'} para "${term}"`);
+
   try {
     const summary = await fetchPriceSummary(candidate.codigoItem);
+    const status = getValidationStatus(summary);
+    const confidence = getConfidence(summary);
+
+    console.log(`[catmat] Candidato ${candidate.codigoItem ?? 'sem-codigo'} finalizado com status ${status}`);
 
     return {
       termo_consultado: term,
@@ -287,11 +280,13 @@ async function analyzeCandidate(term, candidate) {
       codigo_ncm: candidate.codigo_ncm ?? null,
       descricao_ncm: candidate.descricao_ncm ?? null,
       ...summary,
-      status_validacao: getValidationStatus(summary),
-      confianca_inicial: getConfidence(summary),
+      status_validacao: status,
+      confianca_inicial: confidence,
       erro_tecnico: null,
     };
   } catch (error) {
+    console.log(`[catmat] Candidato ${candidate.codigoItem ?? 'sem-codigo'} finalizado com status erro`);
+
     return {
       termo_consultado: term,
       codigoItem: candidate.codigoItem ?? null,
@@ -319,8 +314,11 @@ async function analyzeCandidate(term, candidate) {
 }
 
 async function analyzeTerm(term) {
+  console.log(`[catmat] Consultando termo: "${term}"`);
+
   try {
     const candidates = await fetchCatalogCandidates(term);
+    console.log(`[catmat] ${candidates.length} candidato(s) encontrado(s) para "${term}"`);
 
     if (candidates.length === 0) {
       return {
@@ -342,6 +340,8 @@ async function analyzeTerm(term) {
       candidatos: analyzedCandidates,
     };
   } catch (error) {
+    console.log(`[catmat] Falha ao consultar termo "${term}": ${error instanceof Error ? error.message : String(error)}`);
+
     return {
       termo_consultado: term,
       erro_tecnico: error instanceof Error ? error.message : String(error),
@@ -351,6 +351,7 @@ async function analyzeTerm(term) {
 }
 
 async function main() {
+  console.log('[catmat] Iniciando catalogacao CATMAT em modo leve');
   const results = [];
 
   for (const term of TERMS) {
@@ -361,7 +362,7 @@ async function main() {
   fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(results, null, 2)}\n`, 'utf8');
 
   console.log(JSON.stringify(results, null, 2));
-  console.error(`Arquivo salvo em: ${OUTPUT_FILE}`);
+  console.log(`[catmat] JSON salvo em: ${OUTPUT_FILE}`);
 }
 
 main().catch((error) => {
