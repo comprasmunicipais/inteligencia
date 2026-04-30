@@ -16,6 +16,7 @@ const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
 const DAILY_LIMIT_RETRY_HOURS = 24;
 const DOMAIN_LIMIT_RETRY_MINUTES = 5;
+const TEMPORARY_SMTP_RETRY_MINUTES = 10;
 const CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES = 30;
 const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 10;
 const PUBLIC_RECIPIENT_DOMAIN_LIMITS: Record<string, number> = {
@@ -145,6 +146,29 @@ function isHardBounceFailure(details: {
     .toLowerCase();
 
   return permanentRecipientMessages.some((message) => combinedMessage.includes(message));
+}
+
+function isTemporarySmtpFailure(details: {
+  failure_reason: string | null;
+  failure_code: string | null;
+  smtp_response: string | null;
+  smtp_response_code: number | null;
+}): boolean {
+  if (details.smtp_response_code === 451 || details.smtp_response_code === 452) {
+    return true;
+  }
+
+  if (details.failure_code?.toUpperCase() === 'ETIMEDOUT') {
+    return true;
+  }
+
+  const temporaryMessages = ['slow down', 'queue file write error'];
+  const combinedMessage = [details.failure_reason, details.smtp_response]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  return temporaryMessages.some((message) => combinedMessage.includes(message));
 }
 
 function maskEmail(email: string): string {
@@ -691,6 +715,7 @@ export async function GET(req: NextRequest) {
       campaignSent.set(job.campaign_id, (campaignSent.get(job.campaign_id) ?? 0) + 1);
       } catch (error: any) {
         const failureDetails = extractSmtpFailureDetails(error);
+        const isTemporaryFailure = isTemporarySmtpFailure(failureDetails);
         const isHardBounce = isHardBounceFailure(failureDetails);
         const failureTimestamp = new Date().toISOString();
         errors.push({
@@ -702,6 +727,23 @@ export async function GET(req: NextRequest) {
           recipient: maskEmail(job.recipient_email),
           error: sanitizeSmtpError(error),
         });
+
+      if (isTemporaryFailure) {
+        await supabase
+          .from('email_job_queue')
+          .update({
+            status: 'pending',
+            claimed_at: null,
+            next_attempt_at: getDeferredAttemptIso(TEMPORARY_SMTP_RETRY_MINUTES),
+            failure_reason: failureDetails.failure_reason,
+            failure_code: failureDetails.failure_code,
+            smtp_response: failureDetails.smtp_response,
+            smtp_response_code: failureDetails.smtp_response_code,
+          })
+          .eq('id', job.id);
+
+        continue;
+      }
 
       await supabase
         .from('email_job_queue')
