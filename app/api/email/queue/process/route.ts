@@ -240,8 +240,10 @@ async function countFailedForWindow(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  const routeStartedAt = Date.now();
   const debug = [];
   const errors = [];
+  const perfDebug: Array<Record<string, unknown>> = [];
   const skippedAccounts: Array<{
     sending_account_id: string;
     reason: 'too_many_recent_failures';
@@ -252,11 +254,40 @@ export async function GET(req: NextRequest) {
   let failed = 0;
   let totalLimitPerRun = 0;
   let totalHourlyLimit = 0;
+  const pushPerfEntry = (entry: Record<string, unknown>) => {
+    perfDebug.push(entry);
+    console.log('[queue-process][perf]', entry);
+  };
+  const logPerfDuration = (
+    step: string,
+    startedAt: number,
+    extra: Record<string, unknown> = {},
+  ) => {
+    pushPerfEntry({
+      step,
+      duration_ms: Date.now() - startedAt,
+      ...extra,
+    });
+  };
+  const buildJsonResponse = (
+    payload: Record<string, unknown>,
+    init?: { status?: number },
+  ) => {
+    logPerfDuration('route_total', routeStartedAt, { processed, sent, failed });
+    return NextResponse.json(
+      {
+        ...payload,
+        perf_debug: perfDebug,
+      },
+      init,
+    );
+  };
+  pushPerfEntry({ step: 'route_start', at: new Date().toISOString() });
   // ── 1. Auth via CRON_SECRET ─────────────────────────────────────────────
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization') ?? '';
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return buildJsonResponse({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const supabase = await createAdminClient();
@@ -272,6 +303,7 @@ export async function GET(req: NextRequest) {
   const candidateAccountTarget = MAX_SENDING_ACCOUNTS_PER_RUN * 5;
   const eligibleJobPageSize = 250;
   const eligibleJobPageLimit = 20;
+  const candidateSelectionStartedAt = Date.now();
 
   for (let page = 0; page < eligibleJobPageLimit; page += 1) {
     const fromIndex = page * eligibleJobPageSize;
@@ -288,7 +320,7 @@ export async function GET(req: NextRequest) {
 
     if (staleProcessingJobsError) {
       console.error('[queue-process] Erro ao identificar contas elegiveis:', staleProcessingJobsError.message);
-      return NextResponse.json({ error: staleProcessingJobsError.message }, { status: 500 });
+      return buildJsonResponse({ error: staleProcessingJobsError.message }, { status: 500 });
     }
 
     for (const job of staleProcessingJobs ?? []) {
@@ -323,7 +355,7 @@ export async function GET(req: NextRequest) {
 
     if (eligiblePendingJobsError) {
       console.error('[queue-process] Erro ao identificar contas elegiveis:', eligiblePendingJobsError.message);
-      return NextResponse.json({ error: eligiblePendingJobsError.message }, { status: 500 });
+      return buildJsonResponse({ error: eligiblePendingJobsError.message }, { status: 500 });
     }
 
     const pendingAccountsByOldestJob = new Map<string, string>();
@@ -358,9 +390,13 @@ export async function GET(req: NextRequest) {
       break;
     }
   }
+  logPerfDuration('candidate_account_preselection', candidateSelectionStartedAt, {
+    candidate_accounts: candidateSendingAccountIds.size,
+  });
 
   const orderedEligibleSendingAccountIds = [...candidateSendingAccountIds];
 
+  const activeAccountsLookupStartedAt = Date.now();
   const { data: candidateSendingAccounts, error: candidateSendingAccountsError } = await supabase
     .from('email_sending_accounts')
     .select('id, is_active')
@@ -368,8 +404,12 @@ export async function GET(req: NextRequest) {
 
   if (candidateSendingAccountsError) {
     console.error('[queue-process] Erro ao buscar status das contas candidatas:', candidateSendingAccountsError.message);
-    return NextResponse.json({ error: candidateSendingAccountsError.message }, { status: 500 });
+    return buildJsonResponse({ error: candidateSendingAccountsError.message }, { status: 500 });
   }
+  logPerfDuration('active_accounts_lookup', activeAccountsLookupStartedAt, {
+    candidate_accounts: orderedEligibleSendingAccountIds.length,
+    fetched_accounts: candidateSendingAccounts?.length ?? 0,
+  });
 
   const candidateSendingAccountStatus = new Map(
     (candidateSendingAccounts ?? []).map((account) => [account.id, account.is_active]),
@@ -379,6 +419,7 @@ export async function GET(req: NextRequest) {
   const circuitBreakerWindowStart = new Date(
     Date.now() - CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES * 60 * 1000,
   ).toISOString();
+  const circuitBreakerStartedAt = Date.now();
 
   for (const sendingAccountId of orderedEligibleSendingAccountIds) {
     if (candidateSendingAccountStatus.get(sendingAccountId) === false) {
@@ -406,9 +447,14 @@ export async function GET(req: NextRequest) {
       break;
     }
   }
+  logPerfDuration('circuit_breaker_check', circuitBreakerStartedAt, {
+    candidate_accounts: orderedEligibleSendingAccountIds.length,
+    eligible_accounts: eligibleSendingAccountIds.length,
+    skipped_accounts: skippedAccounts.length,
+  });
 
   if (eligibleSendingAccountIds.length === 0) {
-    return NextResponse.json({
+    return buildJsonResponse({
       processed: 0,
       sent: 0,
       failed: 0,
@@ -418,6 +464,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  const sendingAccountLimitsLookupStartedAt = Date.now();
   const { data: sendingAccounts, error: sendingAccountsError } = await supabase
     .from('email_sending_accounts')
     .select('id, hourly_limit')
@@ -425,8 +472,11 @@ export async function GET(req: NextRequest) {
 
   if (sendingAccountsError) {
     console.error('[queue-process] Erro ao buscar hourly_limit das contas:', sendingAccountsError.message);
-    return NextResponse.json({ error: sendingAccountsError.message }, { status: 500 });
+    return buildJsonResponse({ error: sendingAccountsError.message }, { status: 500 });
   }
+  logPerfDuration('sending_account_limits_lookup', sendingAccountLimitsLookupStartedAt, {
+    eligible_accounts: eligibleSendingAccountIds.length,
+  });
 
   const sendingAccountLimits = new Map(
     (sendingAccounts ?? []).map((account) => [account.id, account.hourly_limit ?? 50]),
@@ -436,6 +486,7 @@ export async function GET(req: NextRequest) {
   // UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING *
   // guarantees two concurrent workers never claim the same job.
   const jobs: any[] = [];
+  const claimJobsStartedAt = Date.now();
 
   for (const sendingAccountId of eligibleSendingAccountIds) {
     const hourlyLimit = sendingAccountLimits.get(sendingAccountId) ?? 50;
@@ -452,25 +503,35 @@ export async function GET(req: NextRequest) {
 
     totalLimitPerRun += limitPerRun;
 
+    const claimRpcStartedAt = Date.now();
     const { data: claimedJobs, error: jobsError } = await supabase.rpc('claim_email_jobs', {
       p_limit: limitPerRun,
       p_sending_account_id: sendingAccountId,
+    });
+    logPerfDuration('claim_email_jobs_rpc', claimRpcStartedAt, {
+      sending_account_id: sendingAccountId,
+      limit_per_run: limitPerRun,
+      claimed_jobs: claimedJobs?.length ?? 0,
     });
 
     if (jobsError) {
       console.error('[queue-process] Erro ao buscar jobs:', jobsError.message, {
         sendingAccountId,
       });
-      return NextResponse.json({ error: jobsError.message }, { status: 500 });
+      return buildJsonResponse({ error: jobsError.message }, { status: 500 });
     }
 
     if (claimedJobs?.length) {
       jobs.push(...claimedJobs);
     }
   }
+  logPerfDuration('claim_jobs_total', claimJobsStartedAt, {
+    eligible_accounts: eligibleSendingAccountIds.length,
+    claimed_jobs: jobs.length,
+  });
 
   if (jobs.length === 0) {
-    return NextResponse.json({
+    return buildJsonResponse({
       processed: 0,
       sent: 0,
       failed: 0,
@@ -483,6 +544,7 @@ export async function GET(req: NextRequest) {
   processed = jobs.length;
   const claimedCampaignIds = [...new Set(jobs.map((job) => job.campaign_id).filter(Boolean))];
 
+  const activateCampaignsStartedAt = Date.now();
   for (const campaignId of claimedCampaignIds) {
     const { error: activateCampaignError } = await supabase
       .from('email_campaigns')
@@ -495,9 +557,12 @@ export async function GET(req: NextRequest) {
         campaignId,
         error: activateCampaignError.message,
       });
-      return NextResponse.json({ error: activateCampaignError.message }, { status: 500 });
+      return buildJsonResponse({ error: activateCampaignError.message }, { status: 500 });
     }
   }
+  logPerfDuration('activate_claimed_campaigns', activateCampaignsStartedAt, {
+    claimed_campaigns: claimedCampaignIds.length,
+  });
 
   // ── 3. Group jobs by sending_account_id to reuse transporters ──────────
   type Job = {
@@ -523,6 +588,7 @@ export async function GET(req: NextRequest) {
   const accountIds = [...accountGroups.keys()];
   const campaignIds = [...new Set(jobs.map((j: Job) => j.campaign_id))];
 
+  const loadJobDependenciesStartedAt = Date.now();
   const [{ data: accounts }, { data: campaigns }] = await Promise.all([
     supabase
       .from('email_sending_accounts')
@@ -533,6 +599,10 @@ export async function GET(req: NextRequest) {
       .select('id, subject, preheader, html_content, text_content')
       .in('id', campaignIds),
   ]);
+  logPerfDuration('load_accounts_campaigns_content', loadJobDependenciesStartedAt, {
+    account_ids: accountIds.length,
+    campaign_ids: campaignIds.length,
+  });
 
   const accountMap = new Map((accounts ?? []).map((a) => [a.id, a]));
   const campaignMap = new Map((campaigns ?? []).map((c) => [c.id, c]));
@@ -541,6 +611,7 @@ export async function GET(req: NextRequest) {
   const municipalityStates = [...new Set(jobs.map((j: Job) => j.state).filter(Boolean))];
 
   if (municipalityCities.length > 0 && municipalityStates.length > 0) {
+    const municipalitiesLookupStartedAt = Date.now();
     const { data: municipalities, error: municipalitiesError } = await supabase
       .from('municipalities')
       .select('city, state, mayor_name')
@@ -556,6 +627,11 @@ export async function GET(req: NextRequest) {
         mayorMap.set(`${municipality.city ?? ''}::${municipality.state ?? ''}`, municipality.mayor_name ?? '');
       }
     }
+    logPerfDuration('load_municipality_content', municipalitiesLookupStartedAt, {
+      municipality_cities: municipalityCities.length,
+      municipality_states: municipalityStates.length,
+      fetched_municipalities: mayorMap.size,
+    });
   }
 
   // ── 5. Process each job ──────────────────────────────────────────────────
@@ -574,6 +650,7 @@ export async function GET(req: NextRequest) {
   startOfDay.setHours(0, 0, 0, 0);
   const startOfDayIso = startOfDay.toISOString();
 
+  const accountQuotaLoadStartedAt = Date.now();
   for (const account of accounts ?? []) {
     const [hourlySent, dailySent] = await Promise.all([
       countSentForWindow(supabase, account.id, oneHourAgo),
@@ -587,6 +664,9 @@ export async function GET(req: NextRequest) {
       dailyLimit: account.daily_limit ?? 500,
     });
   }
+  logPerfDuration('load_account_quota', accountQuotaLoadStartedAt, {
+    accounts: accounts?.length ?? 0,
+  });
 
   for (const job of jobs) {
     const account = accountMap.get(job.sending_account_id);
@@ -760,6 +840,7 @@ export async function GET(req: NextRequest) {
         jobId: job.id,
         to: job.recipient_email
       });
+      const smtpSendStartedAt = Date.now();
       await sendEmail(supabase, account, {
         to: job.recipient_email,
         subject: substituteVars(campaign.subject!, job.recipient_name, job.municipality, job.state, mayor),
@@ -771,7 +852,12 @@ export async function GET(req: NextRequest) {
           ? { headers: { 'X-Preheader': campaign.preheader } }
           : {}),
       });
+      logPerfDuration('smtp_send_attempt', smtpSendStartedAt, {
+        job_id: job.id,
+        sending_account_id: job.sending_account_id,
+      });
 
+      const successDbUpdateStartedAt = Date.now();
       await supabase
         .from('email_job_queue')
         .update({
@@ -794,6 +880,10 @@ export async function GET(req: NextRequest) {
             .is('deliverability_hard_bounced_at', null);
         } catch {}
       }
+      logPerfDuration('post_send_db_updates', successDbUpdateStartedAt, {
+        job_id: job.id,
+        outcome: 'sent',
+      });
 
       sent++;
       if (quota) {
@@ -818,6 +908,7 @@ export async function GET(req: NextRequest) {
         });
 
       if (isTemporaryFailure) {
+        const temporaryFailureDbUpdateStartedAt = Date.now();
         await supabase
           .from('email_job_queue')
           .update({
@@ -830,10 +921,15 @@ export async function GET(req: NextRequest) {
             smtp_response_code: failureDetails.smtp_response_code,
           })
           .eq('id', job.id);
+        logPerfDuration('post_send_db_updates', temporaryFailureDbUpdateStartedAt, {
+          job_id: job.id,
+          outcome: 'temporary_failure',
+        });
 
         continue;
       }
 
+      const failedDbUpdateStartedAt = Date.now();
       await supabase
         .from('email_job_queue')
         .update({
@@ -865,6 +961,10 @@ export async function GET(req: NextRequest) {
             .is('deliverability_hard_bounced_at', null);
         } catch {}
       }
+      logPerfDuration('post_send_db_updates', failedDbUpdateStartedAt, {
+        job_id: job.id,
+        outcome: 'failed',
+      });
 
       failed++;
       campaignFailed.set(job.campaign_id, (campaignFailed.get(job.campaign_id) ?? 0) + 1);
@@ -873,6 +973,7 @@ export async function GET(req: NextRequest) {
 
   // ── 6. Update sent_count / failed_count on each campaign ────────────────
   const allCampaignIds = new Set([...campaignSent.keys(), ...campaignFailed.keys()]);
+  const finalizeCampaignsStartedAt = Date.now();
 
   for (const cid of allCampaignIds) {
     const deltaSent = campaignSent.get(cid) ?? 0;
@@ -890,8 +991,11 @@ export async function GET(req: NextRequest) {
       p_campaign_id: cid,
     });
   }
+  logPerfDuration('finalize_campaigns', finalizeCampaignsStartedAt, {
+    campaigns: allCampaignIds.size,
+  });
 
-  return NextResponse.json({
+  return buildJsonResponse({
     processed,
     sent,
     failed,
