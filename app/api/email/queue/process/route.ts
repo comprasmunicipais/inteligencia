@@ -277,27 +277,61 @@ export async function GET(req: NextRequest) {
     const fromIndex = page * eligibleJobPageSize;
     const toIndex = fromIndex + eligibleJobPageSize - 1;
 
-    const { data: eligibleJobs, error: eligibleJobsError } = await supabase
+    const { data: staleProcessingJobs, error: staleProcessingJobsError } = await supabase
       .from('email_job_queue')
       .select('sending_account_id')
-      .or(
-        `and(status.eq.pending,or(next_attempt_at.is.null,next_attempt_at.lte.now())),and(status.eq.processing,claimed_at.not.is.null,claimed_at.lt.${staleClaimedAtIso})`,
-      )
-      .order('created_at', { ascending: true })
+      .eq('status', 'processing')
+      .not('claimed_at', 'is', null)
+      .lt('claimed_at', staleClaimedAtIso)
+      .order('claimed_at', { ascending: true })
       .range(fromIndex, toIndex);
 
-    if (eligibleJobsError) {
-      console.error('[queue-process] Erro ao identificar contas elegiveis:', eligibleJobsError.message);
-      return NextResponse.json({ error: eligibleJobsError.message }, { status: 500 });
+    if (staleProcessingJobsError) {
+      console.error('[queue-process] Erro ao identificar contas elegiveis:', staleProcessingJobsError.message);
+      return NextResponse.json({ error: staleProcessingJobsError.message }, { status: 500 });
     }
 
-    for (const job of eligibleJobs ?? []) {
+    for (const job of staleProcessingJobs ?? []) {
       if (job.sending_account_id) {
         candidateSendingAccountIds.add(job.sending_account_id);
       }
     }
 
-    if ((eligibleJobs?.length ?? 0) < eligibleJobPageSize || candidateSendingAccountIds.size >= candidateAccountTarget) {
+    if (
+      (staleProcessingJobs?.length ?? 0) < eligibleJobPageSize ||
+      candidateSendingAccountIds.size >= candidateAccountTarget
+    ) {
+      break;
+    }
+  }
+
+  for (let page = 0; page < eligibleJobPageLimit; page += 1) {
+    const fromIndex = page * eligibleJobPageSize;
+    const toIndex = fromIndex + eligibleJobPageSize - 1;
+
+    const { data: eligiblePendingJobs, error: eligiblePendingJobsError } = await supabase
+      .from('email_job_queue')
+      .select('sending_account_id')
+      .eq('status', 'pending')
+      .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
+      .order('created_at', { ascending: true })
+      .range(fromIndex, toIndex);
+
+    if (eligiblePendingJobsError) {
+      console.error('[queue-process] Erro ao identificar contas elegiveis:', eligiblePendingJobsError.message);
+      return NextResponse.json({ error: eligiblePendingJobsError.message }, { status: 500 });
+    }
+
+    for (const job of eligiblePendingJobs ?? []) {
+      if (job.sending_account_id) {
+        candidateSendingAccountIds.add(job.sending_account_id);
+      }
+    }
+
+    if (
+      (eligiblePendingJobs?.length ?? 0) < eligibleJobPageSize ||
+      candidateSendingAccountIds.size >= candidateAccountTarget
+    ) {
       break;
     }
   }
