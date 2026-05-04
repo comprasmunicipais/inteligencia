@@ -306,12 +306,16 @@ export async function GET(req: NextRequest) {
   }
 
   for (let page = 0; page < eligibleJobPageLimit; page += 1) {
+    if (candidateSendingAccountIds.size >= candidateAccountTarget) {
+      break;
+    }
+
     const fromIndex = page * eligibleJobPageSize;
     const toIndex = fromIndex + eligibleJobPageSize - 1;
 
     const { data: eligiblePendingJobs, error: eligiblePendingJobsError } = await supabase
       .from('email_job_queue')
-      .select('sending_account_id')
+      .select('sending_account_id, created_at')
       .eq('status', 'pending')
       .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
       .order('created_at', { ascending: true })
@@ -322,9 +326,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: eligiblePendingJobsError.message }, { status: 500 });
     }
 
+    const pendingAccountsByOldestJob = new Map<string, string>();
+
     for (const job of eligiblePendingJobs ?? []) {
-      if (job.sending_account_id) {
-        candidateSendingAccountIds.add(job.sending_account_id);
+      if (!job.sending_account_id || !job.created_at || candidateSendingAccountIds.has(job.sending_account_id)) {
+        continue;
+      }
+
+      const currentOldestCreatedAt = pendingAccountsByOldestJob.get(job.sending_account_id);
+      if (!currentOldestCreatedAt || job.created_at < currentOldestCreatedAt) {
+        pendingAccountsByOldestJob.set(job.sending_account_id, job.created_at);
+      }
+    }
+
+    const sortedPendingAccountIds = [...pendingAccountsByOldestJob.entries()]
+      .sort(([, leftCreatedAt], [, rightCreatedAt]) => leftCreatedAt.localeCompare(rightCreatedAt))
+      .map(([sendingAccountId]) => sendingAccountId);
+
+    for (const sendingAccountId of sortedPendingAccountIds) {
+      candidateSendingAccountIds.add(sendingAccountId);
+
+      if (candidateSendingAccountIds.size >= candidateAccountTarget) {
+        break;
       }
     }
 
