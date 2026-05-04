@@ -266,6 +266,7 @@ export async function GET(req: NextRequest) {
     Number.isFinite(cronIntervalMinutesRaw) && cronIntervalMinutesRaw > 0
       ? cronIntervalMinutesRaw
       : DEFAULT_CRON_INTERVAL_MINUTES;
+  const staleClaimedAtIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
   const candidateSendingAccountIds = new Set<string>();
   const candidateAccountTarget = MAX_SENDING_ACCOUNTS_PER_RUN * 5;
@@ -279,8 +280,9 @@ export async function GET(req: NextRequest) {
     const { data: eligibleJobs, error: eligibleJobsError } = await supabase
       .from('email_job_queue')
       .select('sending_account_id')
-      .eq('status', 'pending')
-      .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
+      .or(
+        `and(status.eq.pending,or(next_attempt_at.is.null,next_attempt_at.lte.now())),and(status.eq.processing,claimed_at.not.is.null,claimed_at.lt.${staleClaimedAtIso})`,
+      )
       .order('created_at', { ascending: true })
       .range(fromIndex, toIndex);
 
