@@ -191,17 +191,6 @@ function getDeferredAttemptIso(minutesFromNow: number): string {
   return new Date(Date.now() + minutesFromNow * 60 * 1000).toISOString();
 }
 
-function pickRandomItems<T>(items: T[], limit: number): T[] {
-  const shuffled = [...items];
-
-  for (let i = shuffled.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
-  return shuffled.slice(0, limit);
-}
-
 async function countSentForWindow(
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
   sendingAccountId: string,
@@ -311,15 +300,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const randomizedEligibleSendingAccountIds = pickRandomItems(
-    [...candidateSendingAccountIds],
-    candidateSendingAccountIds.size,
-  );
+  const orderedEligibleSendingAccountIds = [...candidateSendingAccountIds];
 
   const { data: candidateSendingAccounts, error: candidateSendingAccountsError } = await supabase
     .from('email_sending_accounts')
     .select('id, is_active')
-    .in('id', randomizedEligibleSendingAccountIds);
+    .in('id', orderedEligibleSendingAccountIds);
 
   if (candidateSendingAccountsError) {
     console.error('[queue-process] Erro ao buscar status das contas candidatas:', candidateSendingAccountsError.message);
@@ -335,7 +321,7 @@ export async function GET(req: NextRequest) {
     Date.now() - CIRCUIT_BREAKER_FAILURE_WINDOW_MINUTES * 60 * 1000,
   ).toISOString();
 
-  for (const sendingAccountId of randomizedEligibleSendingAccountIds) {
+  for (const sendingAccountId of orderedEligibleSendingAccountIds) {
     if (candidateSendingAccountStatus.get(sendingAccountId) === false) {
       continue;
     }
