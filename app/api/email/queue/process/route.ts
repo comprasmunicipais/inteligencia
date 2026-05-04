@@ -10,6 +10,7 @@ import { sendEmail, sanitizeEmailSendError } from '@/lib/email/sender';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 300;
+const SAFE_MAX_PER_RUN = 2;
 const MAX_SENDING_ACCOUNTS_PER_RUN = 5;
 const DEFAULT_CRON_INTERVAL_MINUTES = 5;
 const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
@@ -524,6 +525,7 @@ export async function GET(req: NextRequest) {
     const limitPerRun = Math.min(
       BATCH_SIZE,
       Math.floor(hourlyLimit / (60 / cronIntervalMinutes)),
+      SAFE_MAX_PER_RUN,
     );
 
     totalHourlyLimit += hourlyLimit;
