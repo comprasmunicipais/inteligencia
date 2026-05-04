@@ -298,6 +298,7 @@ export async function GET(req: NextRequest) {
       ? cronIntervalMinutesRaw
       : DEFAULT_CRON_INTERVAL_MINUTES;
   const staleClaimedAtIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const requestedSendingAccountId = req.nextUrl.searchParams.get('sending_account_id')?.trim() || null;
 
   const candidateSendingAccountIds = new Set<string>();
   const candidateAccountTarget = MAX_SENDING_ACCOUNTS_PER_RUN * 5;
@@ -305,94 +306,106 @@ export async function GET(req: NextRequest) {
   const eligibleJobPageLimit = 20;
   const candidateSelectionStartedAt = Date.now();
 
-  for (let page = 0; page < eligibleJobPageLimit; page += 1) {
-    const fromIndex = page * eligibleJobPageSize;
-    const toIndex = fromIndex + eligibleJobPageSize - 1;
+  if (requestedSendingAccountId) {
+    candidateSendingAccountIds.add(requestedSendingAccountId);
+    pushPerfEntry({
+      step: 'candidate_account_preselection_skipped',
+      reason: 'sending_account_id_query_param',
+      candidate_accounts: 1,
+      requested_sending_account_id: requestedSendingAccountId,
+    });
+  } else {
+    for (let page = 0; page < eligibleJobPageLimit; page += 1) {
+      const fromIndex = page * eligibleJobPageSize;
+      const toIndex = fromIndex + eligibleJobPageSize - 1;
 
-    const { data: staleProcessingJobs, error: staleProcessingJobsError } = await supabase
-      .from('email_job_queue')
-      .select('sending_account_id')
-      .eq('status', 'processing')
-      .not('claimed_at', 'is', null)
-      .lt('claimed_at', staleClaimedAtIso)
-      .order('claimed_at', { ascending: true })
-      .range(fromIndex, toIndex);
+      const { data: staleProcessingJobs, error: staleProcessingJobsError } = await supabase
+        .from('email_job_queue')
+        .select('sending_account_id')
+        .eq('status', 'processing')
+        .not('claimed_at', 'is', null)
+        .lt('claimed_at', staleClaimedAtIso)
+        .order('claimed_at', { ascending: true })
+        .range(fromIndex, toIndex);
 
-    if (staleProcessingJobsError) {
-      console.error('[queue-process] Erro ao identificar contas elegiveis:', staleProcessingJobsError.message);
-      return buildJsonResponse({ error: staleProcessingJobsError.message }, { status: 500 });
-    }
-
-    for (const job of staleProcessingJobs ?? []) {
-      if (job.sending_account_id) {
-        candidateSendingAccountIds.add(job.sending_account_id);
-      }
-    }
-
-    if (
-      (staleProcessingJobs?.length ?? 0) < eligibleJobPageSize ||
-      candidateSendingAccountIds.size >= candidateAccountTarget
-    ) {
-      break;
-    }
-  }
-
-  for (let page = 0; page < eligibleJobPageLimit; page += 1) {
-    if (candidateSendingAccountIds.size >= candidateAccountTarget) {
-      break;
-    }
-
-    const fromIndex = page * eligibleJobPageSize;
-    const toIndex = fromIndex + eligibleJobPageSize - 1;
-
-    const { data: eligiblePendingJobs, error: eligiblePendingJobsError } = await supabase
-      .from('email_job_queue')
-      .select('sending_account_id, created_at')
-      .eq('status', 'pending')
-      .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
-      .order('created_at', { ascending: true })
-      .range(fromIndex, toIndex);
-
-    if (eligiblePendingJobsError) {
-      console.error('[queue-process] Erro ao identificar contas elegiveis:', eligiblePendingJobsError.message);
-      return buildJsonResponse({ error: eligiblePendingJobsError.message }, { status: 500 });
-    }
-
-    const pendingAccountsByOldestJob = new Map<string, string>();
-
-    for (const job of eligiblePendingJobs ?? []) {
-      if (!job.sending_account_id || !job.created_at || candidateSendingAccountIds.has(job.sending_account_id)) {
-        continue;
+      if (staleProcessingJobsError) {
+        console.error('[queue-process] Erro ao identificar contas elegiveis:', staleProcessingJobsError.message);
+        return buildJsonResponse({ error: staleProcessingJobsError.message }, { status: 500 });
       }
 
-      const currentOldestCreatedAt = pendingAccountsByOldestJob.get(job.sending_account_id);
-      if (!currentOldestCreatedAt || job.created_at < currentOldestCreatedAt) {
-        pendingAccountsByOldestJob.set(job.sending_account_id, job.created_at);
+      for (const job of staleProcessingJobs ?? []) {
+        if (job.sending_account_id) {
+          candidateSendingAccountIds.add(job.sending_account_id);
+        }
       }
-    }
 
-    const sortedPendingAccountIds = [...pendingAccountsByOldestJob.entries()]
-      .sort(([, leftCreatedAt], [, rightCreatedAt]) => leftCreatedAt.localeCompare(rightCreatedAt))
-      .map(([sendingAccountId]) => sendingAccountId);
-
-    for (const sendingAccountId of sortedPendingAccountIds) {
-      candidateSendingAccountIds.add(sendingAccountId);
-
-      if (candidateSendingAccountIds.size >= candidateAccountTarget) {
+      if (
+        (staleProcessingJobs?.length ?? 0) < eligibleJobPageSize ||
+        candidateSendingAccountIds.size >= candidateAccountTarget
+      ) {
         break;
       }
     }
 
-    if (
-      (eligiblePendingJobs?.length ?? 0) < eligibleJobPageSize ||
-      candidateSendingAccountIds.size >= candidateAccountTarget
-    ) {
-      break;
+    for (let page = 0; page < eligibleJobPageLimit; page += 1) {
+      if (candidateSendingAccountIds.size >= candidateAccountTarget) {
+        break;
+      }
+
+      const fromIndex = page * eligibleJobPageSize;
+      const toIndex = fromIndex + eligibleJobPageSize - 1;
+
+      const { data: eligiblePendingJobs, error: eligiblePendingJobsError } = await supabase
+        .from('email_job_queue')
+        .select('sending_account_id, created_at')
+        .eq('status', 'pending')
+        .or('next_attempt_at.is.null,next_attempt_at.lte.now()')
+        .order('created_at', { ascending: true })
+        .range(fromIndex, toIndex);
+
+      if (eligiblePendingJobsError) {
+        console.error('[queue-process] Erro ao identificar contas elegiveis:', eligiblePendingJobsError.message);
+        return buildJsonResponse({ error: eligiblePendingJobsError.message }, { status: 500 });
+      }
+
+      const pendingAccountsByOldestJob = new Map<string, string>();
+
+      for (const job of eligiblePendingJobs ?? []) {
+        if (!job.sending_account_id || !job.created_at || candidateSendingAccountIds.has(job.sending_account_id)) {
+          continue;
+        }
+
+        const currentOldestCreatedAt = pendingAccountsByOldestJob.get(job.sending_account_id);
+        if (!currentOldestCreatedAt || job.created_at < currentOldestCreatedAt) {
+          pendingAccountsByOldestJob.set(job.sending_account_id, job.created_at);
+        }
+      }
+
+      const sortedPendingAccountIds = [...pendingAccountsByOldestJob.entries()]
+        .sort(([, leftCreatedAt], [, rightCreatedAt]) => leftCreatedAt.localeCompare(rightCreatedAt))
+        .map(([sendingAccountId]) => sendingAccountId);
+
+      for (const sendingAccountId of sortedPendingAccountIds) {
+        candidateSendingAccountIds.add(sendingAccountId);
+
+        if (candidateSendingAccountIds.size >= candidateAccountTarget) {
+          break;
+        }
+      }
+
+      if (
+        (eligiblePendingJobs?.length ?? 0) < eligibleJobPageSize ||
+        candidateSendingAccountIds.size >= candidateAccountTarget
+      ) {
+        break;
+      }
     }
+
+    logPerfDuration('candidate_account_preselection', candidateSelectionStartedAt, {
+      candidate_accounts: candidateSendingAccountIds.size,
+      requested_sending_account_id: requestedSendingAccountId,
+    });
   }
-  logPerfDuration('candidate_account_preselection', candidateSelectionStartedAt, {
-    candidate_accounts: candidateSendingAccountIds.size,
-  });
 
   const orderedEligibleSendingAccountIds = [...candidateSendingAccountIds];
 
