@@ -442,6 +442,30 @@ export async function POST(
       .eq('id', campaignId);
 
     // ── 8. Kick off queue processor immediately (fire and forget) ─────────────
+    try {
+      const qstashToken = process.env.QSTASH_TOKEN;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+      const cronSecret = process.env.CRON_SECRET;
+
+      if (qstashToken && appUrl && cronSecret) {
+        const destinationUrl = `${appUrl}/api/email/queue/process`;
+
+        void fetch(`https://qstash.upstash.io/v2/publish/${destinationUrl}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${qstashToken}`,
+            'Upstash-Method': 'GET',
+            'Upstash-Retries': '3',
+            'Upstash-Forward-Authorization': `Bearer ${cronSecret}`,
+          },
+        }).catch((qstashError) => {
+          console.error('[campaign-send] Falha ao publicar trigger QStash:', qstashError);
+        });
+      }
+    } catch (qstashError) {
+      console.error('[campaign-send] Falha ao preparar trigger QStash:', qstashError);
+    }
+
     return NextResponse.json({ queued: rows.length, total: rows.length });
   } catch (error: any) {
     console.error('[campaign-send] Erro interno:', error);
