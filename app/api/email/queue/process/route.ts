@@ -171,6 +171,24 @@ function isTemporarySmtpFailure(details: {
   return temporaryMessages.some((message) => combinedMessage.includes(message));
 }
 
+function isBlockedSendingAccountFailure(details: {
+  failure_reason: string | null;
+  failure_code: string | null;
+  smtp_response: string | null;
+  smtp_response_code: number | null;
+}): boolean {
+  if (details.smtp_response_code === 455) {
+    return true;
+  }
+
+  const combinedMessage = [details.failure_reason, details.smtp_response]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  return combinedMessage.includes('user blocked') || combinedMessage.includes('conta foi bloqueada');
+}
+
 function maskEmail(email: string): string {
   const [localPart = '', domain = ''] = email.split('@');
   const visibleLocal = localPart.slice(0, 2);
@@ -246,8 +264,8 @@ export async function GET(req: NextRequest) {
   const perfDebug: Array<Record<string, unknown>> = [];
   const skippedAccounts: Array<{
     sending_account_id: string;
-    reason: 'too_many_recent_failures';
-    recent_failures: number;
+    reason: 'too_many_recent_failures' | 'account_blocked';
+    recent_failures?: number;
   }> = [];
   let processed = 0;
   let sent = 0;
@@ -655,6 +673,8 @@ export async function GET(req: NextRequest) {
   const accountQuota = new Map<string, { hourlySent: number; dailySent: number; hourlyLimit: number; dailyLimit: number }>();
   const accountPublicDomainCounts = new Map<string, Map<string, number>>();
   const inactiveAccountsLogged = new Set<string>();
+  const blockedAccountsLogged = new Set<string>();
+  const blockedSendingAccountIds = new Set<string>();
   const hourlyLimitLogged = new Set<string>();
   const dailyLimitLogged = new Set<string>();
   const domainLimitLogged = new Set<string>();
@@ -728,6 +748,21 @@ export async function GET(req: NextRequest) {
         });
         inactiveAccountsLogged.add(job.sending_account_id);
       }
+
+      await supabase
+        .from('email_job_queue')
+        .update({
+          status: 'pending',
+          claimed_at: null,
+          next_attempt_at: getDeferredAttemptIso(INACTIVE_ACCOUNT_RETRY_MINUTES),
+        })
+        .eq('id', job.id);
+
+      continue;
+    }
+
+    if (blockedSendingAccountIds.has(job.sending_account_id)) {
+      debug.push('conta_bloqueada');
 
       await supabase
         .from('email_job_queue')
@@ -908,6 +943,7 @@ export async function GET(req: NextRequest) {
       } catch (error: any) {
         const failureDetails = extractSmtpFailureDetails(error);
         const isTemporaryFailure = isTemporarySmtpFailure(failureDetails);
+        const isBlockedAccountFailure = isBlockedSendingAccountFailure(failureDetails);
         const isHardBounce = isHardBounceFailure(failureDetails);
         const failureTimestamp = new Date().toISOString();
         errors.push({
@@ -919,6 +955,43 @@ export async function GET(req: NextRequest) {
           recipient: maskEmail(job.recipient_email),
           error: sanitizeSmtpError(error),
         });
+
+      if (isBlockedAccountFailure) {
+        blockedSendingAccountIds.add(job.sending_account_id);
+
+        if (!blockedAccountsLogged.has(job.sending_account_id)) {
+          skippedAccounts.push({
+            sending_account_id: job.sending_account_id,
+            reason: 'account_blocked',
+          });
+          console.warn('[queue-process] Conta SMTP bloqueada; interrompendo envio da conta nesta execução.', {
+            sendingAccountId: job.sending_account_id,
+            smtpResponseCode: failureDetails.smtp_response_code,
+            failureReason: failureDetails.failure_reason,
+          });
+          blockedAccountsLogged.add(job.sending_account_id);
+        }
+
+        const blockedAccountDbUpdateStartedAt = Date.now();
+        await supabase
+          .from('email_job_queue')
+          .update({
+            status: 'pending',
+            claimed_at: null,
+            next_attempt_at: getDeferredAttemptIso(INACTIVE_ACCOUNT_RETRY_MINUTES),
+            failure_reason: failureDetails.failure_reason,
+            failure_code: failureDetails.failure_code,
+            smtp_response: failureDetails.smtp_response,
+            smtp_response_code: failureDetails.smtp_response_code,
+          })
+          .eq('id', job.id);
+        logPerfDuration('post_send_db_updates', blockedAccountDbUpdateStartedAt, {
+          job_id: job.id,
+          outcome: 'account_blocked',
+        });
+
+        continue;
+      }
 
       if (isTemporaryFailure) {
         const temporaryFailureDbUpdateStartedAt = Date.now();
