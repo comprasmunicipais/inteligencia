@@ -832,15 +832,15 @@ function AudienceStep({
                 <div className="mt-3 flex flex-col gap-1.5 text-sm text-slate-600">
                   <div className="flex items-center gap-2">
                     <span className="size-2 rounded-full bg-emerald-500" />
-                    <span>Verde: {qualitySummary.green.toLocaleString('pt-BR')}</span>
+                    <span>{qualitySummary.green.toLocaleString('pt-BR')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="size-2 rounded-full bg-amber-400" />
-                    <span>Amarelo: {qualitySummary.yellow.toLocaleString('pt-BR')}</span>
+                    <span>{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="size-2 rounded-full bg-slate-300" />
-                    <span>Não validados: {qualitySummary.white.toLocaleString('pt-BR')}</span>
+                    <span>{qualitySummary.white.toLocaleString('pt-BR')}</span>
                   </div>
                 </div>
               </>
