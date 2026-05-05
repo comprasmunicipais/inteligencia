@@ -253,9 +253,54 @@ async function countFailedForWindow(
   })).length;
 }
 
+async function isValidQStashRequest(req: NextRequest): Promise<boolean> {
+  const signature = req.headers.get('upstash-signature');
+  const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
+
+  if (!signature || !currentSigningKey || !nextSigningKey) {
+    return false;
+  }
+
+  try {
+    const loadQStashModule = new Function(
+      "return import('@upstash/qstash')",
+    ) as () => Promise<{
+      Receiver: new (config: {
+        currentSigningKey: string;
+        nextSigningKey: string;
+      }) => {
+        verify(request: {
+          signature: string;
+          body: string;
+          url?: string;
+        }): Promise<boolean> | boolean;
+      };
+    }>;
+    const qstashModule = await loadQStashModule();
+
+    const receiver = new qstashModule.Receiver({
+      currentSigningKey,
+      nextSigningKey,
+    });
+
+    const body = await req.text();
+    const verified = await receiver.verify({
+      signature,
+      body,
+      url: req.url,
+    });
+
+    return verified === true;
+  } catch (error) {
+    console.error('[queue-process] Falha ao validar assinatura do QStash:', error);
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Route handler — called by Vercel Cron every hour
-// Auth: Authorization: Bearer <CRON_SECRET>
+// Auth: Authorization: Bearer <CRON_SECRET> OR valid QStash signature
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -302,10 +347,14 @@ export async function GET(req: NextRequest) {
     );
   };
   pushPerfEntry({ step: 'route_start', at: new Date().toISOString() });
-  // ── 1. Auth via CRON_SECRET ─────────────────────────────────────────────
+  // ── 1. Auth via CRON_SECRET or QStash signature ─────────────────────────
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization') ?? '';
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const isCronSecretRequest =
+    Boolean(cronSecret) && authHeader === `Bearer ${cronSecret}`;
+  const isQStashRequest = !isCronSecretRequest && await isValidQStashRequest(req);
+
+  if (!isCronSecretRequest && !isQStashRequest) {
     return buildJsonResponse({ error: 'Unauthorized' }, { status: 401 });
   }
 
