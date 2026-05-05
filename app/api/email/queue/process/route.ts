@@ -263,35 +263,10 @@ async function isValidQStashRequest(req: NextRequest): Promise<boolean> {
   }
 
   try {
-    const loadQStashModule = new Function(
-      "return import('@upstash/qstash')",
-    ) as () => Promise<{
-      Receiver: new (config: {
-        currentSigningKey: string;
-        nextSigningKey: string;
-      }) => {
-        verify(request: {
-          signature: string;
-          body: string;
-          url?: string;
-        }): Promise<boolean> | boolean;
-      };
-    }>;
-    const qstashModule = await loadQStashModule();
-
-    const receiver = new qstashModule.Receiver({
-      currentSigningKey,
-      nextSigningKey,
-    });
-
-    const body = await req.text();
-    const verified = await receiver.verify({
-      signature,
-      body,
-      url: req.url,
-    });
-
-    return verified === true;
+    const { Receiver } = await import('@upstash/qstash');
+    const receiver = new Receiver({ currentSigningKey, nextSigningKey });
+    const body = await req.clone().text();
+    return await receiver.verify({ signature, body, url: req.url });
   } catch (error) {
     console.error('[queue-process] Falha ao validar assinatura do QStash:', error);
     return false;
