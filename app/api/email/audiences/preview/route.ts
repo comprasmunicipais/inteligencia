@@ -210,6 +210,70 @@ function getDepartmentTerms(department: string | null) {
   return found ? found.terms : [];
 }
 
+function applyAudienceFilters(
+  query: any,
+  params: {
+    state: string;
+    regionStates: string[];
+    populationRange: string;
+    municipalityId: string;
+    strategic: string;
+    minScoreRaw: string;
+    emailSearch: string;
+    department: string;
+  },
+) {
+  let nextQuery = query;
+
+  if (params.state) {
+    nextQuery = nextQuery.eq('state_source', params.state);
+  } else if (params.regionStates.length > 0) {
+    nextQuery = nextQuery.in('state_source', params.regionStates);
+  }
+
+  if (params.populationRange) {
+    nextQuery = nextQuery.eq('population_range', params.populationRange);
+  }
+
+  if (params.municipalityId) {
+    nextQuery = nextQuery.eq('municipality_id', params.municipalityId);
+  }
+
+  if (params.strategic === 'yes') {
+    nextQuery = nextQuery.eq('is_strategic', true);
+  }
+
+  if (params.strategic === 'no') {
+    nextQuery = nextQuery.eq('is_strategic', false);
+  }
+
+  if (params.minScoreRaw.trim() !== '' && !Number.isNaN(Number(params.minScoreRaw))) {
+    nextQuery = nextQuery.gte('priority_score', Number(params.minScoreRaw));
+  }
+
+  if (params.emailSearch.trim() !== '') {
+    nextQuery = nextQuery.ilike('email', `%${params.emailSearch.trim()}%`);
+  }
+
+  const regionStatesForCamaras = REGIOES[params.department] ?? [];
+  const departmentTerms = getDepartmentTerms(params.department);
+
+  if (regionStatesForCamaras.length > 0) {
+    nextQuery = nextQuery
+      .eq('department_label', 'Camara Municipal')
+      .in('state_source', regionStatesForCamaras);
+  } else if (departmentTerms.length > 0) {
+    const orConditions = departmentTerms.flatMap((term) => [
+      `email.ilike.%${term}%`,
+      `department_label.ilike.%${term}%`,
+    ]);
+
+    nextQuery = nextQuery.or(orConditions.join(','));
+  }
+
+  return nextQuery;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -244,18 +308,31 @@ export async function GET(request: NextRequest) {
       Sul: ['PR', 'RS', 'SC'],
     };
     const regionStates = region ? (REGIONS[region] ?? []) : [];
+    const audienceFilterParams = {
+      state,
+      regionStates,
+      populationRange,
+      municipalityId,
+      strategic,
+      minScoreRaw,
+      emailSearch,
+      department,
+    };
 
     const page = Math.max(Number(pageRaw) || 1, 1);
     const pageSize = Math.min(Math.max(Number(pageSizeRaw) || 50, 1), 200);
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let baseCountQuery = supabase
-      .from('municipality_emails')
-      .select('id', { count: 'exact', head: true })
-      .neq('deliverability_status', 'hard_bounce');
+    const baseCountQuery = applyAudienceFilters(
+      supabase
+        .from('municipality_emails')
+        .select('id', { count: 'exact', head: true })
+        .neq('deliverability_status', 'hard_bounce'),
+      audienceFilterParams,
+    );
 
-    let baseDataQuery = supabase.from('municipality_emails').select(`
+    const baseDataQuery = applyAudienceFilters(supabase.from('municipality_emails').select(`
         id,
         municipality_id,
         email,
@@ -271,74 +348,45 @@ export async function GET(request: NextRequest) {
           population_range
         )
       `)
-      .neq('deliverability_status', 'hard_bounce');
-
-    if (state) {
-      baseCountQuery = baseCountQuery.eq('state_source', state);
-      baseDataQuery = baseDataQuery.eq('state_source', state);
-    } else if (regionStates.length > 0) {
-      baseCountQuery = baseCountQuery.in('state_source', regionStates);
-      baseDataQuery = baseDataQuery.in('state_source', regionStates);
-    }
-
-    if (populationRange) {
-      baseCountQuery = baseCountQuery.eq('population_range', populationRange);
-      baseDataQuery = baseDataQuery.eq('population_range', populationRange);
-    }
-
-    if (municipalityId) {
-      baseCountQuery = baseCountQuery.eq('municipality_id', municipalityId);
-      baseDataQuery = baseDataQuery.eq('municipality_id', municipalityId);
-    }
-
-    if (strategic === 'yes') {
-      baseCountQuery = baseCountQuery.eq('is_strategic', true);
-      baseDataQuery = baseDataQuery.eq('is_strategic', true);
-    }
-
-    if (strategic === 'no') {
-      baseCountQuery = baseCountQuery.eq('is_strategic', false);
-      baseDataQuery = baseDataQuery.eq('is_strategic', false);
-    }
-
-    if (minScoreRaw.trim() !== '' && !Number.isNaN(Number(minScoreRaw))) {
-      const minScore = Number(minScoreRaw);
-      baseCountQuery = baseCountQuery.gte('priority_score', minScore);
-      baseDataQuery = baseDataQuery.gte('priority_score', minScore);
-    }
-
-    if (emailSearch.trim() !== '') {
-      baseCountQuery = baseCountQuery.ilike('email', `%${emailSearch.trim()}%`);
-      baseDataQuery = baseDataQuery.ilike('email', `%${emailSearch.trim()}%`);
-    }
-
-    const regionStatesForCamaras = REGIOES[department] ?? [];
-    const departmentTerms = getDepartmentTerms(department);
-
-    if (regionStatesForCamaras.length > 0) {
-      baseCountQuery = baseCountQuery
-        .eq('department_label', 'Camara Municipal')
-        .in('state_source', regionStatesForCamaras);
-      baseDataQuery = baseDataQuery
-        .eq('department_label', 'Camara Municipal')
-        .in('state_source', regionStatesForCamaras);
-    } else if (departmentTerms.length > 0) {
-      const orConditions = departmentTerms.flatMap((term) => [
-        `email.ilike.%${term}%`,
-        `department_label.ilike.%${term}%`,
-      ]);
-
-      const orExpression = orConditions.join(',');
-
-      baseCountQuery = baseCountQuery.or(orExpression);
-      baseDataQuery = baseDataQuery.or(orExpression);
-    }
+      .neq('deliverability_status', 'hard_bounce'), audienceFilterParams);
 
     const { count, error: countError } = await baseCountQuery;
 
     if (countError) {
       return NextResponse.json({ error: countError.message }, { status: 500 });
     }
+
+    const [greenCountResult, yellowCountResult] = await Promise.all([
+      applyAudienceFilters(
+        supabase
+          .from('municipality_emails')
+          .select('id', { count: 'exact', head: true })
+          .neq('deliverability_status', 'hard_bounce')
+          .or('validation_status.eq.snovio_valid,deliverability_status.eq.delivered'),
+        audienceFilterParams,
+      ),
+      applyAudienceFilters(
+        supabase
+          .from('municipality_emails')
+          .select('id', { count: 'exact', head: true })
+          .neq('deliverability_status', 'hard_bounce')
+          .or('validation_status.eq.snovio_uncertain,deliverability_status.eq.failed'),
+        audienceFilterParams,
+      ),
+    ]);
+
+    if (greenCountResult.error) {
+      return NextResponse.json({ error: greenCountResult.error.message }, { status: 500 });
+    }
+
+    if (yellowCountResult.error) {
+      return NextResponse.json({ error: yellowCountResult.error.message }, { status: 500 });
+    }
+
+    const total = count || 0;
+    const green = greenCountResult.count || 0;
+    const yellow = yellowCountResult.count || 0;
+    const white = Math.max(0, total - green - yellow);
 
     const { data, error: dataError } = await baseDataQuery
       .order('priority_score', { ascending: false, nullsFirst: false })
@@ -362,9 +410,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       items,
-      total: count || 0,
+      total,
       page,
       pageSize,
+      quality_summary: {
+        green,
+        yellow,
+        white,
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
