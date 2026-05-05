@@ -1143,3 +1143,7 @@ export async function GET(req: NextRequest) {
     errors,
   });
 }
+
+export async function POST(req: NextRequest) {
+  return GET(req);
+}
