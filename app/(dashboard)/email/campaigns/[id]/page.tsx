@@ -57,6 +57,17 @@ type AudienceFilters = {
   totalCount: number;
 };
 
+type QualitySummary = {
+  green: number;
+  yellow: number;
+  white: number;
+};
+
+type AudiencePreviewResponse = {
+  total?: number;
+  quality_summary?: Partial<QualitySummary>;
+};
+
 type Campaign = {
   id: string;
   company_id: string;
@@ -531,6 +542,11 @@ function AudienceStep({
 
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingCount, setLoadingCount] = useState(false);
+  const [qualitySummary, setQualitySummary] = useState<QualitySummary>({
+    green: 0,
+    yellow: 0,
+    white: 0,
+  });
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
 
@@ -606,7 +622,12 @@ function AudienceStep({
           cache: 'no-store',
         });
         if (!res.ok) return;
-        const json = await res.json();
+        const json = (await res.json()) as AudiencePreviewResponse;
+        setQualitySummary({
+          green: json.quality_summary?.green ?? 0,
+          yellow: json.quality_summary?.yellow ?? 0,
+          white: json.quality_summary?.white ?? 0,
+        });
         onChange({ ...filters, totalCount: json.total ?? 0 });
       } catch (err: any) {
         if (err.name !== 'AbortError') console.error('Erro ao contar audiência:', err);
@@ -804,9 +825,25 @@ function AudienceStep({
             {loadingCount ? (
               <p className="mt-1 text-sm text-slate-400">Calculando...</p>
             ) : (
-              <p className="mt-1 text-3xl font-bold text-[#0f172a]">
-                {filters.totalCount.toLocaleString('pt-BR')}
-              </p>
+              <>
+                <p className="mt-1 text-3xl font-bold text-[#0f172a]">
+                  {filters.totalCount.toLocaleString('pt-BR')}
+                </p>
+                <div className="mt-3 flex flex-col gap-1.5 text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-emerald-500" />
+                    <span>Verde: {qualitySummary.green.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-amber-400" />
+                    <span>Amarelo: {qualitySummary.yellow.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-slate-300" />
+                    <span>Não validados: {qualitySummary.white.toLocaleString('pt-BR')}</span>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1127,6 +1164,12 @@ function SendStep({
                 {(selected.daily_limit ?? 0).toLocaleString('pt-BR')}
               </p>
             </div>
+          </div>
+        )}
+
+        {selected && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Seu envio será processado automaticamente para garantir a melhor performance de entrega.
           </div>
         )}
       </div>
