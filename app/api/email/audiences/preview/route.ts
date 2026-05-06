@@ -274,6 +274,45 @@ function applyAudienceFilters(
   return nextQuery;
 }
 
+type QualityGroups = {
+  green: boolean;
+  yellow: boolean;
+  white: boolean;
+};
+
+const GREEN_QUALITY_CONDITION =
+  'or(deliverability_status.eq.delivered,and(deliverability_status.neq.delivered,deliverability_status.neq.failed,validation_status.eq.snovio_valid))';
+const YELLOW_QUALITY_CONDITION =
+  'or(deliverability_status.eq.failed,and(deliverability_status.neq.delivered,deliverability_status.neq.failed,validation_status.eq.snovio_uncertain))';
+const WHITE_QUALITY_CONDITION =
+  'and(deliverability_status.neq.delivered,deliverability_status.neq.failed,or(validation_status.eq.snovio_not_checked,validation_status.is.null,deliverability_status.eq.unknown))';
+
+function normalizeQualityGroups(value?: Partial<QualityGroups> | null): QualityGroups {
+  return {
+    green: value?.green ?? true,
+    yellow: value?.yellow ?? true,
+    white: value?.white ?? true,
+  };
+}
+
+function applyQualityGroupFilter(query: any, groups: QualityGroups) {
+  const conditions: string[] = [];
+
+  if (groups.green) conditions.push(GREEN_QUALITY_CONDITION);
+  if (groups.yellow) conditions.push(YELLOW_QUALITY_CONDITION);
+  if (groups.white) conditions.push(WHITE_QUALITY_CONDITION);
+
+  if (conditions.length === 0) {
+    return query.eq('id', '00000000-0000-0000-0000-000000000000');
+  }
+
+  if (conditions.length === 3) {
+    return query;
+  }
+
+  return query.or(conditions.join(','));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -297,6 +336,11 @@ export async function GET(request: NextRequest) {
     const strategic = searchParams.get('strategic') || 'all';
     const minScoreRaw = searchParams.get('minScore') || '';
     const emailSearch = searchParams.get('emailSearch') || '';
+    const qualityGroups = normalizeQualityGroups({
+      green: searchParams.get('qualityGreen') !== 'false',
+      yellow: searchParams.get('qualityYellow') !== 'false',
+      white: searchParams.get('qualityWhite') !== 'false',
+    });
     const pageRaw = searchParams.get('page') || '1';
     const pageSizeRaw = searchParams.get('pageSize') || '50';
 
@@ -324,7 +368,7 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const baseCountQuery = applyAudienceFilters(
+    const baseAudienceCountQuery = applyAudienceFilters(
       supabase
         .from('municipality_emails')
         .select('id', { count: 'exact', head: true })
@@ -332,7 +376,7 @@ export async function GET(request: NextRequest) {
       audienceFilterParams,
     );
 
-    const baseDataQuery = applyAudienceFilters(supabase.from('municipality_emails').select(`
+    const baseAudienceDataQuery = applyAudienceFilters(supabase.from('municipality_emails').select(`
         id,
         municipality_id,
         email,
@@ -350,7 +394,10 @@ export async function GET(request: NextRequest) {
       `)
       .neq('deliverability_status', 'hard_bounce'), audienceFilterParams);
 
-    const { count, error: countError } = await baseCountQuery;
+    const qualityFilteredCountQuery = applyQualityGroupFilter(baseAudienceCountQuery, qualityGroups);
+    const qualityFilteredDataQuery = applyQualityGroupFilter(baseAudienceDataQuery, qualityGroups);
+
+    const { count, error: countError } = await qualityFilteredCountQuery;
 
     if (countError) {
       return NextResponse.json({ error: countError.message }, { status: 500 });
@@ -362,7 +409,7 @@ export async function GET(request: NextRequest) {
           .from('municipality_emails')
           .select('id', { count: 'exact', head: true })
           .neq('deliverability_status', 'hard_bounce')
-          .or('validation_status.eq.snovio_valid,deliverability_status.eq.delivered'),
+          .or(GREEN_QUALITY_CONDITION),
         audienceFilterParams,
       ),
       applyAudienceFilters(
@@ -370,7 +417,7 @@ export async function GET(request: NextRequest) {
           .from('municipality_emails')
           .select('id', { count: 'exact', head: true })
           .neq('deliverability_status', 'hard_bounce')
-          .or('validation_status.eq.snovio_uncertain,deliverability_status.eq.failed'),
+          .or(YELLOW_QUALITY_CONDITION),
         audienceFilterParams,
       ),
     ]);
@@ -388,7 +435,7 @@ export async function GET(request: NextRequest) {
     const yellow = yellowCountResult.count || 0;
     const white = Math.max(0, total - green - yellow);
 
-    const { data, error: dataError } = await baseDataQuery
+    const { data, error: dataError } = await qualityFilteredDataQuery
       .order('priority_score', { ascending: false, nullsFirst: false })
       .order('email', { ascending: true })
       .range(from, to);

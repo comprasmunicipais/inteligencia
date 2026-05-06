@@ -15,6 +15,11 @@ type AudienceFilters = {
   strategic?: 'all' | 'yes' | 'no';
   minScore?: string;
   emailSearch?: string;
+  qualityGroups?: {
+    green: boolean;
+    yellow: boolean;
+    white: boolean;
+  };
   totalCount?: number;
 };
 
@@ -121,6 +126,45 @@ const REGIONS: Record<string, string[]> = {
   Sudeste: ['ES', 'MG', 'RJ', 'SP'],
   Sul: ['PR', 'RS', 'SC'],
 };
+
+type QualityGroups = {
+  green: boolean;
+  yellow: boolean;
+  white: boolean;
+};
+
+const GREEN_QUALITY_CONDITION =
+  'or(deliverability_status.eq.delivered,and(deliverability_status.neq.delivered,deliverability_status.neq.failed,validation_status.eq.snovio_valid))';
+const YELLOW_QUALITY_CONDITION =
+  'or(deliverability_status.eq.failed,and(deliverability_status.neq.delivered,deliverability_status.neq.failed,validation_status.eq.snovio_uncertain))';
+const WHITE_QUALITY_CONDITION =
+  'and(deliverability_status.neq.delivered,deliverability_status.neq.failed,or(validation_status.eq.snovio_not_checked,validation_status.is.null,deliverability_status.eq.unknown))';
+
+function normalizeQualityGroups(value?: Partial<QualityGroups> | null): QualityGroups {
+  return {
+    green: value?.green ?? true,
+    yellow: value?.yellow ?? true,
+    white: value?.white ?? true,
+  };
+}
+
+function applyQualityGroupFilter(query: any, groups: QualityGroups) {
+  const conditions: string[] = [];
+
+  if (groups.green) conditions.push(GREEN_QUALITY_CONDITION);
+  if (groups.yellow) conditions.push(YELLOW_QUALITY_CONDITION);
+  if (groups.white) conditions.push(WHITE_QUALITY_CONDITION);
+
+  if (conditions.length === 0) {
+    return query.eq('id', '00000000-0000-0000-0000-000000000000');
+  }
+
+  if (conditions.length === 3) {
+    return query;
+  }
+
+  return query.or(conditions.join(','));
+}
 
 function getDepartmentTerms(department: string): string[] {
   const rule = DEPARTMENT_RULES.find((r) => r.label === department);
@@ -291,6 +335,7 @@ export async function POST(
 
     // ── 5. Build audience query (no limit — all recipients go to queue) ───────
     const filters = ((campaign.audience_filters ?? {}) as AudienceFilters);
+    const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
 
     let emailQuery = supabase
       .from('municipality_emails')
@@ -306,6 +351,8 @@ export async function POST(
       .neq('deliverability_status', 'hard_bounce')
       .order('priority_score', { ascending: false, nullsFirst: false })
       .order('email', { ascending: true });
+
+    emailQuery = applyQualityGroupFilter(emailQuery, qualityGroups);
 
     // Filters applied directly on municipality_emails columns — mirrors audiences/preview logic
     if (filters.state) emailQuery = emailQuery.eq('state_source', filters.state);

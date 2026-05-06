@@ -62,6 +62,12 @@ type AudienceFilters = {
   totalCount: number;
 };
 
+type QualityGroups = {
+  green: boolean;
+  yellow: boolean;
+  white: boolean;
+};
+
 type QualitySummary = {
   green: number;
   yellow: number;
@@ -155,6 +161,14 @@ const DEFAULT_AUDIENCE: AudienceFilters = {
   },
   totalCount: 0,
 };
+
+function normalizeQualityGroups(value?: Partial<QualityGroups> | null): QualityGroups {
+  return {
+    green: value?.green ?? true,
+    yellow: value?.yellow ?? true,
+    white: value?.white ?? true,
+  };
+}
 
 const BRAZILIAN_STATES = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA',
@@ -624,6 +638,10 @@ function AudienceStep({
         params.set('strategic', filters.strategic);
         if (filters.minScore.trim()) params.set('minScore', filters.minScore.trim());
         if (filters.emailSearch.trim()) params.set('emailSearch', filters.emailSearch.trim());
+        const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
+        params.set('qualityGreen', String(qualityGroups.green));
+        params.set('qualityYellow', String(qualityGroups.yellow));
+        params.set('qualityWhite', String(qualityGroups.white));
         params.set('page', '1');
         params.set('pageSize', '1');
 
@@ -1450,7 +1468,11 @@ export default function CampaignDetailPage() {
           text_content: c.text_content ?? '',
         });
         if (c.audience_filters) {
-          setAudienceFilters({ ...DEFAULT_AUDIENCE, ...c.audience_filters });
+          setAudienceFilters({
+            ...DEFAULT_AUDIENCE,
+            ...c.audience_filters,
+            qualityGroups: normalizeQualityGroups(c.audience_filters.qualityGroups),
+          });
         }
       } catch (err) {
         console.error('Erro ao carregar campanha:', err);
@@ -1501,11 +1523,21 @@ export default function CampaignDetailPage() {
         toast.error('A audiência está vazia. Ajuste os filtros antes de continuar.');
         return false;
       }
+      const qualityGroups = normalizeQualityGroups(audienceFilters.qualityGroups);
+      if (!qualityGroups.green && !qualityGroups.yellow && !qualityGroups.white) {
+        toast.error('Selecione pelo menos um grupo de qualidade para continuar.');
+        return false;
+      }
       try {
         setIsSaving(true);
         const { error } = await supabase
           .from('email_campaigns')
-          .update({ audience_filters: audienceFilters })
+          .update({
+            audience_filters: {
+              ...audienceFilters,
+              qualityGroups,
+            },
+          })
           .eq('id', campaignId);
 
         if (error) throw error;
