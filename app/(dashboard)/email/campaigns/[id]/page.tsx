@@ -54,6 +54,11 @@ type AudienceFilters = {
   strategic: 'all' | 'yes' | 'no';
   minScore: string;
   emailSearch: string;
+  qualityGroups?: {
+    green: boolean;
+    yellow: boolean;
+    white: boolean;
+  };
   totalCount: number;
 };
 
@@ -143,6 +148,11 @@ const DEFAULT_AUDIENCE: AudienceFilters = {
   strategic: 'all',
   minScore: '',
   emailSearch: '',
+  qualityGroups: {
+    green: true,
+    yellow: true,
+    white: true,
+  },
   totalCount: 0,
 };
 
