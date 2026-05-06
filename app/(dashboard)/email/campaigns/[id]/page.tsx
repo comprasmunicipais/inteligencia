@@ -879,39 +879,45 @@ function AudienceStep({
                 <p className="mt-1 text-3xl font-bold text-[#0f172a]">
                   {filters.totalCount.toLocaleString('pt-BR')}
                 </p>
-                <div className="mt-3 flex flex-col gap-1.5 text-sm text-slate-600">
+                <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
                   <button
                     type="button"
                     onClick={() => toggleQualityGroup('green')}
                     disabled={isReadOnly}
-                    className={`flex items-center gap-2 text-left transition ${
-                      qualityGroups.green ? 'opacity-100' : 'opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                      qualityGroups.green
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 opacity-100'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-emerald-300 hover:bg-emerald-100/60'}`}
                   >
                     <span className="size-2 rounded-full bg-emerald-500" />
-                    <span>{qualitySummary.green.toLocaleString('pt-BR')}</span>
+                    <span className="font-medium">{qualitySummary.green.toLocaleString('pt-BR')}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleQualityGroup('yellow')}
                     disabled={isReadOnly}
-                    className={`flex items-center gap-2 text-left transition ${
-                      qualityGroups.yellow ? 'opacity-100' : 'opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                      qualityGroups.yellow
+                        ? 'border-amber-200 bg-amber-50 text-amber-900 opacity-100'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-amber-300 hover:bg-amber-100/60'}`}
                   >
                     <span className="size-2 rounded-full bg-amber-400" />
-                    <span>{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
+                    <span className="font-medium">{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleQualityGroup('white')}
                     disabled={isReadOnly}
-                    className={`flex items-center gap-2 text-left transition ${
-                      qualityGroups.white ? 'opacity-100' : 'opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                      qualityGroups.white
+                        ? 'border-slate-200 bg-slate-100 text-slate-900 opacity-100'
+                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-slate-300 hover:bg-slate-200/70'}`}
                   >
                     <span className="size-2 rounded-full bg-slate-300" />
-                    <span>{qualitySummary.white.toLocaleString('pt-BR')}</span>
+                    <span className="font-medium">{qualitySummary.white.toLocaleString('pt-BR')}</span>
                   </button>
                 </div>
               </>
@@ -1250,9 +1256,9 @@ function SendStep({
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
           <p className="text-sm text-blue-800">
-            O envio será feito apenas para destinatários ainda não enviados desta campanha.{' '}
-            Serão disparados em lotes de 100 e-mails por hora até atingir todos os{' '}
-            <strong>{remainingCount.toLocaleString('pt-BR')}</strong> restantes.
+            Você selecionou <strong>{audienceCount.toLocaleString('pt-BR')}</strong> destinatários na audiência.
+            Destes, <strong>{remainingCount.toLocaleString('pt-BR')}</strong> ainda não foram enviados ou
+            enfileirados nesta campanha e estão disponíveis para este disparo.
           </p>
         </div>
       )}
@@ -1297,7 +1303,8 @@ function SendStep({
           })}
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          O envio será feito apenas para destinatários ainda não enviados desta campanha.{' '}
+          A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, mas apenas{' '}
+          {remainingCount.toLocaleString('pt-BR')} ainda não foram enviados ou enfileirados nesta campanha.{' '}
           <strong>{remainingCount.toLocaleString('pt-BR')}</strong> restantes de{' '}
           {audienceCount.toLocaleString('pt-BR')} na audiência.
         </p>
