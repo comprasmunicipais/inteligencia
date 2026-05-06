@@ -573,6 +573,7 @@ function AudienceStep({
   });
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
+  const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
 
   // Load dropdown options once
   useEffect(() => {
@@ -638,7 +639,6 @@ function AudienceStep({
         params.set('strategic', filters.strategic);
         if (filters.minScore.trim()) params.set('minScore', filters.minScore.trim());
         if (filters.emailSearch.trim()) params.set('emailSearch', filters.emailSearch.trim());
-        const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
         params.set('qualityGreen', String(qualityGroups.green));
         params.set('qualityYellow', String(qualityGroups.yellow));
         params.set('qualityWhite', String(qualityGroups.white));
@@ -675,6 +675,9 @@ function AudienceStep({
     filters.strategic,
     filters.minScore,
     filters.emailSearch,
+    qualityGroups.green,
+    qualityGroups.yellow,
+    qualityGroups.white,
   ]);
 
   const filteredMunicipalities = useMemo(() => {
@@ -691,6 +694,25 @@ function AudienceStep({
     if (key === 'region') { next.state = ''; next.municipalityId = ''; }
     if (key === 'state') next.municipalityId = '';
     onChange(next);
+  };
+
+  const toggleQualityGroup = (key: keyof QualityGroups) => {
+    if (isReadOnly) return;
+
+    const nextQualityGroups = {
+      ...qualityGroups,
+      [key]: !qualityGroups[key],
+    };
+
+    if (!nextQualityGroups.green && !nextQualityGroups.yellow && !nextQualityGroups.white) {
+      toast.error('Selecione pelo menos um grupo de e-mails');
+      return;
+    }
+
+    onChange({
+      ...filters,
+      qualityGroups: nextQualityGroups,
+    });
   };
 
   const clear = () => onChange({ ...DEFAULT_AUDIENCE, totalCount: filters.totalCount });
@@ -858,18 +880,39 @@ function AudienceStep({
                   {filters.totalCount.toLocaleString('pt-BR')}
                 </p>
                 <div className="mt-3 flex flex-col gap-1.5 text-sm text-slate-600">
-                  <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleQualityGroup('green')}
+                    disabled={isReadOnly}
+                    className={`flex items-center gap-2 text-left transition ${
+                      qualityGroups.green ? 'opacity-100' : 'opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                  >
                     <span className="size-2 rounded-full bg-emerald-500" />
                     <span>{qualitySummary.green.toLocaleString('pt-BR')}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleQualityGroup('yellow')}
+                    disabled={isReadOnly}
+                    className={`flex items-center gap-2 text-left transition ${
+                      qualityGroups.yellow ? 'opacity-100' : 'opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                  >
                     <span className="size-2 rounded-full bg-amber-400" />
                     <span>{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleQualityGroup('white')}
+                    disabled={isReadOnly}
+                    className={`flex items-center gap-2 text-left transition ${
+                      qualityGroups.white ? 'opacity-100' : 'opacity-40'
+                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                  >
                     <span className="size-2 rounded-full bg-slate-300" />
                     <span>{qualitySummary.white.toLocaleString('pt-BR')}</span>
-                  </div>
+                  </button>
                 </div>
               </>
             )}
@@ -1525,7 +1568,7 @@ export default function CampaignDetailPage() {
       }
       const qualityGroups = normalizeQualityGroups(audienceFilters.qualityGroups);
       if (!qualityGroups.green && !qualityGroups.yellow && !qualityGroups.white) {
-        toast.error('Selecione pelo menos um grupo de qualidade para continuar.');
+        toast.error('Selecione pelo menos um grupo de e-mails');
         return false;
       }
       try {
