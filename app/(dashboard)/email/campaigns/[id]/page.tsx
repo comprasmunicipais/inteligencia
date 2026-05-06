@@ -1257,8 +1257,11 @@ function SendStep({
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
           <p className="text-sm text-blue-800">
             Você selecionou <strong>{audienceCount.toLocaleString('pt-BR')}</strong> destinatários na audiência.
-            Destes, <strong>{remainingCount.toLocaleString('pt-BR')}</strong> ainda não foram enviados ou
-            enfileirados nesta campanha e estão disponíveis para este disparo.
+            {audienceCount === remainingCount ? (
+              <> Todos estão disponíveis para este disparo.</>
+            ) : (
+              <> Destes, <strong>{remainingCount.toLocaleString('pt-BR')}</strong> ainda não foram enviados nesta campanha.</>
+            )}
           </p>
         </div>
       )}
@@ -1303,10 +1306,11 @@ function SendStep({
           })}
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, mas apenas{' '}
-          {remainingCount.toLocaleString('pt-BR')} ainda não foram enviados ou enfileirados nesta campanha.{' '}
-          <strong>{remainingCount.toLocaleString('pt-BR')}</strong> restantes de{' '}
-          {audienceCount.toLocaleString('pt-BR')} na audiência.
+          {audienceCount === remainingCount ? (
+            <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e todos estão disponíveis para este disparo.</>
+          ) : (
+            <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e {remainingCount.toLocaleString('pt-BR')} ainda não foram enviados nesta campanha.</>
+          )}
         </p>
       </div>
 
