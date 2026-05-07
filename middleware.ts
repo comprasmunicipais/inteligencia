@@ -19,6 +19,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/billing/webhook') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/integrations/google/callback') ||
+    pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/api/plans') ||
     pathname.startsWith('/api/signup') ||
     pathname.startsWith('/login') ||
