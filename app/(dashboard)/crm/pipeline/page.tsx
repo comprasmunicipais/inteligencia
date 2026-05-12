@@ -538,7 +538,7 @@ export default function PipelinePage() {
                                       </DropdownMenuItem>
                                       <DropdownMenuItem asChild>
                                         <Link href={`/crm/deals/${deal.id}`} onClick={(e) => e.stopPropagation()}>
-                                          Abrir Deal Room
+                                          Detalhes
                                         </Link>
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
