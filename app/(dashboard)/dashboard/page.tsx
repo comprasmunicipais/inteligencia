@@ -95,6 +95,9 @@ export default function DashboardPage() {
     { name: 'Contratos Vigentes', value: metrics?.activeContracts.toString() || '0', change: '+2%', icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
 
+  const primaryKpi = kpis[0];
+  const secondaryKpis = kpis.slice(1);
+
   return (
     <>
       <Header 
@@ -102,77 +105,161 @@ export default function DashboardPage() {
         subtitle="Bem-vindo de volta, aqui está o que está acontecendo hoje." 
       />
       
-      <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
+      <div className="flex-1 overflow-y-auto bg-[#f2f5fa] px-8 py-7">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {kpis.map((kpi) => (
-                <div key={kpi.name} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`p-2 ${kpi.bg} rounded-lg`}>
-                      <kpi.icon className={`size-6 ${kpi.color}`} />
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.55fr_1fr]">
+              <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(135deg,#0f172a_0%,#13294b_52%,#183b73_100%)] text-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+                <div className="flex h-full flex-col justify-between gap-8 p-7 lg:p-8">
+                  <div className="space-y-6">
+                    <div className="inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
+                      Central Comercial
                     </div>
-                    <span className="flex items-center text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                      <ArrowUpRight className="size-3 mr-1" />
-                      {kpi.change}
-                    </span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium mb-1">{kpi.name}</h3>
-                  <p className="text-3xl font-bold text-gray-900">{kpi.value}</p>
-                </div>
-              ))}
-            </div>
+                    <div className="max-w-2xl space-y-3">
+                      <h2 className="text-3xl font-semibold tracking-tight text-white lg:text-[2.15rem]">
+                        Sua operação com prefeituras está em movimento.
+                      </h2>
+                      <p className="max-w-xl text-sm leading-6 text-slate-200">
+                        Acompanhe negociações, oportunidades abertas, propostas enviadas e contratos ativos em uma única visão executiva.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_0.8fr]">
+                      <div className="rounded-2xl border border-white/10 bg-white/8 p-5 backdrop-blur-[2px]">
+                        <div className="mb-4 flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                              Destaque do dia
+                            </p>
+                            <h3 className="mt-2 text-base font-semibold text-white">{primaryKpi.name}</h3>
+                          </div>
+                          <div className={`rounded-xl ${primaryKpi.bg} p-2.5`}>
+                            <primaryKpi.icon className={`size-5 ${primaryKpi.color}`} />
+                          </div>
+                        </div>
+                        <div className="flex items-end justify-between gap-4">
+                          <div>
+                            <p className="text-4xl font-semibold leading-none text-white">{primaryKpi.value}</p>
+                            <p className="mt-2 text-sm text-slate-300">negócios e movimentos recentes da carteira</p>
+                          </div>
+                          <span className="inline-flex items-center rounded-full bg-emerald-400/12 px-2.5 py-1 text-xs font-medium text-emerald-200">
+                            <ArrowUpRight className="mr-1 size-3" />
+                            {primaryKpi.change}
+                          </span>
+                        </div>
+                      </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                      <div className="grid gap-3">
+                        {secondaryKpis.map((kpi) => (
+                          <div key={kpi.name} className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-[2px]">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className={`rounded-xl ${kpi.bg} p-2`}>
+                                <kpi.icon className={`size-4 ${kpi.color}`} />
+                              </div>
+                              <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-1 text-[11px] font-medium text-slate-200">
+                                <ArrowUpRight className="mr-1 size-3" />
+                                {kpi.change}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+                              {kpi.name}
+                            </p>
+                            <p className="mt-1 text-2xl font-semibold text-white">{kpi.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-5 md:grid-cols-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Campanhas</p>
+                      <p className="mt-1 text-sm font-medium text-white">{metrics?.lastCampaign?.name || 'Nenhuma campanha recente'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Envio</p>
+                      <p className="mt-1 text-sm font-medium text-white">{formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Carteira</p>
+                      <p className="mt-1 text-sm font-medium text-white">{formatCurrency(getTotalValue())}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Agenda</p>
+                      <p className="mt-1 text-sm font-medium text-white">{metrics?.pendingTasks?.length || 0} prioridades abertas</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <button
                 type="button"
                 onClick={() => router.push('/email/campaigns')}
-                className="lg:col-span-4 bg-gradient-to-r from-[#fff8ed] via-white to-[#eef4ff] p-6 rounded-xl border border-[#f3d7a6] shadow-sm hover:shadow-md transition-all text-left"
+                className="rounded-[28px] border border-[#ead7b4] bg-[linear-gradient(180deg,#fffdf8_0%,#f8fbff_100%)] p-6 text-left shadow-[0_10px_30px_rgba(148,163,184,0.12)] transition-all hover:shadow-[0_14px_36px_rgba(148,163,184,0.16)]"
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex h-full flex-col justify-between gap-8">
                   <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-xl bg-[#fff1d6] text-[#c27a00]">
+                    <div className="rounded-2xl bg-[#fff1d6] p-3 text-[#c27a00] shadow-sm">
                       <Mail className="size-6" />
                     </div>
                     <div className="space-y-2">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#9a6700]">Última Campanha</h3>
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9a6700]">
+                          Promoção Comercial
+                        </span>
+                        <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Última Campanha</h3>
                         <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${getCampaignStatusStyles(metrics?.lastCampaign?.status)}`}>
                           {metrics?.lastCampaign?.status || 'rascunho'}
                         </span>
                       </div>
-                      <p className="text-2xl font-bold text-gray-900">{metrics?.lastCampaign?.name || 'Nenhuma'}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-lg font-semibold text-slate-900">{metrics?.lastCampaign?.name || 'Nenhuma'}</p>
+                      <p className="text-sm leading-6 text-slate-600">
                         {metrics?.lastCampaign?.sent_count || 0} enviados · {metrics?.lastCampaign?.failed_count || 0} falhas · {formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center text-sm font-medium text-[#0f49bd]">
-                    Ver campanhas <ChevronRight className="size-4 ml-1" />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Disparos</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">{metrics?.lastCampaign?.sent_count || 0}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Falhas</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">{metrics?.lastCampaign?.failed_count || 0}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-slate-200/80 pt-4">
+                    <p className="text-sm text-slate-600">
+                      Presença institucional e ativação comercial em andamento.
+                    </p>
+                    <div className="flex items-center text-sm font-medium text-[#0f49bd]">
+                      Ver campanhas <ChevronRight className="ml-1 size-4" />
+                    </div>
                   </div>
                 </div>
               </button>
             </div>
 
             {/* Chart Section */}
-            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+            <div className="rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] p-6 shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Performance de Vendas ({period === '30d' ? '30 Dias' : period === '6m' ? '6 Meses' : '12 Meses'})</h3>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Evolução Comercial</p>
+                  <h3 className="mt-2 text-xl font-semibold text-slate-900">Performance de Vendas ({period === '30d' ? '30 Dias' : period === '6m' ? '6 Meses' : '12 Meses'})</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl font-bold text-gray-900">{formatCurrency(getTotalValue())}</span>
+                    <span className="text-2xl font-semibold text-slate-900">{formatCurrency(getTotalValue())}</span>
                     <span className="text-sm font-medium text-green-600 flex items-center bg-green-50 px-2 py-0.5 rounded">
                       <ArrowUpRight className="size-4 mr-1" />
                       15% vs período anterior
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1">
                   <button 
                     onClick={() => setPeriod('30d')}
                     className={cn(
@@ -245,9 +332,12 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Recent Opportunities Table */}
-              <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                  <h3 className="text-lg font-bold text-gray-900">Oportunidades Recentes</h3>
+              <div className="lg:col-span-2 flex flex-col rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
+                <div className="flex items-center justify-between border-b border-slate-200/80 p-6">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Radar Comercial</p>
+                    <h3 className="mt-2 text-xl font-semibold text-slate-900">Oportunidades Recentes</h3>
+                  </div>
                   <button 
                     onClick={() => router.push('/intel/opportunities')}
                     className="text-[#0f49bd] hover:text-[#0a3690] text-sm font-medium flex items-center"
@@ -258,19 +348,19 @@ export default function DashboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                      <tr className="bg-[#f1f5f9] text-xs uppercase tracking-[0.12em] text-slate-500 font-semibold">
                         <th className="px-6 py-4">Órgão Público</th>
                         <th className="px-6 py-4">Objeto</th>
                         <th className="px-6 py-4">Valor Est.</th>
                         <th className="px-6 py-4">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-slate-200/80">
                       {metrics?.recentOpportunities.map((opp, i) => (
-                        <tr key={i} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push('/intel/opportunities')}>
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">{opp.organ}</td>
-                          <td className="px-6 py-4 text-sm text-gray-500">{opp.object}</td>
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(opp.value)}</td>
+                        <tr key={i} className="cursor-pointer transition-colors hover:bg-[#eef4fb]" onClick={() => router.push('/intel/opportunities')}>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{opp.organ}</td>
+                          <td className="px-6 py-4 text-sm text-slate-600">{opp.object}</td>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(opp.value)}</td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${opp.statusColor}`}>
                               {opp.status}
@@ -284,9 +374,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Pending Actions */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
-                <div className="p-6 border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-900">Ações Pendentes</h3>
+              <div className="flex flex-col rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
+                <div className="border-b border-slate-200/80 p-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Execução</p>
+                  <h3 className="mt-2 text-xl font-semibold text-slate-900">Ações Pendentes</h3>
                 </div>
                 <div className="p-6 space-y-6">
                   {metrics?.pendingTasks && metrics.pendingTasks.length > 0 ? (
@@ -303,8 +394,8 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-gray-900">{task.title}</p>
-                          <p className="text-xs text-gray-500 mt-1">{task.description}</p>
+                          <p className="text-sm font-semibold text-slate-900">{task.title}</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-5">{task.description}</p>
                           <button 
                             onClick={() => router.push('/crm/tasks')}
                             className="mt-2 text-xs font-medium text-[#0f49bd] hover:underline"
@@ -316,15 +407,15 @@ export default function DashboardPage() {
                     ))
                   ) : (
                     <div className="text-center py-8">
-                      <Clock className="size-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">Nenhuma tarefa pendente.</p>
+                      <Clock className="size-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm text-slate-500">Nenhuma tarefa pendente.</p>
                     </div>
                   )}
                 </div>
-                <div className="mt-auto p-4 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
+                <div className="mt-auto rounded-b-[24px] border-t border-slate-200/80 bg-[#f1f5f9] p-4">
                   <button 
                     onClick={() => router.push('/crm/tasks')}
-                    className="w-full py-2 px-4 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 shadow-sm"
                   >
                     Ver Agenda Completa
                   </button>
