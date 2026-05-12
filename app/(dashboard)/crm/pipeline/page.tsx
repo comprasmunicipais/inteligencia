@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '@/components/shared/Header';
 import Image from 'next/image';
+import Link from 'next/link';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
   MoreHorizontal,
@@ -534,6 +535,11 @@ export default function PipelinePage() {
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicateDeal(deal); }}>
                                         <Copy className="size-4 mr-2" /> Duplicar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem asChild>
+                                        <Link href={`/crm/deals/${deal.id}`} onClick={(e) => e.stopPropagation()}>
+                                          Abrir Deal Room
+                                        </Link>
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={(e) => { e.stopPropagation(); handleDeleteDeal(deal.id); }}

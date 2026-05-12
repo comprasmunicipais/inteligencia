@@ -27,6 +27,12 @@ type MunicipalityDetailRow = {
   phone: string | null;
 };
 
+type PipelineStageDetailRow = {
+  id: string;
+  title: string;
+  color: string | null;
+};
+
 const emptyLabel = 'Não informado';
 
 function safeText(value: string | null | undefined) {
@@ -77,6 +83,29 @@ function getStatusTone(status: string | null) {
   return 'bg-slate-100 text-slate-700 ring-slate-200';
 }
 
+function getStageBadgeTone(color: string | null, title: string | null) {
+  switch (color) {
+    case 'bg-green-500':
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    case 'bg-blue-500':
+      return 'bg-blue-50 text-blue-700 ring-blue-200';
+    case 'bg-yellow-400':
+      return 'bg-amber-50 text-amber-700 ring-amber-200';
+    case 'bg-orange-500':
+      return 'bg-orange-50 text-orange-700 ring-orange-200';
+    case 'bg-red-500':
+      return 'bg-rose-50 text-rose-700 ring-rose-200';
+    case 'bg-purple-500':
+      return 'bg-purple-50 text-purple-700 ring-purple-200';
+    case 'bg-cyan-500':
+      return 'bg-cyan-50 text-cyan-700 ring-cyan-200';
+    case 'bg-gray-400':
+      return 'bg-slate-100 text-slate-700 ring-slate-200';
+    default:
+      return getStatusTone(title);
+  }
+}
+
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200/75 bg-white/80 px-4 py-3 shadow-sm">
@@ -125,6 +154,18 @@ export default async function DealDetailPage({
   }
 
   let municipality: MunicipalityDetailRow | null = null;
+  let stage: PipelineStageDetailRow | null = null;
+
+  if (deal.status) {
+    const { data: stageData } = await supabase
+      .from('pipeline_stages')
+      .select('id, title, color')
+      .eq('id', deal.status)
+      .eq('company_id', profile.company_id)
+      .maybeSingle<PipelineStageDetailRow>();
+
+    stage = stageData ?? null;
+  }
 
   if (deal.municipality_id) {
     const { data: municipalityData } = await supabase
@@ -137,6 +178,8 @@ export default async function DealDetailPage({
   }
 
   const websiteUrl = safeWebsite(municipality?.website);
+  const stageLabel = stage?.title ?? 'Etapa não encontrada';
+  const stageBadgeTone = getStageBadgeTone(stage?.color ?? null, stage?.title ?? null);
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f2f5fa] px-5 py-6 sm:px-6 lg:px-8">
@@ -169,9 +212,9 @@ export default async function DealDetailPage({
 
               <div className="flex flex-col items-start gap-3 lg:items-end">
                 <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusTone(deal.status)}`}
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${stageBadgeTone}`}
                 >
-                  {safeText(deal.status)}
+                  {stageLabel}
                 </span>
                 <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left shadow-sm backdrop-blur-[2px] lg:text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
@@ -239,7 +282,7 @@ export default async function DealDetailPage({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <FieldRow label="Status" value={safeText(deal.status)} />
+                <FieldRow label="Status" value={stageLabel} />
                 <FieldRow
                   label="Valor estimado"
                   value={<span className="font-medium text-slate-900">{formatCurrency(deal.estimated_value ?? 0)}</span>}
