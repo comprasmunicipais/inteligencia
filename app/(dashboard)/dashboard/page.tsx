@@ -105,36 +105,36 @@ export default function DashboardPage() {
         subtitle="Bem-vindo de volta, aqui está o que está acontecendo hoje." 
       />
       
-      <div className="flex-1 overflow-y-auto bg-[#f2f5fa] px-8 py-7">
+      <div className="flex-1 overflow-y-auto bg-[#f2f5fa] px-8 py-6">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="size-8 text-[#0f49bd] animate-spin" />
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.55fr_1fr]">
+          <div className="max-w-7xl mx-auto space-y-5">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.55fr_1fr]">
               <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(135deg,#0f172a_0%,#13294b_52%,#183b73_100%)] text-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
-                <div className="flex h-full flex-col justify-between gap-8 p-7 lg:p-8">
-                  <div className="space-y-6">
+                <div className="flex h-full flex-col justify-between gap-5 p-5 lg:p-6">
+                  <div className="space-y-4">
                     <div className="inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
                       Central Comercial
                     </div>
-                    <div className="max-w-2xl space-y-3">
-                      <h2 className="text-3xl font-semibold tracking-tight text-white lg:text-[2.15rem]">
+                    <div className="max-w-2xl space-y-2">
+                      <h2 className="text-[1.75rem] font-semibold tracking-tight text-white lg:text-[1.9rem]">
                         Sua operação com prefeituras está em movimento.
                       </h2>
-                      <p className="max-w-xl text-sm leading-6 text-slate-200">
+                      <p className="max-w-xl text-sm leading-5 text-slate-200">
                         Acompanhe negociações, oportunidades abertas, propostas enviadas e contratos ativos em uma única visão executiva.
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_0.8fr]">
-                      <div className="rounded-2xl border border-white/10 bg-white/8 p-5 backdrop-blur-[2px]">
-                        <div className="mb-4 flex items-start justify-between gap-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                      <div className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-[2px]">
+                        <div className="mb-3 flex items-start justify-between gap-4">
                           <div>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                               Destaque do dia
                             </p>
-                            <h3 className="mt-2 text-base font-semibold text-white">{primaryKpi.name}</h3>
+                            <h3 className="mt-1.5 text-sm font-semibold text-white">{primaryKpi.name}</h3>
                           </div>
                           <div className={`rounded-xl ${primaryKpi.bg} p-2.5`}>
                             <primaryKpi.icon className={`size-5 ${primaryKpi.color}`} />
@@ -142,8 +142,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-end justify-between gap-4">
                           <div>
-                            <p className="text-4xl font-semibold leading-none text-white">{primaryKpi.value}</p>
-                            <p className="mt-2 text-sm text-slate-300">negócios e movimentos recentes da carteira</p>
+                            <p className="text-[2rem] font-semibold leading-none text-white">{primaryKpi.value}</p>
+                            <p className="mt-1.5 text-xs text-slate-300">negócios e movimentos recentes da carteira</p>
                           </div>
                           <span className="inline-flex items-center rounded-full bg-emerald-400/12 px-2.5 py-1 text-xs font-medium text-emerald-200">
                             <ArrowUpRight className="mr-1 size-3" />
@@ -152,9 +152,9 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      <div className="grid gap-3">
+                      <div className="grid gap-2.5">
                         {secondaryKpis.map((kpi) => (
-                          <div key={kpi.name} className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-[2px]">
+                          <div key={kpi.name} className="rounded-2xl border border-white/10 bg-white/8 p-3.5 backdrop-blur-[2px]">
                             <div className="flex items-center justify-between gap-3">
                               <div className={`rounded-xl ${kpi.bg} p-2`}>
                                 <kpi.icon className={`size-4 ${kpi.color}`} />
@@ -167,29 +167,29 @@ export default function DashboardPage() {
                             <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
                               {kpi.name}
                             </p>
-                            <p className="mt-1 text-2xl font-semibold text-white">{kpi.value}</p>
+                            <p className="mt-0.5 text-[1.4rem] font-semibold text-white">{kpi.value}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-5 md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-4 md:grid-cols-4">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Campanhas</p>
-                      <p className="mt-1 text-sm font-medium text-white">{metrics?.lastCampaign?.name || 'Nenhuma campanha recente'}</p>
+                      <p className="mt-1 text-xs font-medium text-white">{metrics?.lastCampaign?.name || 'Nenhuma campanha recente'}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Envio</p>
-                      <p className="mt-1 text-sm font-medium text-white">{formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}</p>
+                      <p className="mt-1 text-xs font-medium text-white">{formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Carteira</p>
-                      <p className="mt-1 text-sm font-medium text-white">{formatCurrency(getTotalValue())}</p>
+                      <p className="mt-1 text-xs font-medium text-white">{formatCurrency(getTotalValue())}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Agenda</p>
-                      <p className="mt-1 text-sm font-medium text-white">{metrics?.pendingTasks?.length || 0} prioridades abertas</p>
+                      <p className="mt-1 text-xs font-medium text-white">{metrics?.pendingTasks?.length || 0} prioridades abertas</p>
                     </div>
                   </div>
                 </div>
@@ -198,9 +198,9 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => router.push('/email/campaigns')}
-                className="rounded-[28px] border border-[#ead7b4] bg-[linear-gradient(180deg,#fffdf8_0%,#f8fbff_100%)] p-6 text-left shadow-[0_10px_30px_rgba(148,163,184,0.12)] transition-all hover:shadow-[0_14px_36px_rgba(148,163,184,0.16)]"
+                className="rounded-[28px] border border-[#ead7b4] bg-[linear-gradient(180deg,#fffdf8_0%,#f8fbff_100%)] p-5 text-left shadow-[0_10px_30px_rgba(148,163,184,0.12)] transition-all hover:shadow-[0_14px_36px_rgba(148,163,184,0.16)]"
               >
-                <div className="flex h-full flex-col justify-between gap-8">
+                <div className="flex h-full flex-col justify-between gap-5">
                   <div className="flex items-start gap-4">
                     <div className="rounded-2xl bg-[#fff1d6] p-3 text-[#c27a00] shadow-sm">
                       <Mail className="size-6" />
@@ -210,31 +210,31 @@ export default function DashboardPage() {
                         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9a6700]">
                           Promoção Comercial
                         </span>
-                        <h3 className="text-2xl font-semibold tracking-tight text-slate-900">Última Campanha</h3>
+                        <h3 className="text-[1.6rem] font-semibold tracking-tight text-slate-900">Última Campanha</h3>
                         <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ${getCampaignStatusStyles(metrics?.lastCampaign?.status)}`}>
                           {metrics?.lastCampaign?.status || 'rascunho'}
                         </span>
                       </div>
-                      <p className="text-lg font-semibold text-slate-900">{metrics?.lastCampaign?.name || 'Nenhuma'}</p>
-                      <p className="text-sm leading-6 text-slate-600">
+                      <p className="text-base font-semibold text-slate-900">{metrics?.lastCampaign?.name || 'Nenhuma'}</p>
+                      <p className="text-sm leading-5 text-slate-600">
                         {metrics?.lastCampaign?.sent_count || 0} enviados · {metrics?.lastCampaign?.failed_count || 0} falhas · {formatCampaignDate(metrics?.lastCampaign?.sent_at || null)}
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Disparos</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">{metrics?.lastCampaign?.sent_count || 0}</p>
+                      <p className="mt-1.5 text-[1.45rem] font-semibold text-slate-900">{metrics?.lastCampaign?.sent_count || 0}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Falhas</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">{metrics?.lastCampaign?.failed_count || 0}</p>
+                      <p className="mt-1.5 text-[1.45rem] font-semibold text-slate-900">{metrics?.lastCampaign?.failed_count || 0}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-200/80 pt-4">
-                    <p className="text-sm text-slate-600">
+                  <div className="flex items-center justify-between border-t border-slate-200/80 pt-3.5">
+                    <p className="text-sm leading-5 text-slate-600">
                       Presença institucional e ativação comercial em andamento.
                     </p>
                     <div className="flex items-center text-sm font-medium text-[#0f49bd]">
@@ -247,7 +247,7 @@ export default function DashboardPage() {
 
             {/* Chart Section */}
             <div className="rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] p-6 shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Evolução Comercial</p>
                   <h3 className="mt-2 text-xl font-semibold text-slate-900">Performance de Vendas ({period === '30d' ? '30 Dias' : period === '6m' ? '6 Meses' : '12 Meses'})</h3>
