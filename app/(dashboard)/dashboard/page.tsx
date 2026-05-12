@@ -246,12 +246,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Chart Section */}
-            <div className="rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] p-6 shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
+            <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#fbfdff_0%,#f3f8fd_100%)] shadow-[0_14px_36px_rgba(148,163,184,0.12)]">
+              <div className="p-6">
               <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Evolução Comercial</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Central de Evolução</p>
                   <h3 className="mt-2 text-xl font-semibold text-slate-900">Performance de Vendas ({period === '30d' ? '30 Dias' : period === '6m' ? '6 Meses' : '12 Meses'})</h3>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1 flex items-center gap-2">
                     <span className="text-2xl font-semibold text-slate-900">{formatCurrency(getTotalValue())}</span>
                     <span className="text-sm font-medium text-green-600 flex items-center bg-green-50 px-2 py-0.5 rounded">
                       <ArrowUpRight className="size-4 mr-1" />
@@ -259,7 +260,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1">
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 p-1 shadow-sm">
                   <button 
                     onClick={() => setPeriod('30d')}
                     className={cn(
@@ -290,6 +291,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               
+              <div className="rounded-[22px] border border-slate-200/70 bg-white/80 px-4 py-5">
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={getChartData()}>
@@ -328,15 +330,17 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Recent Opportunities Table */}
-              <div className="lg:col-span-2 flex flex-col rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
-                <div className="flex items-center justify-between border-b border-slate-200/80 p-6">
+              <div className="lg:col-span-2 flex flex-col overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#fbfdff_0%,#f4f8fc_100%)] shadow-[0_14px_36px_rgba(148,163,184,0.12)]">
+                <div className="flex items-center justify-between border-b border-slate-200/80 bg-white/55 px-6 py-5">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Radar Comercial</p>
-                    <h3 className="mt-2 text-xl font-semibold text-slate-900">Oportunidades Recentes</h3>
+                    <h3 className="mt-1.5 text-xl font-semibold text-slate-900">Oportunidades Recentes</h3>
                   </div>
                   <button 
                     onClick={() => router.push('/intel/opportunities')}
@@ -345,23 +349,23 @@ export default function DashboardPage() {
                     Ver todas <ChevronRight className="size-4 ml-1" />
                   </button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto px-3 pb-3 pt-3">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-[#f1f5f9] text-xs uppercase tracking-[0.12em] text-slate-500 font-semibold">
-                        <th className="px-6 py-4">Órgão Público</th>
-                        <th className="px-6 py-4">Objeto</th>
-                        <th className="px-6 py-4">Valor Est.</th>
-                        <th className="px-6 py-4">Status</th>
+                      <tr className="bg-[#edf3f9] text-[11px] uppercase tracking-[0.14em] text-slate-500 font-semibold">
+                        <th className="px-5 py-3.5">Órgão Público</th>
+                        <th className="px-5 py-3.5">Objeto</th>
+                        <th className="px-5 py-3.5">Valor Est.</th>
+                        <th className="px-5 py-3.5">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200/80">
+                    <tbody className="divide-y divide-slate-200/80 bg-white/75">
                       {metrics?.recentOpportunities.map((opp, i) => (
                         <tr key={i} className="cursor-pointer transition-colors hover:bg-[#eef4fb]" onClick={() => router.push('/intel/opportunities')}>
-                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{opp.organ}</td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{opp.object}</td>
-                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(opp.value)}</td>
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4 text-sm font-medium text-slate-900">{opp.organ}</td>
+                          <td className="px-5 py-4 text-sm leading-5 text-slate-600">{opp.object}</td>
+                          <td className="px-5 py-4 text-sm font-medium text-slate-900">{formatCurrency(opp.value)}</td>
+                          <td className="px-5 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${opp.statusColor}`}>
                               {opp.status}
                             </span>
@@ -374,15 +378,15 @@ export default function DashboardPage() {
               </div>
 
               {/* Pending Actions */}
-              <div className="flex flex-col rounded-[24px] border border-slate-200/80 bg-[#f9fbfd] shadow-[0_8px_26px_rgba(148,163,184,0.10)]">
-                <div className="border-b border-slate-200/80 p-6">
+              <div className="flex flex-col overflow-hidden rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#fbfdff_0%,#f4f8fc_100%)] shadow-[0_14px_36px_rgba(148,163,184,0.12)]">
+                <div className="border-b border-slate-200/80 bg-white/55 px-6 py-5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Execução</p>
-                  <h3 className="mt-2 text-xl font-semibold text-slate-900">Ações Pendentes</h3>
+                  <h3 className="mt-1.5 text-xl font-semibold text-slate-900">Ações Pendentes</h3>
                 </div>
-                <div className="p-6 space-y-6">
+                <div className="p-5 space-y-4">
                   {metrics?.pendingTasks && metrics.pendingTasks.length > 0 ? (
                     metrics.pendingTasks.map((task, i) => (
-                      <div key={i} className="flex gap-4">
+                      <div key={i} className="flex gap-4 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
                         <div className="flex-shrink-0 mt-1">
                           <div className={cn(
                             "h-10 w-10 rounded-full flex items-center justify-center",
@@ -406,16 +410,16 @@ export default function DashboardPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-8">
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/75 py-8 text-center">
                       <Clock className="size-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-sm text-slate-500">Nenhuma tarefa pendente.</p>
                     </div>
                   )}
                 </div>
-                <div className="mt-auto rounded-b-[24px] border-t border-slate-200/80 bg-[#f1f5f9] p-4">
+                <div className="mt-auto border-t border-slate-200/80 bg-[#eef3f8] p-4">
                   <button 
                     onClick={() => router.push('/crm/tasks')}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 shadow-sm"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 shadow-sm"
                   >
                     Ver Agenda Completa
                   </button>
