@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/shared/Header';
 import { 
-  Plus, 
   Search, 
   Filter, 
   MoreVertical, 
@@ -247,16 +246,16 @@ export default function AccountsPage() {
         subtitle="Gerencie os dados institucionais e comerciais dos municípios brasileiros." 
       />
       
-      <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto bg-[#f3f6fb] px-8 py-7">
+        <div className="max-w-7xl mx-auto space-y-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative w-full max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="text-gray-400 size-5" />
+                <Search className="size-4 text-slate-400" />
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] sm:text-sm shadow-sm transition-all outline-none"
+                className="block w-full rounded-lg border border-slate-200/80 bg-[#f8fafc] py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#0f49bd] focus:ring-2 focus:ring-[#0f49bd]/15"
                 placeholder="Buscar por município, prefeito ou cidade..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -270,10 +269,10 @@ export default function AccountsPage() {
                   setCurrentPage(1);
                 }}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-colors shadow-sm",
+                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
                   filters.has_opportunities
                     ? "bg-[#0f49bd] text-white border-[#0f49bd]"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                    : "bg-[#f8fafc] text-slate-700 border-slate-200 hover:bg-white"
                 )}
               >
                 <Gavel className="size-4" />
@@ -283,35 +282,26 @@ export default function AccountsPage() {
               <button 
                 onClick={() => setIsFilterModalOpen(true)}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-colors shadow-sm",
+                  "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
                   hasActiveFilters && !filters.has_opportunities
                     ? "bg-[#0f49bd] text-white border-[#0f49bd]"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                    : "bg-[#f8fafc] text-slate-700 border-slate-200 hover:bg-white"
                 )}
               >
                 <Filter className="size-4" />
                 Filtrar
               </button>
 
-              {role === 'platform_admin' && (
-                <button
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-white hover:bg-[#0a3690] transition-colors shadow-sm font-bold text-sm"
-                >
-                  <Plus className="size-4" />
-                  Adicionar Prefeitura
-                </button>
-              )}
             </div>
           </div>
 
           {filters.has_opportunities && (
-            <div className="flex items-center gap-2 text-sm text-[#0f49bd] font-bold">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#0f49bd]">
               <Gavel className="size-4" />
               Exibindo apenas prefeituras com licitações abertas vinculadas
               <button
                 onClick={() => setFilters(prev => ({ ...prev, has_opportunities: false }))}
-                className="ml-1 text-gray-400 hover:text-gray-600"
+                className="ml-1 text-slate-400 hover:text-slate-600"
               >
                 <X className="size-4" />
               </button>
@@ -319,26 +309,26 @@ export default function AccountsPage() {
           )}
 
           {isReadOnly && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 font-medium">
+            <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-4 py-2 text-sm font-medium text-amber-800">
               Exibindo 10 municípios como amostra
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-[#f7f9fc] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs font-bold uppercase text-gray-500 tracking-wider">
+                <thead className="bg-[#eef3f8] text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                   <tr>
-                    <th className="px-6 py-4">Município</th>
-                    <th className="px-6 py-4">UF</th>
-                    <th className="px-6 py-4">Região</th>
-                    <th className="px-6 py-4">Prefeito</th>
-                    <th className="px-6 py-4">População</th>
-                    <th className="px-6 py-4">Site Oficial</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
+                    <th className="px-6 py-3.5">Município</th>
+                    <th className="px-6 py-3.5">UF</th>
+                    <th className="px-6 py-3.5">Região</th>
+                    <th className="px-6 py-3.5">Prefeito</th>
+                    <th className="px-6 py-3.5">População</th>
+                    <th className="px-6 py-3.5">Site Oficial</th>
+                    <th className="px-6 py-3.5 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-200/70 bg-[#f7f9fc]">
                   {loading ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-8 text-center">
@@ -363,60 +353,63 @@ export default function AccountsPage() {
                   ) : accounts.map((account) => (
                     <tr 
                       key={account.id} 
-                      className="group hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      className="group cursor-pointer transition-colors hover:bg-[#edf3fb]"
                       onClick={() => router.push(`/crm/accounts/${account.id}`)}
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="size-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
+                          <div className="flex size-8 items-center justify-center rounded-lg bg-slate-200/70 text-slate-500 transition-colors group-hover:bg-slate-200">
                             <Building2 className="size-4" />
                           </div>
-                          <span className="font-bold text-gray-900">{account.name}</span>
+                          <div className="min-w-0">
+                            <span className="block truncate text-[13.5px] font-semibold text-slate-900">{account.name}</span>
+                            <span className="block text-[11px] text-slate-500">{safeText(account.city, 'Cidade não informada')}</span>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600">
+                      <td className="px-6 py-3.5">
+                        <span className="inline-flex items-center rounded-full bg-slate-200/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
                           {account.state}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-xs font-bold text-gray-500">
+                      <td className="px-6 py-3.5">
+                        <span className="text-xs font-medium text-slate-500">
                           {account.region ? (regionLabels[account.region] || account.region) : 'N/A'}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2">
-                          <div className="size-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">
+                          <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
                             {account.mayor_name ? account.mayor_name.split(' ').map(n => n[0]).join('') : '??'}
                           </div>
-                          <span className="text-gray-700">{safeText(account.mayor_name, 'Não informado')}</span>
+                          <span className="text-sm text-slate-700">{safeText(account.mayor_name, 'Não informado')}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         <div className="flex flex-col">
-                          <span className="text-gray-900 font-bold">{account.population?.toLocaleString() || '0'}</span>
-                          <span className="text-[10px] text-gray-400 uppercase font-bold">{safeText(account.population_range)}</span>
+                          <span className="font-semibold text-slate-900">{account.population?.toLocaleString() || '0'}</span>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{safeText(account.population_range)}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-3.5">
                         {account.website ? (
                           <button 
                             onClick={(e) => handleVisitWebsite(e, safeLink(account.website)!)}
-                            className="text-[#0f49bd] hover:underline flex items-center gap-1 font-medium"
+                            className="flex items-center gap-1 text-sm font-medium text-[#0f49bd] hover:text-[#0a3690] hover:underline"
                           >
                             <ExternalLink className="size-3" />
                             Visitar
                           </button>
                         ) : (
-                          <span className="text-gray-400 italic">N/A</span>
+                          <span className="italic text-slate-400">N/A</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-3.5 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button 
                               onClick={(e) => e.stopPropagation()}
-                              className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
+                              className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600"
                             >
                               <MoreVertical className="size-5" />
                             </button>
@@ -447,23 +440,23 @@ export default function AccountsPage() {
               </table>
             </div>
             
-            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 px-6 py-4">
-              <span className="text-xs text-gray-500">
-                Mostrando {accounts.length} de <span className="font-bold text-gray-900">{totalCount}</span> resultados
+            <div className="flex items-center justify-between border-t border-slate-200/70 bg-[#f1f5f9] px-6 py-3.5">
+              <span className="text-xs text-slate-500">
+                Mostrando {accounts.length} de <span className="font-semibold text-slate-900">{totalCount}</span> resultados
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1 || isReadOnly}
-                  className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <ChevronLeft className="size-3" /> Anterior
                 </button>
-                <span className="text-xs font-bold text-gray-500 px-2">Página {currentPage} de {totalPages || 1}</span>
+                <span className="px-2 text-xs font-medium text-slate-500">Página {currentPage} de {totalPages || 1}</span>
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages || totalPages === 0 || isReadOnly}
-                  className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Próxima <ChevronRight className="size-3" />
                 </button>
