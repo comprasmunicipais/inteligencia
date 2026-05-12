@@ -33,6 +33,16 @@ type PipelineStageDetailRow = {
   color: string | null;
 };
 
+type ContactDetailRow = {
+  id: string;
+  name: string;
+  role: string | null;
+  department: string | null;
+  secretariat: string | null;
+  email: string | null;
+  whatsapp: string | null;
+};
+
 const emptyLabel = 'Não informado';
 
 function safeText(value: string | null | undefined) {
@@ -155,6 +165,7 @@ export default async function DealDetailPage({
 
   let municipality: MunicipalityDetailRow | null = null;
   let stage: PipelineStageDetailRow | null = null;
+  let contacts: ContactDetailRow[] = [];
 
   if (deal.status) {
     const { data: stageData } = await supabase
@@ -175,6 +186,16 @@ export default async function DealDetailPage({
       .maybeSingle<MunicipalityDetailRow>();
 
     municipality = municipalityData ?? null;
+
+    const { data: contactsData } = await supabase
+      .from('contacts')
+      .select('id, name, role, department, secretariat, email, whatsapp')
+      .eq('company_id', profile.company_id)
+      .eq('municipality_id', deal.municipality_id)
+      .order('name', { ascending: true })
+      .limit(6);
+
+    contacts = (contactsData ?? []) as ContactDetailRow[];
   }
 
   const websiteUrl = safeWebsite(municipality?.website);
@@ -355,6 +376,48 @@ export default async function DealDetailPage({
                     />
                     <FieldRow label="E-mail" value={safeText(municipality.email)} />
                     <FieldRow label="Telefone" value={safeText(municipality.phone)} />
+                  </div>
+
+                  <div className="rounded-[24px] border border-slate-200/75 bg-white/85 p-5 shadow-sm">
+                    <div className="mb-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Relacionamento
+                      </p>
+                      <h3 className="mt-1.5 text-base font-semibold text-slate-900">
+                        Contatos da prefeitura
+                      </h3>
+                    </div>
+
+                    {contacts.length > 0 ? (
+                      <div className="space-y-3">
+                        {contacts.map((contact, index) => (
+                          <div
+                            key={contact.id}
+                            className={`pb-3 ${index !== contacts.length - 1 ? 'border-b border-slate-200/70' : ''}`}
+                          >
+                            <p className="text-sm font-semibold text-slate-900">{contact.name}</p>
+                            {contact.role && (
+                              <p className="mt-1 text-sm text-slate-600">{contact.role}</p>
+                            )}
+                            {(contact.secretariat || contact.department) && (
+                              <p className="mt-1 text-xs text-slate-500">
+                                {[contact.secretariat, contact.department].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                            {(contact.email || contact.whatsapp) && (
+                              <div className="mt-1.5 space-y-1 text-xs text-slate-500">
+                                {contact.email && <p>{contact.email}</p>}
+                                {contact.whatsapp && <p>{contact.whatsapp}</p>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm leading-6 text-slate-600">
+                        Nenhum contato cadastrado para esta prefeitura.
+                      </p>
+                    )}
                   </div>
                 </div>
               ) : (
