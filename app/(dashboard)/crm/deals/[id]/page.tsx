@@ -478,25 +478,24 @@ export default async function DealDetailPage({
               </div>
 
               <div className="rounded-[24px] border border-slate-200/75 bg-white/85 p-5 shadow-sm">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Execução
-                    </p>
-                    <h3 className="mt-1.5 text-base font-semibold text-slate-900">
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Execução
+                  </p>
+                  <div className="mt-1.5 flex items-start justify-between gap-3">
+                    <h3 className="text-base font-semibold text-slate-900">
                       Próximos Passos
                     </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Ações comerciais abertas relacionadas a esta prefeitura
-                    </p>
+                    <Link
+                      href="/crm/tasks"
+                      className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-[#0f49bd] hover:text-[#0f49bd]"
+                    >
+                      Nova tarefa
+                    </Link>
                   </div>
-
-                  <Link
-                    href="/crm/tasks"
-                    className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-[#0f49bd] hover:text-[#0f49bd]"
-                  >
-                    Nova tarefa
-                  </Link>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Ações comerciais abertas relacionadas a esta prefeitura
+                  </p>
                 </div>
 
                 {openTasks.length > 0 ? (
