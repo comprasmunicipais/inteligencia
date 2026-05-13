@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft, Building2, CalendarDays, Landmark, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, CalendarDays, ExternalLink, Landmark, MapPin } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -9,11 +9,25 @@ type DealDetailRow = {
   id: string;
   company_id: string;
   municipality_id: string | null;
+  opportunity_id: string | null;
   title: string;
   estimated_value: number | null;
   status: string | null;
   created_at: string | null;
   source: string | null;
+};
+
+type OpportunityDetailRow = {
+  id: string;
+  title: string | null;
+  organ_name: string | null;
+  modality: string | null;
+  estimated_value: number | null;
+  situation: string | null;
+  internal_status: string | null;
+  publication_date: string | null;
+  opening_date: string | null;
+  official_url: string | null;
 };
 
 type MunicipalityDetailRow = {
@@ -154,7 +168,7 @@ export default async function DealDetailPage({
 
   const { data: deal, error: dealError } = await supabase
     .from('deals')
-    .select('id, company_id, municipality_id, title, estimated_value, status, created_at, source')
+    .select('id, company_id, municipality_id, opportunity_id, title, estimated_value, status, created_at, source')
     .eq('id', id)
     .eq('company_id', profile.company_id)
     .maybeSingle<DealDetailRow>();
@@ -166,6 +180,8 @@ export default async function DealDetailPage({
   let municipality: MunicipalityDetailRow | null = null;
   let stage: PipelineStageDetailRow | null = null;
   let contacts: ContactDetailRow[] = [];
+  let linkedOpportunity: OpportunityDetailRow | null = null;
+  let linkedOpportunityUnavailable = false;
 
   if (deal.status) {
     const { data: stageData } = await supabase
@@ -176,6 +192,22 @@ export default async function DealDetailPage({
       .maybeSingle<PipelineStageDetailRow>();
 
     stage = stageData ?? null;
+  }
+
+  if (deal.opportunity_id) {
+    const { data: opportunityData, error: opportunityError } = await supabase
+      .from('opportunities')
+      .select(
+        'id, title, organ_name, modality, estimated_value, situation, internal_status, publication_date, opening_date, official_url'
+      )
+      .eq('id', deal.opportunity_id)
+      .maybeSingle<OpportunityDetailRow>();
+
+    if (opportunityError || !opportunityData) {
+      linkedOpportunityUnavailable = true;
+    } else {
+      linkedOpportunity = opportunityData;
+    }
   }
 
   if (deal.municipality_id) {
@@ -318,6 +350,109 @@ export default async function DealDetailPage({
                     </span>
                   }
                 />
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200/75 bg-white/85 p-5 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Licitação
+                  </p>
+                  <h3 className="mt-1.5 text-base font-semibold text-slate-900">
+                    Licitação vinculada
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Oportunidade original associada a este negócio
+                  </p>
+                </div>
+
+                {linkedOpportunity ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200/75 bg-slate-50/85 px-4 py-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Título / objeto
+                      </p>
+                      <h4 className="mt-2 text-base font-semibold text-slate-900">
+                        {safeText(linkedOpportunity.title)}
+                      </h4>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {safeText(linkedOpportunity.organ_name)}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <FieldRow label="Modalidade" value={safeText(linkedOpportunity.modality)} />
+                      <FieldRow
+                        label="Valor estimado"
+                        value={
+                          <span className="font-medium text-slate-900">
+                            {linkedOpportunity.estimated_value !== null
+                              ? formatCurrency(linkedOpportunity.estimated_value)
+                              : emptyLabel}
+                          </span>
+                        }
+                      />
+                      <FieldRow label="Status" value={safeText(linkedOpportunity.situation || linkedOpportunity.internal_status)} />
+                      <FieldRow
+                        label="Data de abertura"
+                        value={
+                          linkedOpportunity.opening_date ? (
+                            <span className="inline-flex items-center gap-2">
+                              <CalendarDays className="size-4 text-slate-400" />
+                              {formatDate(linkedOpportunity.opening_date)}
+                            </span>
+                          ) : (
+                            emptyLabel
+                          )
+                        }
+                      />
+                      <FieldRow
+                        label="Data de publicação"
+                        value={
+                          linkedOpportunity.publication_date ? (
+                            <span className="inline-flex items-center gap-2">
+                              <CalendarDays className="size-4 text-slate-400" />
+                              {formatDate(linkedOpportunity.publication_date)}
+                            </span>
+                          ) : (
+                            emptyLabel
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Link
+                        href={`/intel/opportunities?opportunityId=${linkedOpportunity.id}`}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#0f49bd] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0a3690]"
+                      >
+                        Ver oportunidade
+                      </Link>
+                      {linkedOpportunity.official_url && (
+                        <a
+                          href={linkedOpportunity.official_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-[#0f49bd] hover:text-[#0f49bd]"
+                        >
+                          Abrir edital
+                          <ExternalLink className="size-4" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : linkedOpportunityUnavailable ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+                    <p className="text-sm leading-6 text-slate-600">
+                      A licitação vinculada não está mais disponível para exibição.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+                    <p className="text-sm leading-6 text-slate-600">
+                      Este negócio não possui licitação vinculada.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </section>
