@@ -76,6 +76,16 @@ type LatestTaskMovementRow = {
   created_at: string | null;
 };
 
+type RelatedProposalRow = {
+  id: string;
+  title: string | null;
+  status: string | null;
+  value: number | null;
+  date: string | null;
+  created_at: string | null;
+  opportunity_id: string | null;
+};
+
 const emptyLabel = 'Não informado';
 
 function safeText(value: string | null | undefined) {
@@ -201,6 +211,7 @@ export default async function DealDetailPage({
   let contacts: ContactDetailRow[] = [];
   let openTasks: TaskDetailRow[] = [];
   let latestTaskMovement: LatestTaskMovementRow | null = null;
+  let relatedProposals: RelatedProposalRow[] = [];
   let linkedOpportunity: OpportunityDetailRow | null = null;
   let linkedOpportunityUnavailable = false;
 
@@ -272,6 +283,17 @@ export default async function DealDetailPage({
       .limit(1);
 
     latestTaskMovement = ((latestTaskData ?? [])[0] ?? null) as LatestTaskMovementRow | null;
+
+    const { data: proposalsData } = await supabase
+      .from('proposals')
+      .select('id, title, status, value, date, created_at, opportunity_id')
+      .eq('company_id', profile.company_id)
+      .eq('municipality_id', deal.municipality_id)
+      .order('date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .limit(5);
+
+    relatedProposals = (proposalsData ?? []) as RelatedProposalRow[];
   }
 
   const websiteUrl = safeWebsite(municipality?.website);
@@ -616,6 +638,62 @@ export default async function DealDetailPage({
                 )}
               </div>
 
+              <div className="rounded-[24px] border border-slate-200/75 bg-white/85 p-5 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Propostas
+                  </p>
+                  <h3 className="mt-1.5 text-base font-semibold text-slate-900">
+                    Propostas relacionadas
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Propostas registradas para esta prefeitura
+                  </p>
+                </div>
+
+                {relatedProposals.length > 0 ? (
+                  <div className="space-y-3">
+                    {relatedProposals.map((proposal, index) => (
+                      <div
+                        key={proposal.id}
+                        className={index !== relatedProposals.length - 1 ? 'border-b border-slate-200/70 pb-3' : ''}
+                      >
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {safeText(proposal.title)}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${getStatusTone(proposal.status)}`}
+                            >
+                              Status: {safeText(proposal.status)}
+                            </span>
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                              Valor: {proposal.value !== null ? formatCurrency(proposal.value) : emptyLabel}
+                            </span>
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                              Data: {proposal.date ? formatDate(proposal.date) : proposal.created_at ? formatDate(proposal.created_at) : emptyLabel}
+                            </span>
+                            {deal.opportunity_id && proposal.opportunity_id === deal.opportunity_id && (
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                Mesma licitação
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+                    <p className="text-sm leading-6 text-slate-600">
+                      Nenhuma proposta registrada para esta prefeitura.
+                    </p>
+                  </div>
+                )}
+              </div>
+
             </div>
           </section>
 
@@ -737,3 +815,6 @@ export default async function DealDetailPage({
     </div>
   );
 }
+
+
+
