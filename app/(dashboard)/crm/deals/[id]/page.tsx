@@ -57,6 +57,15 @@ type ContactDetailRow = {
   whatsapp: string | null;
 };
 
+type TaskDetailRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  due_date: string | null;
+  priority: string | null;
+  status: string | null;
+};
+
 const emptyLabel = 'Não informado';
 
 function safeText(value: string | null | undefined) {
@@ -180,6 +189,7 @@ export default async function DealDetailPage({
   let municipality: MunicipalityDetailRow | null = null;
   let stage: PipelineStageDetailRow | null = null;
   let contacts: ContactDetailRow[] = [];
+  let openTasks: TaskDetailRow[] = [];
   let linkedOpportunity: OpportunityDetailRow | null = null;
   let linkedOpportunityUnavailable = false;
 
@@ -228,6 +238,18 @@ export default async function DealDetailPage({
       .limit(6);
 
     contacts = (contactsData ?? []) as ContactDetailRow[];
+
+    const { data: tasksData } = await supabase
+      .from('tasks')
+      .select('id, title, description, due_date, priority, status')
+      .eq('company_id', profile.company_id)
+      .eq('municipality_id', deal.municipality_id)
+      .neq('status', 'concluÃ­do')
+      .neq('status', 'finalizado')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(5);
+
+    openTasks = (tasksData ?? []) as TaskDetailRow[];
   }
 
   const websiteUrl = safeWebsite(municipality?.website);
@@ -450,6 +472,61 @@ export default async function DealDetailPage({
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
                     <p className="text-sm leading-6 text-slate-600">
                       Este negócio não possui licitação vinculada.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200/75 bg-white/85 p-5 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Execução
+                  </p>
+                  <h3 className="mt-1.5 text-base font-semibold text-slate-900">
+                    Próximos Passos
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Ações comerciais abertas relacionadas a esta prefeitura
+                  </p>
+                </div>
+
+                {openTasks.length > 0 ? (
+                  <div className="space-y-3">
+                    {openTasks.map((task, index) => (
+                      <div
+                        key={task.id}
+                        className={index !== openTasks.length - 1 ? 'border-b border-slate-200/70 pb-3' : ''}
+                      >
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {safeText(task.title)}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                              Prazo: {task.due_date ? formatDate(task.due_date) : 'Sem prazo'}
+                            </span>
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                              Prioridade: {safeText(task.priority)}
+                            </span>
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                              Status: {safeText(task.status)}
+                            </span>
+                          </div>
+
+                          {task.description && (
+                            <p className="text-xs leading-5 text-slate-500">
+                              {task.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+                    <p className="text-sm leading-6 text-slate-600">
+                      Nenhuma ação comercial aberta para esta prefeitura.
                     </p>
                   </div>
                 )}
