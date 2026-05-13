@@ -702,7 +702,17 @@ export default async function DealDetailPage({
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Prefeitura
               </p>
-              <h2 className="mt-1.5 text-xl font-semibold text-slate-900">Prefeitura vinculada</h2>
+              <div className="mt-1.5 flex items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold text-slate-900">Prefeitura vinculada</h2>
+                {municipality?.id && (
+                  <Link
+                    href={`/crm/accounts/${municipality.id}`}
+                    className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-[#0f49bd] hover:text-[#0f49bd]"
+                  >
+                    Ver prefeitura
+                  </Link>
+                )}
+              </div>
             </div>
 
             <div className="p-5">
