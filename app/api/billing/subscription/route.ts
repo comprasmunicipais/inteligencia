@@ -40,6 +40,7 @@ export async function GET() {
     .from('plans')
     .select('id, name, emails_per_month, max_users, price_monthly, price_semiannual, price_annual')
     .eq('is_active', true)
+    .neq('name', 'Implantação')
     .order('price_monthly', { ascending: true })
 
   return NextResponse.json({

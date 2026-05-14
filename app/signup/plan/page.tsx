@@ -17,6 +17,8 @@ interface Plan {
   extra_users_allowed: boolean;
 }
 
+const IMPLANTACAO_PLAN_NAME = 'Implantação';
+
 const CYCLE_LABELS: Record<BillingCycle, string> = {
   monthly: 'Mensal',
   semiannual: 'Semestral',
@@ -47,6 +49,33 @@ function formatEmails(count: number): string {
   return new Intl.NumberFormat('pt-BR').format(count);
 }
 
+function normalizeImplantacaoDisplayName(name: string) {
+  const trimmed = name.trim();
+  const lowered = trimmed.toLowerCase();
+  const normalizedAscii = lowered
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    normalizedAscii === 'implantacao' ||
+    lowered === 'implanta??o' ||
+    lowered === 'implantaã§ã£o' ||
+    lowered === 'implanta��o'
+  ) {
+    return IMPLANTACAO_PLAN_NAME;
+  }
+
+  return name;
+}
+
+function isImplantacao(plan: Plan) {
+  return normalizeImplantacaoDisplayName(plan.name) === IMPLANTACAO_PLAN_NAME;
+}
+
+function getPlanDisplayName(plan: Plan) {
+  return isImplantacao(plan) ? IMPLANTACAO_PLAN_NAME : plan.name;
+}
+
 export default function SignupPlanPage() {
   const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -73,14 +102,17 @@ export default function SignupPlanPage() {
   }, []);
 
   const handleSelectPlan = (plan: Plan) => {
+    const selectedCycle: BillingCycle = isImplantacao(plan) ? 'monthly' : cycle;
+
     if (typeof window !== 'undefined') {
-      document.cookie = `cm_pending_plan=${encodeURIComponent(JSON.stringify({ planId: plan.id, billingCycle: cycle }))}; path=/; max-age=3600; SameSite=Lax`;
+      document.cookie = `cm_pending_plan=${encodeURIComponent(JSON.stringify({ planId: plan.id, billingCycle: selectedCycle }))}; path=/; max-age=3600; SameSite=Lax`;
     }
     router.push('/signup/payment');
   };
 
   const isProfessional = (plan: Plan) => plan.name === 'Profissional';
-
+  const implantacaoPlan = plans.find(isImplantacao);
+  const mainPlans = plans.filter((plan) => !isImplantacao(plan));
   return (
     <>
       <style>{`
@@ -219,13 +251,20 @@ export default function SignupPlanPage() {
         /* Cards grid */
         .plan-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 20px;
           width: 100%;
-          max-width: 980px;
+          max-width: 1320px;
           z-index: 1;
           animation: fadeInUp 0.5s ease both;
           animation-delay: 0.18s;
+        }
+
+        @media (max-width: 1180px) {
+          .plan-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            max-width: 900px;
+          }
         }
 
         @media (max-width: 768px) {
@@ -233,6 +272,172 @@ export default function SignupPlanPage() {
             grid-template-columns: 1fr;
             max-width: 420px;
           }
+        }
+
+        .implantacao-card {
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at top right, rgba(16,185,129,0.16), transparent 34%),
+            linear-gradient(135deg, rgba(10,16,28,0.98), rgba(13,18,30,0.98));
+          border: 1px solid rgba(16,185,129,0.24);
+          border-radius: 24px;
+          padding: 24px 22px 22px;
+          box-shadow: 0 18px 55px rgba(0,0,0,0.22);
+          display: flex;
+          flex-direction: column;
+          min-height: 100%;
+        }
+
+        .implantacao-card::before {
+          content: '';
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 4px;
+          background: linear-gradient(90deg, #10b981, #34d399, #93c5fd);
+        }
+
+        .implantacao-content {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          min-height: 100%;
+        }
+
+        .implantacao-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .implantacao-badge {
+          display: inline-flex;
+          width: fit-content;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: rgba(16,185,129,0.10);
+          border: 1px solid rgba(16,185,129,0.24);
+          border-radius: 999px;
+          color: #6ee7b7;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .implantacao-title {
+          font-family: 'Sora', sans-serif;
+          font-size: 24px;
+          font-weight: 800;
+          color: #f0f4ff;
+          letter-spacing: -0.04em;
+          margin: 0;
+        }
+
+        .implantacao-text {
+          font-size: 14px;
+          line-height: 1.6;
+          color: rgba(226,232,240,0.82);
+          margin: 0;
+        }
+
+        .implantacao-note {
+          font-size: 12px;
+          line-height: 1.6;
+          color: rgba(148,163,184,0.82);
+          margin: 0;
+        }
+
+        .implantacao-features {
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 0;
+          margin: 0;
+        }
+
+        .implantacao-feature {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          font-size: 13px;
+          line-height: 1.4;
+          color: rgba(226,232,240,0.9);
+        }
+
+        .implantacao-feature-icon {
+          flex-shrink: 0;
+          width: 16px;
+          height: 16px;
+          margin-top: 2px;
+          color: #34d399;
+        }
+
+        .implantacao-side {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 16px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px;
+          backdrop-filter: blur(18px);
+          margin-top: auto;
+        }
+
+        .implantacao-side-label {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(148,163,184,0.7);
+        }
+
+        .implantacao-price {
+          font-family: 'Sora', sans-serif;
+          font-size: 32px;
+          font-weight: 800;
+          line-height: 1;
+          color: #f8fafc;
+        }
+
+        .implantacao-period {
+          font-size: 13px;
+          color: rgba(148,163,184,0.72);
+        }
+
+        .implantacao-btn {
+          width: 100%;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border: none;
+          border-radius: 12px;
+          font-family: 'Sora', sans-serif;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+          background: linear-gradient(135deg, #059669, #10b981);
+          color: #04110d;
+          box-shadow: 0 8px 24px rgba(16,185,129,0.20);
+        }
+
+        .implantacao-btn:hover {
+          opacity: 0.95;
+          transform: translateY(-1px);
+          box-shadow: 0 10px 28px rgba(16,185,129,0.28);
+        }
+
+        .implantacao-btn-selected {
+          background: rgba(16,185,129,0.18);
+          border: 1px solid rgba(16,185,129,0.36);
+          color: #6ee7b7;
+          box-shadow: none;
         }
 
         .plan-card {
@@ -554,7 +759,7 @@ export default function SignupPlanPage() {
         {loadingPlans ? (
           <div className="plan-state">
             <Loader2 size={28} className="animate-spin" style={{ color: '#3b82f6' }} />
-            <span>Carregando planos…</span>
+            <span>Carregando planos...</span>
           </div>
         ) : error ? (
           <div className="plan-state">
@@ -566,10 +771,75 @@ export default function SignupPlanPage() {
             <span style={{ color: '#fca5a5' }}>{error}</span>
           </div>
         ) : (
-          <div className="plan-grid">
-            {plans.map((plan) => {
+          <>
+            <div className="plan-grid">
+              {implantacaoPlan && (
+                <div className="implantacao-card">
+                  <div className="implantacao-content">
+                    <div className="implantacao-copy">
+                      <div className="implantacao-badge">Entrada assistida</div>
+                      <h2 className="implantacao-title">{`Plano ${getPlanDisplayName(implantacaoPlan)}`}</h2>
+                      <p className="implantacao-text">
+                        90 dias para estruturar sua operação comercial com o CM Pro.
+                      </p>
+
+                      <ul className="implantacao-features">
+                        <li className="implantacao-feature">
+                          <svg className="implantacao-feature-icon" viewBox="0 0 24 24" fill="none">
+                            <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          1 usuário
+                        </li>
+                        <li className="implantacao-feature">
+                          <svg className="implantacao-feature-icon" viewBox="0 0 24 24" fill="none">
+                            <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          5.000 e-mails/mês
+                        </li>
+                        <li className="implantacao-feature">
+                          <svg className="implantacao-feature-icon" viewBox="0 0 24 24" fill="none">
+                            <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          CRM, Deal Room e oportunidades
+                        </li>
+                        <li className="implantacao-feature">
+                          <svg className="implantacao-feature-icon" viewBox="0 0 24 24" fill="none">
+                            <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Onboarding humano
+                        </li>
+                        <li className="implantacao-feature">
+                          <svg className="implantacao-feature-icon" viewBox="0 0 24 24" fill="none">
+                            <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Suporte próximo
+                        </li>
+                      </ul>
+
+                      <p className="implantacao-note">
+                        Após 90 dias, migração assistida para o Plano Essencial.
+                      </p>
+                    </div>
+
+                    <div className="implantacao-side">
+                      <div className="implantacao-side-label">Oferta de entrada</div>
+                      <div className="implantacao-price">{`${formatCurrency(implantacaoPlan.price_monthly)}/mês`}</div>
+                      <div className="implantacao-period">por 90 dias</div>
+
+                      <button
+                        className={`implantacao-btn${selectedPlan?.id === implantacaoPlan.id ? ' implantacao-btn-selected' : ''}`}
+                        onClick={() => setSelectedPlan(implantacaoPlan)}
+                      >
+                        {selectedPlan?.id === implantacaoPlan.id ? '✓ Selecionado' : `Selecionar ${getPlanDisplayName(implantacaoPlan)}`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {mainPlans.map((plan) => {
               const featured = isProfessional(plan);
-              const price = getPlanPrice(plan, cycle);
+              const monthlyOnly = isImplantacao(plan);
+              const price = getPlanPrice(plan, monthlyOnly ? 'monthly' : cycle);
               const usersLabel = plan.max_users === 5 ? 'Até 5 usuários' : `${plan.max_users} usuário${plan.max_users > 1 ? 's' : ''}`;
 
               return (
@@ -587,6 +857,7 @@ export default function SignupPlanPage() {
 
                   <div className="plan-name">{plan.name}</div>
                   <div className="plan-desc">
+                    {plan.name === IMPLANTACAO_PLAN_NAME && 'Entrada assistida para estruturar a operação comercial com acompanhamento próximo.'}
                     {plan.name === 'Essencial' && 'Para empresas iniciando no mercado público.'}
                     {plan.name === 'Profissional' && 'Para equipes que disputam licitações ativamente.'}
                     {plan.name === 'Elite' && 'Para grandes operações com volume máximo.'}
@@ -596,9 +867,10 @@ export default function SignupPlanPage() {
                     <div className="plan-price">{formatCurrency(price)}</div>
                   </div>
                   <div className="plan-price-period">
-                    {cycle === 'monthly' && 'por mês'}
-                    {cycle === 'semiannual' && 'por semestre (à vista)'}
-                    {cycle === 'annual' && 'por ano (à vista)'}
+                    {monthlyOnly && 'por mês'}
+                    {!monthlyOnly && cycle === 'monthly' && 'por mês'}
+                    {!monthlyOnly && cycle === 'semiannual' && 'por semestre (à vista)'}
+                    {!monthlyOnly && cycle === 'annual' && 'por ano (à vista)'}
                   </div>
 
                   <div className="plan-divider" />
@@ -628,6 +900,14 @@ export default function SignupPlanPage() {
                       </svg>
                       CRM e gestão de propostas
                     </li>
+                    {monthlyOnly && (
+                      <li className="plan-feature">
+                        <svg className="plan-feature-icon" viewBox="0 0 24 24" fill="none">
+                          <polyline points="20,6 9,17 4,12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Cobrança mensal apenas
+                      </li>
+                    )}
                     {plan.extra_users_allowed && (
                       <li className="plan-feature">
                         <svg className="plan-feature-icon" viewBox="0 0 24 24" fill="none">
@@ -652,8 +932,9 @@ export default function SignupPlanPage() {
                   </button>
                 </div>
               );
-            })}
-          </div>
+              })}
+            </div>
+          </>
         )}
 
         {/* Continuar */}

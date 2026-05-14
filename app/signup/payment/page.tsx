@@ -22,6 +22,8 @@ interface PlanData {
   price_annual: number;
 }
 
+const IMPLANTACAO_PLAN_NAME = 'Implanta??o';
+
 interface PixData {
   encodedImage: string;
   payload: string;
@@ -29,13 +31,13 @@ interface PixData {
 }
 
 const CYCLE_LABELS: Record<BillingCycle, string> = {
-  monthly: 'Cobrança mensal',
-  semiannual: 'Cobrança semestral · Economia de 10%',
-  annual: 'Cobrança anual · Economia de 22%',
+  monthly: 'Cobran?a mensal',
+  semiannual: 'Cobran?a semestral ? Economia de 10%',
+  annual: 'Cobran?a anual ? Economia de 22%',
 };
 
 const CYCLE_SUFFIX: Record<BillingCycle, string> = {
-  monthly: '/mês',
+  monthly: '/m?s',
   semiannual: '/semestre',
   annual: '/ano',
 };
@@ -74,6 +76,10 @@ function maskPhone(value: string): string {
   return digits
     .replace(/(\d{2})(\d)/, '($1) $2')
     .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+}
+
+function isImplantacaoPlan(plan: Pick<PlanData, 'name'> | null | undefined) {
+  return plan?.name === IMPLANTACAO_PLAN_NAME;
 }
 
 export default function SignupPaymentPage() {
@@ -159,7 +165,7 @@ export default function SignupPaymentPage() {
           ''
       );
 
-      // Pré-preencher dados da empresa
+      // Pr?-preencher dados da empresa
       const { data: profileData } = await supabase
         .from('profiles')
         .select('company_id')
@@ -191,6 +197,11 @@ export default function SignupPaymentPage() {
         );
 
         if (found) {
+          if (found.name === IMPLANTACAO_PLAN_NAME && parsed.billingCycle !== 'monthly') {
+            parsed = { ...parsed, billingCycle: 'monthly' };
+            document.cookie = `cm_pending_plan=${encodeURIComponent(JSON.stringify(parsed))}; path=/; max-age=3600; SameSite=Lax`;
+          }
+          setPending(parsed);
           setPlan(found);
         } else {
           router.replace('/signup/plan');
@@ -250,7 +261,7 @@ export default function SignupPaymentPage() {
           !postalCode ||
           !cardForm.addressNumber.trim()
         ) {
-          setError('Preencha todos os dados obrigatórios do cartão para continuar.');
+          setError('Preencha todos os dados obrigat?rios do cart?o para continuar.');
           setSubmitting(false);
           return;
         }
@@ -262,19 +273,19 @@ export default function SignupPaymentPage() {
         const currentYear = currentDate.getFullYear();
 
         if (holderCpfCnpj.length !== 11 && holderCpfCnpj.length !== 14) {
-          setError('Informe um CPF ou CNPJ válido para o titular da cobrança.');
+          setError('Informe um CPF ou CNPJ v?lido para o titular da cobran?a.');
           setSubmitting(false);
           return;
         }
 
         if (!Number.isInteger(expiryMonthNumber) || expiryMonthNumber < 1 || expiryMonthNumber > 12) {
-          setError('Informe um mês de validade válido do cartão.');
+          setError('Informe um m?s de validade v?lido do cart?o.');
           setSubmitting(false);
           return;
         }
 
         if (!/^\d{4}$/.test(cardForm.expiryYear)) {
-          setError('Informe um ano de validade válido com 4 dígitos.');
+          setError('Informe um ano de validade v?lido com 4 d?gitos.');
           setSubmitting(false);
           return;
         }
@@ -283,7 +294,7 @@ export default function SignupPaymentPage() {
           expiryYearNumber < currentYear ||
           (expiryYearNumber === currentYear && expiryMonthNumber < currentMonth)
         ) {
-          setError('O cartão informado está vencido.');
+          setError('O cart?o informado est? vencido.');
           setSubmitting(false);
           return;
         }
@@ -350,7 +361,7 @@ export default function SignupPaymentPage() {
       router.push('/dashboard?payment=pending');
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      setError(errMsg || 'Erro de conexão. Verifique sua internet e tente novamente.');
+      setError(errMsg || 'Erro de conex?o. Verifique sua internet e tente novamente.');
     } finally {
       setSubmitting(false);
     }
@@ -424,7 +435,8 @@ export default function SignupPaymentPage() {
 
   if (!plan || !pending) return null;
 
-  const price = getPlanPrice(plan, pending.billingCycle);
+  const effectiveBillingCycle: BillingCycle = isImplantacaoPlan(plan) ? 'monthly' : pending.billingCycle;
+  const price = getPlanPrice(plan, effectiveBillingCycle);
 
   if (cardPending) {
     return (
@@ -585,7 +597,7 @@ export default function SignupPaymentPage() {
                 lineHeight: 1.6,
               }}
             >
-              Escaneie o QR Code com o app do seu banco ou copie o código abaixo.
+              Escaneie o QR Code com o app do seu banco ou copie o c?digo abaixo.
             </div>
 
             <div style={{ width: '100%' }}>
@@ -641,7 +653,7 @@ export default function SignupPaymentPage() {
                     transition: 'background 0.2s',
                   }}
                 >
-                  {pixCopied ? '✓ Copiado' : 'Copiar'}
+                  {pixCopied ? 'â Copiado' : 'Copiar'}
                 </button>
               </div>
             </div>
@@ -659,8 +671,8 @@ export default function SignupPaymentPage() {
                 textAlign: 'center',
               }}
             >
-              Após o pagamento, seu acesso será liberado automaticamente em instantes. Você
-              também receberá uma confirmação por e-mail.
+              Ap?s o pagamento, seu acesso ser? liberado automaticamente em instantes. Voc?
+              tamb?m receber? uma confirma??o por e-mail.
             </div>
 
             <button
@@ -675,7 +687,7 @@ export default function SignupPaymentPage() {
                 textDecoration: 'underline',
               }}
             >
-              Já paguei, ir para o painel →
+              J? paguei, ir para o painel â
             </button>
           </div>
         </div>
@@ -746,7 +758,7 @@ export default function SignupPaymentPage() {
               }}
             >
               Seu boleto foi gerado com sucesso. Clique abaixo para visualizar e pagar. O acesso
-              será liberado em até 1 dia útil após a compensação.
+              ser? liberado em at? 1 dia ?til ap?s a compensa??o.
             </div>
 
             <a
@@ -768,7 +780,7 @@ export default function SignupPaymentPage() {
                 textDecoration: 'none',
               }}
             >
-              Abrir boleto →
+              Abrir boleto â
             </a>
 
             <button
@@ -1319,11 +1331,11 @@ export default function SignupPaymentPage() {
             <div className="pay-summary">
               <div className="pay-summary-left">
                 <div className="pay-summary-plan">{plan.name}</div>
-                <div className="pay-summary-cycle">{CYCLE_LABELS[pending.billingCycle]}</div>
+                <div className="pay-summary-cycle">{CYCLE_LABELS[effectiveBillingCycle]}</div>
               </div>
               <div>
                 <div className="pay-summary-price">{formatCurrency(price)}</div>
-                <div className="pay-summary-price-sub">{CYCLE_SUFFIX[pending.billingCycle]}</div>
+                <div className="pay-summary-price-sub">{CYCLE_SUFFIX[effectiveBillingCycle]}</div>
               </div>
             </div>
 
@@ -1336,7 +1348,7 @@ export default function SignupPaymentPage() {
                       const labels: Record<BillingType, string> = {
                         PIX: 'PIX',
                         BOLETO: 'Boleto',
-                        CREDIT_CARD: 'Cartão',
+                        CREDIT_CARD: 'Cart?o',
                       };
 
                       const icons: Record<BillingType, React.ReactElement> = {
@@ -1406,13 +1418,13 @@ export default function SignupPaymentPage() {
                 </div>
 
                 <div>
-                  <label className="pay-field-label">Razão Social</label>
+                  <label className="pay-field-label">Raz?o Social</label>
                   <input
                     type="text"
                     required
                     value={razaoSocial}
                     onChange={(e) => setRazaoSocial(e.target.value)}
-                    placeholder="Nome da empresa ou razão social"
+                    placeholder="Nome da empresa ou raz?o social"
                     className="pay-input"
                   />
                 </div>
@@ -1430,13 +1442,13 @@ export default function SignupPaymentPage() {
                 </div>
 
                 <div>
-                  <label className="pay-field-label">Endereço completo</label>
+                  <label className="pay-field-label">Endere?o completo</label>
                   <input
                     type="text"
                     required
                     value={companyAddress}
                     onChange={(e) => setCompanyAddress(e.target.value)}
-                    placeholder="Rua, número, bairro, cidade – UF"
+                    placeholder="Rua, n?mero, bairro, cidade â UF"
                     className="pay-input"
                   />
                 </div>
@@ -1457,7 +1469,7 @@ export default function SignupPaymentPage() {
                   <>
                     <div className="pay-divider" />
                     <div>
-                      <label className="pay-field-label">Nome no cartão</label>
+                      <label className="pay-field-label">Nome no cart?o</label>
                       <input
                         type="text"
                         required
@@ -1465,12 +1477,12 @@ export default function SignupPaymentPage() {
                         onChange={(e) =>
                           setCardForm((f) => ({ ...f, holderName: e.target.value }))
                         }
-                        placeholder="Como impresso no cartão"
+                        placeholder="Como impresso no cart?o"
                         className="pay-input"
                       />
                     </div>
                     <div>
-                      <label className="pay-field-label">Número do cartão</label>
+                      <label className="pay-field-label">N?mero do cart?o</label>
                       <input
                         type="text"
                         required
@@ -1487,7 +1499,7 @@ export default function SignupPaymentPage() {
                     </div>
                     <div className="pay-grid-3">
                       <div>
-                        <label className="pay-field-label">Mês</label>
+                        <label className="pay-field-label">M?s</label>
                         <input
                           type="text"
                           required
@@ -1530,7 +1542,7 @@ export default function SignupPaymentPage() {
                               ccv: e.target.value.replace(/\D/g, '').slice(0, 4),
                             }))
                           }
-                          placeholder="···"
+                          placeholder="???"
                           className="pay-input"
                         />
                       </div>
@@ -1551,7 +1563,7 @@ export default function SignupPaymentPage() {
                         />
                       </div>
                       <div>
-                        <label className="pay-field-label">Número</label>
+                        <label className="pay-field-label">N?mero</label>
                         <input
                           type="text"
                           required
@@ -1590,8 +1602,8 @@ export default function SignupPaymentPage() {
                     }}
                   >
                     {billingType === 'PIX'
-                      ? 'Após confirmar, você receberá o QR Code do PIX para pagamento. O acesso é liberado em instantes após a confirmação.'
-                      : 'O boleto será gerado e enviado para seu e-mail. O acesso é liberado em até 1 dia útil após a compensação.'}
+                      ? 'Ap?s confirmar, voc? receber? o QR Code do PIX para pagamento. O acesso ? liberado em instantes ap?s a confirma??o.'
+                      : 'O boleto ser? gerado e enviado para seu e-mail. O acesso ? liberado em at? 1 dia ?til ap?s a compensa??o.'}
                   </div>
                 )}
 
@@ -1641,7 +1653,7 @@ export default function SignupPaymentPage() {
                         strokeLinejoin="round"
                       />
                     </svg>
-                    Contrato aceito ✓
+                    Contrato aceito â
                   </div>
                 ) : (
                   <button
@@ -1683,7 +1695,7 @@ export default function SignupPaymentPage() {
                   {submitting ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      Processando…
+                      Processando?
                     </>
                   ) : (
                     <>
@@ -1705,7 +1717,7 @@ export default function SignupPaymentPage() {
 
             <div className="pay-footer">
               <p>
-                <a href="/signup/plan">← Alterar plano ou ciclo</a>
+                <a href="/signup/plan">â Alterar plano ou ciclo</a>
               </p>
               <div className="pay-ssl">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
@@ -1718,7 +1730,7 @@ export default function SignupPaymentPage() {
                     fill="rgba(16,185,129,0.12)"
                   />
                 </svg>
-                Pagamento seguro · Cancele quando quiser
+                Pagamento seguro ? Cancele quando quiser
               </div>
             </div>
           </div>
@@ -1736,7 +1748,7 @@ export default function SignupPaymentPage() {
             <div className="contract-modal-topbar" />
             <div className="contract-modal-header">
               <div className="contract-modal-title">
-                Contrato de Licença e Prestação de Serviços — CM Pro
+                Contrato de Licen?a e Presta??o de Servi?os â CM Pro
               </div>
               <button
                 type="button"
@@ -1758,7 +1770,7 @@ export default function SignupPaymentPage() {
             </div>
             <div className="contract-modal-footer">
               {!scrolledToBottom && (
-                <div className="contract-hint">Role até o final para habilitar o aceite</div>
+                <div className="contract-hint">Role at? o final para habilitar o aceite</div>
               )}
               <label className="contract-checkbox-row">
                 <input
@@ -1768,7 +1780,7 @@ export default function SignupPaymentPage() {
                   onChange={(e) => setCheckboxChecked(e.target.checked)}
                 />
                 <span className="contract-checkbox-label">
-                  Li e aceito os termos do Contrato de Licença e Prestação de Serviços do CM Pro
+                Contrato de Licen?a e Presta??o de Servi?os â CM Pro
                 </span>
               </label>
               <button
@@ -1779,7 +1791,7 @@ export default function SignupPaymentPage() {
               >
                 {contractAccepting ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" /> Registrando aceite…
+                    <Loader2 size={16} className="animate-spin" /> Registrando aceiteâ¦
                   </>
                 ) : (
                   'Confirmar aceite'

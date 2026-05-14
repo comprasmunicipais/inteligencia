@@ -10,6 +10,8 @@ import {
   getAsaasPaymentPixQrCode,
 } from '@/lib/asaas'
 
+const IMPLANTACAO_PLAN_NAME = 'Implantação'
+
 function getGatewaySetupErrorMessage() {
   return 'Não foi possível preparar a cobrança. Tente novamente em instantes.'
 }
@@ -65,6 +67,10 @@ export async function POST(req: NextRequest) {
 
   if (!plan) {
     return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+  }
+
+  if (plan.name === IMPLANTACAO_PLAN_NAME && billingCycle !== 'monthly') {
+    return NextResponse.json({ error: 'Invalid billing cycle for plan' }, { status: 400 })
   }
 
   const cycleMap: Record<string, { cycle: 'MONTHLY' | 'SEMIANNUAL' | 'YEARLY', value: number }> = {
