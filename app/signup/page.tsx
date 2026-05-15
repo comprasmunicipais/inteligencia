@@ -53,7 +53,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push(`/signup/onboarding?userId=${data.userId}`);
+      router.push('/signup/plan');
     } catch {
       setError('Erro de conexão. Verifique sua internet e tente novamente.');
     } finally {

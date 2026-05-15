@@ -68,6 +68,10 @@ function OnboardingContent() {
 
   const animatedCount = useAnimatedCount(oppCount);
 
+  useEffect(() => {
+    router.replace('/signup/plan');
+  }, [router]);
+
   // Fetch opportunity count whenever states change
   useEffect(() => {
     if (selectedStates.length === 0) {

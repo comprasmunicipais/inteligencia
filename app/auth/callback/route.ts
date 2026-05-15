@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
           .single();
 
         if (!existingProfile) {
-          // New OAuth user — create company + profile, send to onboarding
+          // New OAuth user — create company + profile, send to plan selection
           const fullName = user.user_metadata?.full_name ?? user.email ?? 'Usuário';
 
           const { data: company } = await adminSupabase
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
             });
           }
 
-          return NextResponse.redirect(`${origin}/signup/onboarding?userId=${user.id}`);
+          return NextResponse.redirect(`${origin}/signup/plan`);
         }
       }
 
