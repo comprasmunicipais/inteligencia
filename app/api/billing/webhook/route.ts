@@ -28,6 +28,27 @@ export async function POST(req: NextRequest) {
   const supabase = await createAdminClient()
   const event = payload.event
   const payment = payload.payment
+  const topLevelSubscription = payload.subscription
+
+  console.log('ASAAS_WEBHOOK_PAYLOAD_SHAPE', {
+    event,
+    hasPayment: !!payment,
+    hasPaymentId: !!payment?.id,
+    hasPaymentSubscription: !!payment?.subscription,
+    hasPaymentSubscriptionId: !!payment?.subscriptionId,
+    hasTopLevelSubscription: !!topLevelSubscription,
+    hasTopLevelSubscriptionId: !!topLevelSubscription?.id,
+    paymentKeys:
+      payment && typeof payment === 'object' && !Array.isArray(payment)
+        ? Object.keys(payment)
+        : [],
+    subscriptionKeys:
+      topLevelSubscription &&
+      typeof topLevelSubscription === 'object' &&
+      !Array.isArray(topLevelSubscription)
+        ? Object.keys(topLevelSubscription)
+        : [],
+  })
 
   // Idempotency: skip if this (event_type, asaas_event_id) was already processed.
   // billing_events has no unique constraint, so we check before inserting.
