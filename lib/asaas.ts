@@ -1,6 +1,6 @@
 const ASAAS_BASE_URL = process.env.NEXT_PUBLIC_ASAAS_SANDBOX === 'true'
-  ? 'https://sandbox.asaas.com/api/v3'
-  : 'https://www.asaas.com/api/v3'
+  ? 'https://sandbox.asaas.com/v3'
+  : 'https://api.asaas.com/v3'
 
 export class AsaasRequestError extends Error {
   status: number
@@ -33,6 +33,7 @@ export async function createAsaasCustomer(params: {
   name: string
   email: string
   cpfCnpj?: string
+  mobilePhone?: string
 }) {
   return asaasRequest('/customers', 'POST', params)
 }
