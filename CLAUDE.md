@@ -373,6 +373,42 @@ Pacote extra: 5.000 emails por R$80.
 - Client: `lib/asaas.ts` — `createAsaasCustomer`, `createAsaasSubscription`, `cancelAsaasSubscription`, `getAsaasSubscriptionPayments`, `getAsaasPaymentPixQrCode`
 - Troca de plano: cancela assinatura anterior; reutiliza `asaas_customer_id`
 
+## Asaas Integration — Regras Críticas
+
+- **URL correta da API Asaas**
+  - Produção: `https://api.asaas.com/v3`
+  - Sandbox: `https://sandbox.asaas.com/v3`
+  - **NUNCA usar `/api/v3`**. Isso já gerou `401`, `404`, falha na criação de customer e falha em PIX/boleto/cartão.
+
+- **Header correto**
+  - Usar `access_token`
+  - **NUNCA usar** `Authorization: Bearer` nas chamadas da API Asaas
+
+- **Diagnóstico realizado**
+  - Local passou a funcionar após corrigir a URL base do Asaas
+  - Produção continuou falhando até atualizar `ASAAS_API_KEY` no Vercel
+  - Após alterar env no Vercel, foi necessário fazer redeploy para a nova chave entrar em vigor
+
+- **Variáveis críticas**
+  - `ASAAS_API_KEY`
+  - `NEXT_PUBLIC_ASAAS_SANDBOX`
+  - `ASAAS_WEBHOOK_TOKEN`
+
+- **Regra operacional obrigatória**
+  - Sempre validar se o ambiente está em sandbox ou produção
+  - Sempre validar se a chave corresponde ao mesmo ambiente
+  - Sempre fazer redeploy após alterar env no Vercel
+
+- **Status atual do webhook**
+  - Criação de assinatura PIX já funciona
+  - QR Code PIX já gera em produção
+  - O webhook ainda está em fase de validação do payload real recebido em produção
+  - Existe suspeita de divergência entre `payment.subscriptionId`, `payment.subscription` e `subscription.id`
+
+- **Regra obrigatória para alterações no webhook**
+  - Antes de alterar a lógica do webhook do Asaas, capturar o payload real do webhook em produção
+  - Não assumir o shape apenas pela documentação; validar primeiro o payload real entregue pelo Asaas
+
 ### Comportamento de `/api/billing/subscribe`
 
 - `.maybeSingle()` na busca de subscription (evita PGRST116 para novos usuários)
