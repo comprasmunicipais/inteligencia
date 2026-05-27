@@ -40,7 +40,7 @@ const HEADER_ALIASES = {
 } as const;
 
 function normalizeHeader(value: string) {
-  return value.trim().toLowerCase();
+  return value.replace(/^\uFEFF+/, '').trim().toLowerCase();
 }
 
 function normalizeOptionalText(value: string | undefined) {
