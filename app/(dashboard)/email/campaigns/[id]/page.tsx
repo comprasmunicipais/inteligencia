@@ -81,6 +81,29 @@ type CustomerContactListsResponse = {
   error?: string;
 };
 
+type CustomerBasePreviewContact = {
+  email_normalized: string;
+  company_name: string | null;
+  name: string | null;
+};
+
+type CustomerBaseAudiencePreview = {
+  list_id: string;
+  list_name: string;
+  total_contacts: number;
+  valid_contacts: number;
+  invalid_contacts: number;
+  duplicate_contacts: number;
+  eligible_contacts: number;
+  not_checked_contacts?: number;
+  sample_contacts?: CustomerBasePreviewContact[];
+};
+
+type CustomerBaseAudiencePreviewResponse = {
+  data?: CustomerBaseAudiencePreview;
+  error?: string;
+};
+
 type QualityGroups = {
   green: boolean;
   yellow: boolean;
@@ -600,7 +623,9 @@ function AudienceStep({
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingCount, setLoadingCount] = useState(false);
   const [loadingCustomerLists, setLoadingCustomerLists] = useState(false);
+  const [loadingCustomerPreview, setLoadingCustomerPreview] = useState(false);
   const [customerListsError, setCustomerListsError] = useState('');
+  const [customerPreviewError, setCustomerPreviewError] = useState('');
   const [qualitySummary, setQualitySummary] = useState<QualitySummary>({
     green: 0,
     yellow: 0,
@@ -609,6 +634,7 @@ function AudienceStep({
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
   const [customerLists, setCustomerLists] = useState<CustomerContactList[]>([]);
+  const [customerPreview, setCustomerPreview] = useState<CustomerBaseAudiencePreview | null>(null);
   const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
 
   useEffect(() => {
@@ -764,6 +790,47 @@ function AudienceStep({
     qualityGroups.yellow,
     qualityGroups.white,
   ]);
+
+  useEffect(() => {
+    if (source !== 'customer_base' || !selectedCustomerListId) {
+      setCustomerPreview(null);
+      setCustomerPreviewError('');
+      setLoadingCustomerPreview(false);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      try {
+        setLoadingCustomerPreview(true);
+        setCustomerPreviewError('');
+
+        const response = await fetch(`/api/customer-contact-lists/${selectedCustomerListId}/audience-preview`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const result = (await response.json()) as CustomerBaseAudiencePreviewResponse;
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao carregar preview da base própria.');
+        }
+
+        if (!active) return;
+        setCustomerPreview(result.data ?? null);
+      } catch (err: any) {
+        if (!active) return;
+        setCustomerPreview(null);
+        setCustomerPreviewError(err?.message || 'Erro ao carregar preview da base própria.');
+      } finally {
+        if (active) setLoadingCustomerPreview(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [source, selectedCustomerListId]);
 
   const filteredMunicipalities = useMemo(() => {
     if (filters.state) return municipalities.filter((m) => m.state === filters.state);
@@ -998,7 +1065,7 @@ function AudienceStep({
             <p className="text-sm font-medium text-slate-600">
               {source === 'cm_pro' ? 'E-mails disponíveis com esta segmentação' : 'Resumo da base própria selecionada'}
             </p>
-            {(source === 'cm_pro' && loadingCount) || (source === 'customer_base' && loadingCustomerLists) ? (
+            {(source === 'cm_pro' && loadingCount) || (source === 'customer_base' && (loadingCustomerLists || loadingCustomerPreview)) ? (
               <p className="mt-1 text-sm text-slate-400">Calculando...</p>
             ) : (
               <>
@@ -1018,15 +1085,63 @@ function AudienceStep({
                       <span className="font-medium">{qualitySummary.white.toLocaleString('pt-BR')}</span>
                     </button>
                   </div>
-                ) : selectedCustomerList ? (
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-slate-500">Contatos</p><p className="mt-1 font-semibold text-slate-900">{selectedCustomerList.contacts_count.toLocaleString('pt-BR')}</p></div>
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-emerald-700">Válidos</p><p className="mt-1 font-semibold text-emerald-900">{selectedCustomerList.valid_contacts_count.toLocaleString('pt-BR')}</p></div>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-amber-700">Inválidos</p><p className="mt-1 font-semibold text-amber-900">{selectedCustomerList.invalid_contacts_count.toLocaleString('pt-BR')}</p></div>
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-rose-700">Duplicados</p><p className="mt-1 font-semibold text-rose-900">{selectedCustomerList.duplicate_contacts_count.toLocaleString('pt-BR')}</p></div>
+                ) : customerPreview ? (
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{customerPreview.list_name}</p>
+                          <p className="text-xs text-slate-500">Preview da audiência da base própria selecionada</p>
+                        </div>
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                          Bases Próprias ainda não estão liberadas para envio nesta fase.
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Contatos</p>
+                          <p className="mt-1 font-semibold text-slate-900">{customerPreview.total_contacts.toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                          <p className="text-xs uppercase tracking-wide text-emerald-700">Elegíveis</p>
+                          <p className="mt-1 font-semibold text-emerald-900">{customerPreview.eligible_contacts.toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                          <p className="text-xs uppercase tracking-wide text-amber-700">Inválidos</p>
+                          <p className="mt-1 font-semibold text-amber-900">{customerPreview.invalid_contacts.toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                          <p className="text-xs uppercase tracking-wide text-rose-700">Duplicados</p>
+                          <p className="mt-1 font-semibold text-rose-900">{customerPreview.duplicate_contacts.toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
+                          <p className="text-xs uppercase tracking-wide text-sky-700">Não verificados</p>
+                          <p className="mt-1 font-semibold text-sky-900">{(customerPreview.not_checked_contacts ?? 0).toLocaleString('pt-BR')}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+                        <p className="text-sm font-medium text-slate-900">Amostra de contatos</p>
+                        {customerPreview.sample_contacts && customerPreview.sample_contacts.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            {customerPreview.sample_contacts.map((contact) => (
+                              <div key={contact.email_normalized} className="rounded-lg border border-slate-200 px-3 py-2">
+                                <p className="text-sm font-medium text-slate-900">{contact.email_normalized}</p>
+                                <p className="text-xs text-slate-500">
+                                  {[contact.name, contact.company_name].filter(Boolean).join(' • ') || 'Sem nome ou empresa informados'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-500">Nenhum contato disponível para amostra.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-slate-500">Selecione uma base para visualizar contatos, válidos, inválidos e duplicados.</p>
+                  <p className="mt-3 text-sm text-slate-500">Selecione uma base para visualizar o preview da audiência.</p>
                 )}
               </>
             )}
@@ -1038,6 +1153,9 @@ function AudienceStep({
         )}
         {source === 'customer_base' && !selectedCustomerList && !loadingCustomerLists && (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Selecione uma base própria para preparar esta audiência.</p>
+        )}
+        {source === 'customer_base' && customerPreviewError && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{customerPreviewError}</p>
         )}
       </div>
     </div>
