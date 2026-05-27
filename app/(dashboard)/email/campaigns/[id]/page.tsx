@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code,
+  Database,
   Eye,
   FileText,
   Mail,
@@ -60,6 +61,24 @@ type AudienceFilters = {
     white: boolean;
   };
   totalCount: number;
+};
+
+type AudienceSource = 'cm-pro' | 'customer-bases';
+
+type CustomerContactList = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: 'active' | 'inactive';
+  contacts_count: number;
+  valid_contacts_count: number;
+  invalid_contacts_count: number;
+  duplicate_contacts_count: number;
+};
+
+type CustomerContactListsResponse = {
+  data?: CustomerContactList[];
+  error?: string;
 };
 
 type QualityGroups = {
@@ -556,16 +575,26 @@ function EmailEditorStep({ form, onChange, isReadOnly = false }: { form: EmailFo
 function AudienceStep({
   filters,
   onChange,
+  source,
+  onSourceChange,
+  selectedCustomerList,
+  onSelectedCustomerListChange,
   isReadOnly = false,
 }: {
   filters: AudienceFilters;
   onChange: (f: AudienceFilters) => void;
+  source: AudienceSource;
+  onSourceChange: (value: AudienceSource) => void;
+  selectedCustomerList: CustomerContactList | null;
+  onSelectedCustomerListChange: (value: CustomerContactList | null) => void;
   isReadOnly?: boolean;
 }) {
   const supabase = useRef(createClient()).current;
 
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingCount, setLoadingCount] = useState(false);
+  const [loadingCustomerLists, setLoadingCustomerLists] = useState(false);
+  const [customerListsError, setCustomerListsError] = useState('');
   const [qualitySummary, setQualitySummary] = useState<QualitySummary>({
     green: 0,
     yellow: 0,
@@ -573,9 +602,9 @@ function AudienceStep({
   });
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
   const [populationRanges, setPopulationRanges] = useState<string[]>([]);
+  const [customerLists, setCustomerLists] = useState<CustomerContactList[]>([]);
   const qualityGroups = normalizeQualityGroups(filters.qualityGroups);
 
-  // Load dropdown options once
   useEffect(() => {
     (async () => {
       try {
@@ -623,8 +652,56 @@ function AudienceStep({
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch count whenever filters change
   useEffect(() => {
+    if (source !== 'customer-bases') return;
+
+    let active = true;
+
+    (async () => {
+      try {
+        setLoadingCustomerLists(true);
+        setCustomerListsError('');
+
+        const response = await fetch('/api/customer-contact-lists', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const result = (await response.json()) as CustomerContactListsResponse;
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao carregar bases próprias.');
+        }
+
+        if (!active) return;
+
+        const lists = result.data || [];
+        setCustomerLists(lists);
+
+        if (selectedCustomerList) {
+          const nextSelectedList = lists.find((item) => item.id === selectedCustomerList.id) ?? null;
+          onSelectedCustomerListChange(nextSelectedList);
+          onChange({
+            ...filters,
+            totalCount: nextSelectedList?.contacts_count ?? 0,
+          });
+        }
+      } catch (err: any) {
+        if (!active) return;
+        setCustomerLists([]);
+        setCustomerListsError(err?.message || 'Erro ao carregar bases próprias.');
+      } finally {
+        if (active) setLoadingCustomerLists(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (source !== 'cm-pro') return;
+
     const controller = new AbortController();
 
     (async () => {
@@ -667,6 +744,7 @@ function AudienceStep({
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    source,
     filters.region,
     filters.state,
     filters.municipalityId,
@@ -691,7 +769,10 @@ function AudienceStep({
 
   const set = <K extends keyof AudienceFilters>(key: K, value: AudienceFilters[K]) => {
     const next = { ...filters, [key]: value };
-    if (key === 'region') { next.state = ''; next.municipalityId = ''; }
+    if (key === 'region') {
+      next.state = '';
+      next.municipalityId = '';
+    }
     if (key === 'state') next.municipalityId = '';
     onChange(next);
   };
@@ -723,18 +804,16 @@ function AudienceStep({
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      {/* Filters */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Filtros da audiência</h2>
-            <p className="text-sm text-slate-500">
-              Segmente a base de e-mails para esta campanha.
-            </p>
+            <p className="text-sm text-slate-500">Segmente a base de e-mails para esta campanha.</p>
           </div>
           <button
             type="button"
             onClick={clear}
+            disabled={source !== 'cm-pro' || isReadOnly}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <RefreshCw className="size-4" />
@@ -742,127 +821,166 @@ function AudienceStep({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Região</label>
-            <select
-              value={filters.region}
-              onChange={(e) => set('region', e.target.value)}
-              disabled={loadingFilters || isReadOnly}
-              className={selectClass}
-            >
-              <option value="">Todas as regiões</option>
-              {Object.keys(REGIONS).map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => !isReadOnly && onSourceChange('cm-pro')}
+            disabled={isReadOnly}
+            className={`rounded-xl border px-4 py-4 text-left transition ${
+              source === 'cm-pro'
+                ? 'border-[#0f49bd] bg-blue-50'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            } ${isReadOnly ? 'cursor-default opacity-60' : ''}`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-white shadow-sm">
+                <Server className="size-5 text-[#0f49bd]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Base CM Pro</p>
+                <p className="text-xs text-slate-500">Mantém filtros e preview atuais.</p>
+              </div>
+            </div>
+          </button>
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Estado</label>
-            <select
-              value={filters.state}
-              onChange={(e) => set('state', e.target.value)}
-              disabled={loadingFilters || isReadOnly}
-              className={selectClass}
-            >
-              <option value="">Todos os estados</option>
-              {(filters.region ? (REGIONS[filters.region] ?? []) : BRAZILIAN_STATES).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={() => !isReadOnly && onSourceChange('customer-bases')}
+            disabled={isReadOnly}
+            className={`rounded-xl border px-4 py-4 text-left transition ${
+              source === 'customer-bases'
+                ? 'border-[#0f49bd] bg-blue-50'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            } ${isReadOnly ? 'cursor-default opacity-60' : ''}`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-white shadow-sm">
+                <Database className="size-5 text-[#0f49bd]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Bases Próprias</p>
+                <p className="text-xs text-slate-500">Seleção e preview, sem envio nesta etapa.</p>
+              </div>
+            </div>
+          </button>
+        </div>
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Município</label>
-            <select
-              value={filters.municipalityId}
-              onChange={(e) => set('municipalityId', e.target.value)}
-              disabled={loadingFilters || isReadOnly}
-              className={selectClass}
-            >
-              <option value="">Todos os municípios</option>
-              {filteredMunicipalities.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
+        {source === 'customer-bases' && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Esta seleção ainda está em fase de preparação. O envio para Bases Próprias será ativado em uma próxima etapa.
           </div>
+        )}
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Faixa populacional</label>
-            <select
-              value={filters.populationRange}
-              onChange={(e) => set('populationRange', e.target.value)}
-              disabled={loadingFilters || isReadOnly}
-              className={selectClass}
-            >
-              <option value="">Todas as faixas</option>
-              {populationRanges.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+        {source === 'cm-pro' ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Região</label>
+              <select value={filters.region} onChange={(e) => set('region', e.target.value)} disabled={loadingFilters || isReadOnly} className={selectClass}>
+                <option value="">Todas as regiões</option>
+                {Object.keys(REGIONS).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Departamento</label>
-            <select
-              value={filters.department}
-              onChange={(e) => set('department', e.target.value)}
-              disabled={isReadOnly}
-              className={selectClass}
-            >
-              <option value="">Todos os departamentos</option>
-              {DEPARTMENT_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Estado</label>
+              <select value={filters.state} onChange={(e) => set('state', e.target.value)} disabled={loadingFilters || isReadOnly} className={selectClass}>
+                <option value="">Todos os estados</option>
+                {(filters.region ? (REGIONS[filters.region] ?? []) : BRAZILIAN_STATES).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Estratégico</label>
-            <select
-              value={filters.strategic}
-              onChange={(e) => set('strategic', e.target.value as AudienceFilters['strategic'])}
-              disabled={isReadOnly}
-              className={selectClass}
-            >
-              <option value="all">Todos</option>
-              <option value="yes">Somente estratégicos</option>
-              <option value="no">Somente não estratégicos</option>
-            </select>
-          </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Município</label>
+              <select value={filters.municipalityId} onChange={(e) => set('municipalityId', e.target.value)} disabled={loadingFilters || isReadOnly} className={selectClass}>
+                <option value="">Todos os municípios</option>
+                {filteredMunicipalities.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <label className={labelClass}>Score mínimo</label>
-            <input
-              type="number"
-              min="0"
-              value={filters.minScore}
-              onChange={(e) => set('minScore', e.target.value)}
-              disabled={isReadOnly}
-              placeholder="Ex.: 20"
-              className={selectClass}
-            />
-          </div>
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Faixa populacional</label>
+              <select value={filters.populationRange} onChange={(e) => set('populationRange', e.target.value)} disabled={loadingFilters || isReadOnly} className={selectClass}>
+                <option value="">Todas as faixas</option>
+                {populationRanges.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="flex flex-col gap-2 xl:col-span-2">
-            <label className={labelClass}>Buscar no e-mail</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={filters.emailSearch}
-                onChange={(e) => set('emailSearch', e.target.value)}
-                disabled={isReadOnly}
-                placeholder="Ex.: saude, adm, compras"
-                className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]"
-              />
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Departamento</label>
+              <select value={filters.department} onChange={(e) => set('department', e.target.value)} disabled={isReadOnly} className={selectClass}>
+                <option value="">Todos os departamentos</option>
+                {DEPARTMENT_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Estratégico</label>
+              <select value={filters.strategic} onChange={(e) => set('strategic', e.target.value as AudienceFilters['strategic'])} disabled={isReadOnly} className={selectClass}>
+                <option value="all">Todos</option>
+                <option value="yes">Somente estratégicos</option>
+                <option value="no">Somente não estratégicos</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Score mínimo</label>
+              <input type="number" min="0" value={filters.minScore} onChange={(e) => set('minScore', e.target.value)} disabled={isReadOnly} placeholder="Ex.: 20" className={selectClass} />
+            </div>
+
+            <div className="flex flex-col gap-2 xl:col-span-2">
+              <label className={labelClass}>Buscar no e-mail</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <input type="text" value={filters.emailSearch} onChange={(e) => set('emailSearch', e.target.value)} disabled={isReadOnly} placeholder="Ex.: saude, adm, compras" className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-[#0f49bd]" />
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <label className={labelClass}>Base própria</label>
+              <select value={selectedCustomerList?.id ?? ''} onChange={(e) => {
+                const nextSelectedList = customerLists.find((item) => item.id === e.target.value) ?? null;
+                onSelectedCustomerListChange(nextSelectedList);
+                onChange({
+                  ...filters,
+                  totalCount: nextSelectedList?.contacts_count ?? 0,
+                });
+              }} disabled={loadingCustomerLists || isReadOnly || customerLists.length === 0} className={selectClass}>
+                <option value="">{loadingCustomerLists ? 'Carregando bases...' : 'Selecione uma base'}</option>
+                {customerLists.map((list) => (
+                  <option key={list.id} value={list.id}>{list.name} {list.status === 'inactive' ? '(inativa)' : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Os filtros da Base CM Pro ficam desativados quando a origem selecionada é Bases Próprias.
+            </div>
+
+            {customerListsError && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{customerListsError}</p>
+            )}
+
+            {!loadingCustomerLists && !customerListsError && customerLists.length === 0 && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Nenhuma base própria encontrada para este usuário.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Count summary */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-blue-50">
@@ -870,99 +988,90 @@ function AudienceStep({
           </div>
           <div>
             <p className="text-sm font-medium text-slate-600">
-              E-mails disponíveis com esta segmentação
+              {source === 'cm-pro' ? 'E-mails disponíveis com esta segmentação' : 'Resumo da base própria selecionada'}
             </p>
-            {loadingCount ? (
+            {(source === 'cm-pro' && loadingCount) || (source === 'customer-bases' && loadingCustomerLists) ? (
               <p className="mt-1 text-sm text-slate-400">Calculando...</p>
             ) : (
               <>
-                <p className="mt-1 text-3xl font-bold text-[#0f172a]">
-                  {filters.totalCount.toLocaleString('pt-BR')}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
-                  <button
-                    type="button"
-                    onClick={() => toggleQualityGroup('green')}
-                    disabled={isReadOnly}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
-                      qualityGroups.green
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 opacity-100'
-                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-emerald-300 hover:bg-emerald-100/60'}`}
-                  >
-                    <span className="size-2 rounded-full bg-emerald-500" />
-                    <span className="font-medium">{qualitySummary.green.toLocaleString('pt-BR')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleQualityGroup('yellow')}
-                    disabled={isReadOnly}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
-                      qualityGroups.yellow
-                        ? 'border-amber-200 bg-amber-50 text-amber-900 opacity-100'
-                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-amber-300 hover:bg-amber-100/60'}`}
-                  >
-                    <span className="size-2 rounded-full bg-amber-400" />
-                    <span className="font-medium">{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleQualityGroup('white')}
-                    disabled={isReadOnly}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
-                      qualityGroups.white
-                        ? 'border-slate-200 bg-slate-100 text-slate-900 opacity-100'
-                        : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'
-                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-slate-300 hover:bg-slate-200/70'}`}
-                  >
-                    <span className="size-2 rounded-full bg-slate-300" />
-                    <span className="font-medium">{qualitySummary.white.toLocaleString('pt-BR')}</span>
-                  </button>
-                </div>
+                <p className="mt-1 text-3xl font-bold text-[#0f172a]">{filters.totalCount.toLocaleString('pt-BR')}</p>
+                {source === 'cm-pro' ? (
+                  <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
+                    <button type="button" onClick={() => toggleQualityGroup('green')} disabled={isReadOnly} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${qualityGroups.green ? 'border-emerald-200 bg-emerald-50 text-emerald-900 opacity-100' : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'} ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-emerald-300 hover:bg-emerald-100/60'}`}>
+                      <span className="size-2 rounded-full bg-emerald-500" />
+                      <span className="font-medium">{qualitySummary.green.toLocaleString('pt-BR')}</span>
+                    </button>
+                    <button type="button" onClick={() => toggleQualityGroup('yellow')} disabled={isReadOnly} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${qualityGroups.yellow ? 'border-amber-200 bg-amber-50 text-amber-900 opacity-100' : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'} ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-amber-300 hover:bg-amber-100/60'}`}>
+                      <span className="size-2 rounded-full bg-amber-400" />
+                      <span className="font-medium">{qualitySummary.yellow.toLocaleString('pt-BR')}</span>
+                    </button>
+                    <button type="button" onClick={() => toggleQualityGroup('white')} disabled={isReadOnly} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${qualityGroups.white ? 'border-slate-200 bg-slate-100 text-slate-900 opacity-100' : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'} ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-slate-300 hover:bg-slate-200/70'}`}>
+                      <span className="size-2 rounded-full bg-slate-300" />
+                      <span className="font-medium">{qualitySummary.white.toLocaleString('pt-BR')}</span>
+                    </button>
+                  </div>
+                ) : selectedCustomerList ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-slate-500">Contatos</p><p className="mt-1 font-semibold text-slate-900">{selectedCustomerList.contacts_count.toLocaleString('pt-BR')}</p></div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-emerald-700">Válidos</p><p className="mt-1 font-semibold text-emerald-900">{selectedCustomerList.valid_contacts_count.toLocaleString('pt-BR')}</p></div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-amber-700">Inválidos</p><p className="mt-1 font-semibold text-amber-900">{selectedCustomerList.invalid_contacts_count.toLocaleString('pt-BR')}</p></div>
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-rose-700">Duplicados</p><p className="mt-1 font-semibold text-rose-900">{selectedCustomerList.duplicate_contacts_count.toLocaleString('pt-BR')}</p></div>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">Selecione uma base para visualizar contatos, válidos, inválidos e duplicados.</p>
+                )}
               </>
             )}
           </div>
         </div>
 
-        {filters.totalCount === 0 && !loadingCount && (
-          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Nenhum e-mail encontrado com os filtros atuais. Ajuste os filtros para continuar.
-          </p>
+        {filters.totalCount === 0 && !loadingCount && source === 'cm-pro' && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Nenhum e-mail encontrado com os filtros atuais. Ajuste os filtros para continuar.</p>
+        )}
+        {source === 'customer-bases' && !selectedCustomerList && !loadingCustomerLists && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Selecione uma base própria para preparar esta audiência.</p>
         )}
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Step 3 — Summary
-// ─────────────────────────────────────────────────────────────────────────────
-
 type SummaryProps = {
   campaign: Campaign;
   emailForm: EmailForm;
   audienceFilters: AudienceFilters;
+  audienceSource: AudienceSource;
+  selectedCustomerList: CustomerContactList | null;
 };
 
-function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
+function SummaryStep({
+  campaign,
+  emailForm,
+  audienceFilters,
+  audienceSource,
+  selectedCustomerList,
+}: SummaryProps) {
   const hasSubject = emailForm.subject.trim().length > 0;
   const hasHtml = emailForm.html_content.trim().length > 0;
   const hasText = emailForm.text_content.trim().length > 0;
   const hasAudience = audienceFilters.totalCount > 0;
-  const isReady = hasSubject && (hasHtml || hasText) && hasAudience;
+  const isReady = hasSubject && (hasHtml || hasText) && hasAudience && audienceSource === 'cm-pro';
 
-  // Build active audience filter tags
   const audienceTags: string[] = [];
-  if (audienceFilters.region) audienceTags.push(`Região: ${audienceFilters.region}`);
-  if (audienceFilters.state) audienceTags.push(`Estado: ${audienceFilters.state}`);
-  if (audienceFilters.municipalityId) audienceTags.push('1 município específico');
-  if (audienceFilters.populationRange) audienceTags.push(`Pop.: ${audienceFilters.populationRange}`);
-  if (audienceFilters.department) audienceTags.push(`Depto.: ${audienceFilters.department}`);
-  if (audienceFilters.strategic === 'yes') audienceTags.push('Somente estratégicos');
-  if (audienceFilters.strategic === 'no') audienceTags.push('Somente não estratégicos');
-  if (audienceFilters.minScore.trim()) audienceTags.push(`Score ≥ ${audienceFilters.minScore}`);
-  if (audienceFilters.emailSearch.trim()) audienceTags.push(`Contém "${audienceFilters.emailSearch.trim()}"`);
+  if (audienceSource === 'cm-pro') {
+    if (audienceFilters.region) audienceTags.push(`Região: ${audienceFilters.region}`);
+    if (audienceFilters.state) audienceTags.push(`Estado: ${audienceFilters.state}`);
+    if (audienceFilters.municipalityId) audienceTags.push('1 município específico');
+    if (audienceFilters.populationRange) audienceTags.push(`Pop.: ${audienceFilters.populationRange}`);
+    if (audienceFilters.department) audienceTags.push(`Depto.: ${audienceFilters.department}`);
+    if (audienceFilters.strategic === 'yes') audienceTags.push('Somente estratégicos');
+    if (audienceFilters.strategic === 'no') audienceTags.push('Somente não estratégicos');
+    if (audienceFilters.minScore.trim()) audienceTags.push(`Score ≥ ${audienceFilters.minScore}`);
+    if (audienceFilters.emailSearch.trim()) audienceTags.push(`Contém "${audienceFilters.emailSearch.trim()}"`);
+  } else if (selectedCustomerList) {
+    audienceTags.push('Origem: Bases Próprias');
+    audienceTags.push(`Base: ${selectedCustomerList.name}`);
+  }
 
   const objectiveLabel: Record<string, string> = {
     Prospecção: 'Prospecção',
@@ -973,8 +1082,6 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-
-      {/* ── Validation banner ───────────────────────────────────────────── */}
       {isReady ? (
         <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500">
@@ -993,12 +1100,12 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
               {!hasSubject && <li>Assunto do e-mail não preenchido</li>}
               {!hasHtml && <li>Conteúdo HTML do e-mail ausente</li>}
               {!hasAudience && <li>Audiência com 0 destinatários</li>}
+              {audienceSource === 'customer-bases' && <li>Envio para Bases Próprias ainda não está habilitado</li>}
             </ul>
           </div>
         </div>
       )}
 
-      {/* ── Campaign info ────────────────────────────────────────────────── */}
       <SummaryCard title="Campanha" icon={<Mail className="size-4 text-[#0f49bd]" />}>
         <Row label="Nome" value={campaign.name} />
         <Row label="Objetivo" value={objectiveLabel[campaign.objective] ?? campaign.objective} />
@@ -1006,15 +1113,14 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
         {campaign.description && <Row label="Descrição" value={campaign.description} />}
       </SummaryCard>
 
-      {/* ── Email content ────────────────────────────────────────────────── */}
       <SummaryCard title="E-mail" icon={<FileText className="size-4 text-[#0f49bd]" />}>
         <CheckRow label="Assunto" ok={hasSubject} detail={emailForm.subject || '—'} />
         {emailForm.preheader && <Row label="Preheader" value={emailForm.preheader} />}
-        <CheckRow label="HTML" ok={hasHtml} detail={
-          hasHtml
-            ? `${emailForm.html_content.split('\n').length} linhas`
-            : 'Não adicionado'
-        } />
+        <CheckRow
+          label="HTML"
+          ok={hasHtml}
+          detail={hasHtml ? `${emailForm.html_content.split('\n').length} linhas` : 'Não adicionado'}
+        />
         <CheckRow
           label="Texto simples"
           ok={hasText}
@@ -1023,42 +1129,47 @@ function SummaryStep({ campaign, emailForm, audienceFilters }: SummaryProps) {
         />
       </SummaryCard>
 
-      {/* ── Audience ─────────────────────────────────────────────────────── */}
       <SummaryCard title="Audiência" icon={<Users className="size-4 text-[#0f49bd]" />}>
+        <p className="text-sm text-slate-500">
+          Origem selecionada: <strong>{audienceSource === 'cm-pro' ? 'Base CM Pro' : 'Bases Próprias'}</strong>
+        </p>
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-[#0f172a]">
-            {audienceFilters.totalCount.toLocaleString('pt-BR')}
-          </span>
+          <span className="text-3xl font-bold text-[#0f172a]">{audienceFilters.totalCount.toLocaleString('pt-BR')}</span>
           <span className="text-sm text-slate-500">destinatários</span>
         </div>
+
+        {audienceSource === 'customer-bases' && selectedCustomerList && (
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-slate-500">Contatos</p><p className="mt-1 font-semibold text-slate-900">{selectedCustomerList.contacts_count.toLocaleString('pt-BR')}</p></div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-emerald-700">Válidos</p><p className="mt-1 font-semibold text-emerald-900">{selectedCustomerList.valid_contacts_count.toLocaleString('pt-BR')}</p></div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-amber-700">Inválidos</p><p className="mt-1 font-semibold text-amber-900">{selectedCustomerList.invalid_contacts_count.toLocaleString('pt-BR')}</p></div>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-rose-700">Duplicados</p><p className="mt-1 font-semibold text-rose-900">{selectedCustomerList.duplicate_contacts_count.toLocaleString('pt-BR')}</p></div>
+          </div>
+        )}
 
         {audienceTags.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {audienceTags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
-              >
-                {tag}
-              </span>
+              <span key={tag} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{tag}</span>
             ))}
           </div>
         ) : (
           <p className="mt-2 text-sm text-slate-500">Sem filtros aplicados — toda a base será usada.</p>
         )}
 
-        {!hasAudience && (
-          <p className="mt-3 flex items-center gap-2 text-xs text-red-600">
-            <X className="size-3.5" /> Nenhum destinatário encontrado. Volte e ajuste os filtros.
+        {audienceSource === 'customer-bases' && (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Esta seleção ainda está em fase de preparação. O envio para Bases Próprias será ativado em uma próxima etapa.
           </p>
+        )}
+
+        {!hasAudience && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-red-600"><X className="size-3.5" /> Nenhum destinatário encontrado. Volte e ajuste os filtros.</p>
         )}
       </SummaryCard>
     </div>
   );
 }
-
-// ── Helper sub-components ────────────────────────────────────────────────────
-
 function SummaryCard({
   title,
   icon,
@@ -1451,6 +1562,8 @@ export default function CampaignDetailPage() {
   });
 
   const [audienceFilters, setAudienceFilters] = useState<AudienceFilters>(DEFAULT_AUDIENCE);
+  const [audienceSource, setAudienceSource] = useState<AudienceSource>('cm-pro');
+  const [selectedCustomerList, setSelectedCustomerList] = useState<CustomerContactList | null>(null);
 
   const isReadOnly = useIsReadOnly();
 
@@ -1573,6 +1686,15 @@ export default function CampaignDetailPage() {
 
   const saveAudienceStep = useCallback(
     async (): Promise<boolean> => {
+      if (audienceSource === 'customer-bases') {
+        if (!selectedCustomerList) {
+          toast.error('Selecione uma base própria antes de continuar.');
+          return false;
+        }
+        toast.success('Seleção de base própria preparada para prévia.');
+        return true;
+      }
+
       if (audienceFilters.totalCount === 0) {
         toast.error('A audiência está vazia. Ajuste os filtros antes de continuar.');
         return false;
@@ -1605,7 +1727,7 @@ export default function CampaignDetailPage() {
         setIsSaving(false);
       }
     },
-    [campaignId, audienceFilters, supabase],
+    [audienceSource, audienceFilters, campaignId, selectedCustomerList, supabase],
   );
 
   // ── Send campaign ──────────────────────────────────────────────────────────
@@ -1668,7 +1790,8 @@ export default function CampaignDetailPage() {
   const summaryIsReady =
     emailForm.subject.trim().length > 0 &&
     (emailForm.html_content.trim().length > 0 || emailForm.text_content.trim().length > 0) &&
-    audienceFilters.totalCount > 0;
+    audienceFilters.totalCount > 0 &&
+    audienceSource === 'cm-pro';
 
   const remainingCount = Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0));
 
@@ -1678,6 +1801,10 @@ export default function CampaignDetailPage() {
     } else if (currentStep === 2) {
       if (await saveAudienceStep()) setCurrentStep(3);
     } else if (currentStep === 3) {
+      if (audienceSource === 'customer-bases') {
+        toast.error('O envio para Bases Próprias ainda não está disponível nesta etapa.');
+        return;
+      }
       if (!summaryIsReady) {
         toast.error('Corrija os itens pendentes antes de avançar para o envio.');
         return;
@@ -1732,13 +1859,23 @@ export default function CampaignDetailPage() {
           <EmailEditorStep form={emailForm} onChange={setEmailForm} isReadOnly={isReadOnly} />
         )}
         {currentStep === 2 && (
-          <AudienceStep filters={audienceFilters} onChange={setAudienceFilters} isReadOnly={isReadOnly} />
+          <AudienceStep
+            filters={audienceFilters}
+            onChange={setAudienceFilters}
+            source={audienceSource}
+            onSourceChange={setAudienceSource}
+            selectedCustomerList={selectedCustomerList}
+            onSelectedCustomerListChange={setSelectedCustomerList}
+            isReadOnly={isReadOnly}
+          />
         )}
         {currentStep === 3 && campaign && (
           <SummaryStep
             campaign={campaign}
             emailForm={emailForm}
             audienceFilters={audienceFilters}
+            audienceSource={audienceSource}
+            selectedCustomerList={selectedCustomerList}
           />
         )}
         {currentStep === 4 && !sendResult && (
@@ -1814,7 +1951,10 @@ export default function CampaignDetailPage() {
                 disabled={
                   isSaving ||
                   isSending ||
-                  (currentStep === 2 && audienceFilters.totalCount === 0) ||
+                  (currentStep === 2 &&
+                    (audienceSource === 'cm-pro'
+                      ? audienceFilters.totalCount === 0
+                      : !selectedCustomerList)) ||
                   (currentStep === 3 && !summaryIsReady) ||
                   (currentStep === 4 && (!selectedAccountId || !sendConfirmed)) ||
                   isReadOnly
