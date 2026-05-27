@@ -197,27 +197,6 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Base não encontrada.' }, { status: 404 });
     }
 
-    const { count, error: countError } = await auth.supabase
-      .from('customer_contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('list_id', id)
-      .eq('company_id', auth.companyId)
-      .eq('owner_user_id', auth.userId);
-
-    if (countError) {
-      return NextResponse.json(
-        { error: `Erro ao verificar contatos vinculados: ${countError.message}` },
-        { status: 500 }
-      );
-    }
-
-    if ((count ?? 0) > 0) {
-      return NextResponse.json(
-        { error: 'A base possui contatos vinculados e não pode ser excluída.' },
-        { status: 409 }
-      );
-    }
-
     const { error } = await auth.supabase
       .from('customer_contact_lists')
       .delete()

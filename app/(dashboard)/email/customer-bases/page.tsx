@@ -736,7 +736,8 @@ export default function CustomerBasesPage() {
             <div className="px-6 py-6">
               <h2 className="text-lg font-semibold text-slate-900">Excluir base</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Esta ação remove a base apenas se ela não tiver contatos vinculados.
+                Esta ação excluirá a base, os contatos importados e o histórico de importações.
+                Esta operação não pode ser desfeita.
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
