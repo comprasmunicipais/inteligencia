@@ -27,6 +27,7 @@ import {
   BookOpen,
   Menu,
   X,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCompany } from '@/components/providers/CompanyProvider';
@@ -59,6 +60,7 @@ const sidebarItems = [
     items: [
       { name: 'Campanhas', href: '/email/campaigns', icon: Mail },
       { name: 'Audiências', href: '/email/audiences', icon: Users },
+      { name: 'Bases Próprias', href: '/email/customer-bases', icon: Database },
       { name: 'Contas de envio', href: '/email/accounts', icon: Settings },
       { name: 'Templates', href: '/email/templates', icon: Layout },
       { name: 'Estatísticas', href: '/email/estatisticas', icon: BarChart2 },
