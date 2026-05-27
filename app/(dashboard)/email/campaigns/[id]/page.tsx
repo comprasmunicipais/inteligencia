@@ -63,7 +63,7 @@ type AudienceFilters = {
   totalCount: number;
 };
 
-type AudienceSource = 'cm-pro' | 'customer-bases';
+type AudienceSource = 'cm_pro' | 'customer_base';
 
 type CustomerContactList = {
   id: string;
@@ -110,6 +110,8 @@ type Campaign = {
   html_content: string | null;
   text_content: string | null;
   audience_filters: AudienceFilters | null;
+  audience_source: AudienceSource | null;
+  customer_contact_list_id: string | null;
   sending_account_id: string | null;
   sent_at: string | null;
   sent_count: number | null;
@@ -577,7 +579,9 @@ function AudienceStep({
   onChange,
   source,
   onSourceChange,
+  selectedCustomerListId,
   selectedCustomerList,
+  onSelectedCustomerListIdChange,
   onSelectedCustomerListChange,
   isReadOnly = false,
 }: {
@@ -585,7 +589,9 @@ function AudienceStep({
   onChange: (f: AudienceFilters) => void;
   source: AudienceSource;
   onSourceChange: (value: AudienceSource) => void;
+  selectedCustomerListId: string;
   selectedCustomerList: CustomerContactList | null;
+  onSelectedCustomerListIdChange: (value: string) => void;
   onSelectedCustomerListChange: (value: CustomerContactList | null) => void;
   isReadOnly?: boolean;
 }) {
@@ -653,7 +659,7 @@ function AudienceStep({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (source !== 'customer-bases') return;
+    if (source !== 'customer_base') return;
 
     let active = true;
 
@@ -677,8 +683,9 @@ function AudienceStep({
         const lists = result.data || [];
         setCustomerLists(lists);
 
-        if (selectedCustomerList) {
-          const nextSelectedList = lists.find((item) => item.id === selectedCustomerList.id) ?? null;
+        if (selectedCustomerListId) {
+          const nextSelectedList = lists.find((item) => item.id === selectedCustomerListId) ?? null;
+          onSelectedCustomerListIdChange(nextSelectedList?.id ?? '');
           onSelectedCustomerListChange(nextSelectedList);
           onChange({
             ...filters,
@@ -697,10 +704,10 @@ function AudienceStep({
     return () => {
       active = false;
     };
-  }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [source, selectedCustomerListId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (source !== 'cm-pro') return;
+    if (source !== 'cm_pro') return;
 
     const controller = new AbortController();
 
@@ -813,7 +820,7 @@ function AudienceStep({
           <button
             type="button"
             onClick={clear}
-            disabled={source !== 'cm-pro' || isReadOnly}
+            disabled={source !== 'cm_pro' || isReadOnly}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <RefreshCw className="size-4" />
@@ -824,10 +831,10 @@ function AudienceStep({
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <button
             type="button"
-            onClick={() => !isReadOnly && onSourceChange('cm-pro')}
+            onClick={() => !isReadOnly && onSourceChange('cm_pro')}
             disabled={isReadOnly}
             className={`rounded-xl border px-4 py-4 text-left transition ${
-              source === 'cm-pro'
+              source === 'cm_pro'
                 ? 'border-[#0f49bd] bg-blue-50'
                 : 'border-slate-200 bg-white hover:border-slate-300'
             } ${isReadOnly ? 'cursor-default opacity-60' : ''}`}
@@ -845,10 +852,10 @@ function AudienceStep({
 
           <button
             type="button"
-            onClick={() => !isReadOnly && onSourceChange('customer-bases')}
+            onClick={() => !isReadOnly && onSourceChange('customer_base')}
             disabled={isReadOnly}
             className={`rounded-xl border px-4 py-4 text-left transition ${
-              source === 'customer-bases'
+              source === 'customer_base'
                 ? 'border-[#0f49bd] bg-blue-50'
                 : 'border-slate-200 bg-white hover:border-slate-300'
             } ${isReadOnly ? 'cursor-default opacity-60' : ''}`}
@@ -865,13 +872,13 @@ function AudienceStep({
           </button>
         </div>
 
-        {source === 'customer-bases' && (
+        {source === 'customer_base' && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Esta seleção ainda está em fase de preparação. O envio para Bases Próprias será ativado em uma próxima etapa.
+            Bases Próprias ainda não estão liberadas para envio nesta fase.
           </div>
         )}
 
-        {source === 'cm-pro' ? (
+        {source === 'cm_pro' ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Região</label>
@@ -949,8 +956,9 @@ function AudienceStep({
           <div className="space-y-4">
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Base própria</label>
-              <select value={selectedCustomerList?.id ?? ''} onChange={(e) => {
+              <select value={selectedCustomerListId} onChange={(e) => {
                 const nextSelectedList = customerLists.find((item) => item.id === e.target.value) ?? null;
+                onSelectedCustomerListIdChange(nextSelectedList?.id ?? '');
                 onSelectedCustomerListChange(nextSelectedList);
                 onChange({
                   ...filters,
@@ -988,14 +996,14 @@ function AudienceStep({
           </div>
           <div>
             <p className="text-sm font-medium text-slate-600">
-              {source === 'cm-pro' ? 'E-mails disponíveis com esta segmentação' : 'Resumo da base própria selecionada'}
+              {source === 'cm_pro' ? 'E-mails disponíveis com esta segmentação' : 'Resumo da base própria selecionada'}
             </p>
-            {(source === 'cm-pro' && loadingCount) || (source === 'customer-bases' && loadingCustomerLists) ? (
+            {(source === 'cm_pro' && loadingCount) || (source === 'customer_base' && loadingCustomerLists) ? (
               <p className="mt-1 text-sm text-slate-400">Calculando...</p>
             ) : (
               <>
                 <p className="mt-1 text-3xl font-bold text-[#0f172a]">{filters.totalCount.toLocaleString('pt-BR')}</p>
-                {source === 'cm-pro' ? (
+                {source === 'cm_pro' ? (
                   <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
                     <button type="button" onClick={() => toggleQualityGroup('green')} disabled={isReadOnly} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${qualityGroups.green ? 'border-emerald-200 bg-emerald-50 text-emerald-900 opacity-100' : 'border-slate-200 bg-slate-50 text-slate-500 opacity-40'} ${isReadOnly ? 'cursor-default' : 'cursor-pointer hover:border-emerald-300 hover:bg-emerald-100/60'}`}>
                       <span className="size-2 rounded-full bg-emerald-500" />
@@ -1025,10 +1033,10 @@ function AudienceStep({
           </div>
         </div>
 
-        {filters.totalCount === 0 && !loadingCount && source === 'cm-pro' && (
+        {filters.totalCount === 0 && !loadingCount && source === 'cm_pro' && (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Nenhum e-mail encontrado com os filtros atuais. Ajuste os filtros para continuar.</p>
         )}
-        {source === 'customer-bases' && !selectedCustomerList && !loadingCustomerLists && (
+        {source === 'customer_base' && !selectedCustomerList && !loadingCustomerLists && (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Selecione uma base própria para preparar esta audiência.</p>
         )}
       </div>
@@ -1055,10 +1063,10 @@ function SummaryStep({
   const hasHtml = emailForm.html_content.trim().length > 0;
   const hasText = emailForm.text_content.trim().length > 0;
   const hasAudience = audienceFilters.totalCount > 0;
-  const isReady = hasSubject && (hasHtml || hasText) && hasAudience && audienceSource === 'cm-pro';
+  const isReady = hasSubject && (hasHtml || hasText) && hasAudience && audienceSource === 'cm_pro';
 
   const audienceTags: string[] = [];
-  if (audienceSource === 'cm-pro') {
+  if (audienceSource === 'cm_pro') {
     if (audienceFilters.region) audienceTags.push(`Região: ${audienceFilters.region}`);
     if (audienceFilters.state) audienceTags.push(`Estado: ${audienceFilters.state}`);
     if (audienceFilters.municipalityId) audienceTags.push('1 município específico');
@@ -1100,7 +1108,7 @@ function SummaryStep({
               {!hasSubject && <li>Assunto do e-mail não preenchido</li>}
               {!hasHtml && <li>Conteúdo HTML do e-mail ausente</li>}
               {!hasAudience && <li>Audiência com 0 destinatários</li>}
-              {audienceSource === 'customer-bases' && <li>Envio para Bases Próprias ainda não está habilitado</li>}
+              {audienceSource === 'customer_base' && <li>Bases Próprias ainda não estão liberadas para envio nesta fase.</li>}
             </ul>
           </div>
         </div>
@@ -1131,14 +1139,14 @@ function SummaryStep({
 
       <SummaryCard title="Audiência" icon={<Users className="size-4 text-[#0f49bd]" />}>
         <p className="text-sm text-slate-500">
-          Origem selecionada: <strong>{audienceSource === 'cm-pro' ? 'Base CM Pro' : 'Bases Próprias'}</strong>
+          Origem selecionada: <strong>{audienceSource === 'cm_pro' ? 'Base CM Pro' : 'Bases Próprias'}</strong>
         </p>
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold text-[#0f172a]">{audienceFilters.totalCount.toLocaleString('pt-BR')}</span>
           <span className="text-sm text-slate-500">destinatários</span>
         </div>
 
-        {audienceSource === 'customer-bases' && selectedCustomerList && (
+        {audienceSource === 'customer_base' && selectedCustomerList && (
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-slate-500">Contatos</p><p className="mt-1 font-semibold text-slate-900">{selectedCustomerList.contacts_count.toLocaleString('pt-BR')}</p></div>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-xs uppercase tracking-wide text-emerald-700">Válidos</p><p className="mt-1 font-semibold text-emerald-900">{selectedCustomerList.valid_contacts_count.toLocaleString('pt-BR')}</p></div>
@@ -1157,9 +1165,9 @@ function SummaryStep({
           <p className="mt-2 text-sm text-slate-500">Sem filtros aplicados — toda a base será usada.</p>
         )}
 
-        {audienceSource === 'customer-bases' && (
+        {audienceSource === 'customer_base' && (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Esta seleção ainda está em fase de preparação. O envio para Bases Próprias será ativado em uma próxima etapa.
+            Bases Próprias ainda não estão liberadas para envio nesta fase.
           </p>
         )}
 
@@ -1562,7 +1570,8 @@ export default function CampaignDetailPage() {
   });
 
   const [audienceFilters, setAudienceFilters] = useState<AudienceFilters>(DEFAULT_AUDIENCE);
-  const [audienceSource, setAudienceSource] = useState<AudienceSource>('cm-pro');
+  const [audienceSource, setAudienceSource] = useState<AudienceSource>('cm_pro');
+  const [selectedCustomerListId, setSelectedCustomerListId] = useState('');
   const [selectedCustomerList, setSelectedCustomerList] = useState<CustomerContactList | null>(null);
 
   const isReadOnly = useIsReadOnly();
@@ -1628,6 +1637,9 @@ export default function CampaignDetailPage() {
 
         const c = data as Campaign;
         setCampaign(c);
+        setAudienceSource(c.audience_source === 'customer_base' ? 'customer_base' : 'cm_pro');
+        setSelectedCustomerListId(c.customer_contact_list_id ?? '');
+        setSelectedCustomerList(null);
         setEmailForm({
           subject: c.subject ?? '',
           preheader: c.preheader ?? '',
@@ -1686,37 +1698,54 @@ export default function CampaignDetailPage() {
 
   const saveAudienceStep = useCallback(
     async (): Promise<boolean> => {
-      if (audienceSource === 'customer-bases') {
-        if (!selectedCustomerList) {
+      if (audienceSource === 'customer_base') {
+        if (!selectedCustomerListId) {
           toast.error('Selecione uma base própria antes de continuar.');
           return false;
         }
-        toast.success('Seleção de base própria preparada para prévia.');
-        return true;
-      }
-
-      if (audienceFilters.totalCount === 0) {
+      } else if (audienceFilters.totalCount === 0) {
         toast.error('A audiência está vazia. Ajuste os filtros antes de continuar.');
         return false;
       }
+
       const qualityGroups = normalizeQualityGroups(audienceFilters.qualityGroups);
-      if (!qualityGroups.green && !qualityGroups.yellow && !qualityGroups.white) {
+      if (audienceSource === 'cm_pro' && !qualityGroups.green && !qualityGroups.yellow && !qualityGroups.white) {
         toast.error('Selecione pelo menos um grupo de e-mails');
         return false;
       }
       try {
         setIsSaving(true);
-        const { error } = await supabase
-          .from('email_campaigns')
-          .update({
+        const response = await fetch(`/api/email/campaigns/${campaignId}/audience-config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audience_source: audienceSource,
+            customer_contact_list_id: audienceSource === 'customer_base' ? selectedCustomerListId : null,
             audience_filters: {
               ...audienceFilters,
               qualityGroups,
             },
-          })
-          .eq('id', campaignId);
+          }),
+        });
+        const result = await response.json();
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao salvar audiência.');
+        }
+
+        setCampaign((current) =>
+          current
+            ? {
+                ...current,
+                audience_source: audienceSource,
+                customer_contact_list_id: audienceSource === 'customer_base' ? selectedCustomerListId : null,
+                audience_filters: {
+                  ...audienceFilters,
+                  qualityGroups,
+                },
+              }
+            : current,
+        );
         toast.success('Audiência salva.');
         return true;
       } catch (err) {
@@ -1727,7 +1756,7 @@ export default function CampaignDetailPage() {
         setIsSaving(false);
       }
     },
-    [audienceSource, audienceFilters, campaignId, selectedCustomerList, supabase],
+    [audienceSource, audienceFilters, campaignId, selectedCustomerListId],
   );
 
   // ── Send campaign ──────────────────────────────────────────────────────────
@@ -1791,7 +1820,7 @@ export default function CampaignDetailPage() {
     emailForm.subject.trim().length > 0 &&
     (emailForm.html_content.trim().length > 0 || emailForm.text_content.trim().length > 0) &&
     audienceFilters.totalCount > 0 &&
-    audienceSource === 'cm-pro';
+    audienceSource === 'cm_pro';
 
   const remainingCount = Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0));
 
@@ -1801,8 +1830,8 @@ export default function CampaignDetailPage() {
     } else if (currentStep === 2) {
       if (await saveAudienceStep()) setCurrentStep(3);
     } else if (currentStep === 3) {
-      if (audienceSource === 'customer-bases') {
-        toast.error('O envio para Bases Próprias ainda não está disponível nesta etapa.');
+      if (audienceSource === 'customer_base') {
+        toast.error('Bases Próprias ainda não estão liberadas para envio nesta fase.');
         return;
       }
       if (!summaryIsReady) {
@@ -1864,7 +1893,9 @@ export default function CampaignDetailPage() {
             onChange={setAudienceFilters}
             source={audienceSource}
             onSourceChange={setAudienceSource}
+            selectedCustomerListId={selectedCustomerListId}
             selectedCustomerList={selectedCustomerList}
+            onSelectedCustomerListIdChange={setSelectedCustomerListId}
             onSelectedCustomerListChange={setSelectedCustomerList}
             isReadOnly={isReadOnly}
           />
@@ -1952,9 +1983,9 @@ export default function CampaignDetailPage() {
                   isSaving ||
                   isSending ||
                   (currentStep === 2 &&
-                    (audienceSource === 'cm-pro'
+                    (audienceSource === 'cm_pro'
                       ? audienceFilters.totalCount === 0
-                      : !selectedCustomerList)) ||
+                      : !selectedCustomerListId)) ||
                   (currentStep === 3 && !summaryIsReady) ||
                   (currentStep === 4 && (!selectedAccountId || !sendConfirmed)) ||
                   isReadOnly
