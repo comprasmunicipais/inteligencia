@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Database,
   Download,
@@ -46,6 +46,17 @@ type ListResponse = {
 
 type ItemResponse = {
   data?: CustomerContactList;
+  error?: string;
+};
+
+type ImportResponse = {
+  data?: {
+    import_id: string;
+    total_rows: number;
+    valid_rows: number;
+    invalid_rows: number;
+    duplicate_rows: number;
+  };
   error?: string;
 };
 
@@ -110,9 +121,12 @@ function StatusBadge({ status }: { status: CustomerContactListStatus }) {
 
 export default function CustomerBasesPage() {
   const isReadOnly = useIsReadOnly();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [lists, setLists] = useState<CustomerContactList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [selectedImportListId, setSelectedImportListId] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingList, setEditingList] = useState<CustomerContactList | null>(null);
   const [deletingList, setDeletingList] = useState<CustomerContactList | null>(null);
@@ -173,6 +187,21 @@ export default function CustomerBasesPage() {
   useEffect(() => {
     loadLists();
   }, []);
+
+  useEffect(() => {
+    if (lists.length === 0) {
+      if (selectedImportListId) {
+        setSelectedImportListId('');
+      }
+      return;
+    }
+
+    const hasSelectedList = lists.some((item) => item.id === selectedImportListId);
+
+    if (!hasSelectedList) {
+      setSelectedImportListId(lists[0].id);
+    }
+  }, [lists, selectedImportListId]);
 
   const totals = useMemo(() => {
     return lists.reduce(
@@ -318,6 +347,66 @@ export default function CustomerBasesPage() {
     }
   }
 
+  function triggerCsvUpload() {
+    if (!selectedImportListId) {
+      toast.error('Selecione uma base para receber os contatos.');
+      return;
+    }
+
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    if (!selectedImportListId) {
+      toast.error('Selecione uma base para receber os contatos.');
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Apenas arquivos .csv são aceitos nesta fase.');
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/customer-contact-lists/${selectedImportListId}/import`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = (await response.json()) as ImportResponse;
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao importar arquivo CSV.');
+      }
+
+      const importedCount = result.data?.valid_rows ?? 0;
+      const invalidCount = result.data?.invalid_rows ?? 0;
+      const duplicateCount = result.data?.duplicate_rows ?? 0;
+
+      toast.success(
+        `Importação concluída: ${importedCount} contatos adicionados, ${invalidCount} inválidos e ${duplicateCount} duplicados.`,
+      );
+
+      await loadLists();
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao importar arquivo CSV.');
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   return (
     <div className="min-h-full overflow-y-auto bg-[#f8fafc] p-6">
       <div className="flex flex-col gap-6">
@@ -358,8 +447,8 @@ export default function CustomerBasesPage() {
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Importação de contatos</h2>
                 <p className="text-sm text-slate-600">
-                  Importe arquivos CSV ou Excel (.xlsx) contendo sua própria base de contatos.
-                  Nesta fase, apenas arquivos estruturados com cabeçalhos são aceitos.
+                  Importe arquivos CSV contendo sua própria base de contatos. Nesta primeira
+                  versão funcional, apenas arquivos estruturados com cabeçalhos são aceitos.
                 </p>
               </div>
             </div>
@@ -392,6 +481,28 @@ export default function CustomerBasesPage() {
             </div>
 
             <div className="flex flex-col gap-3 lg:min-w-64">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Base de destino
+                </label>
+                <select
+                  value={selectedImportListId}
+                  onChange={(e) => setSelectedImportListId(e.target.value)}
+                  disabled={lists.length === 0 || isReadOnly || isImporting}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {lists.length === 0 ? (
+                    <option value="">Crie uma base antes de importar</option>
+                  ) : (
+                    lists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
               <button
                 type="button"
                 onClick={handleDownloadCsvTemplate}
@@ -403,15 +514,25 @@ export default function CustomerBasesPage() {
 
               <button
                 type="button"
-                disabled
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
+                onClick={triggerCsvUpload}
+                disabled={lists.length === 0 || isReadOnly || isImporting}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
               >
                 <Upload className="size-4" />
-                Importar arquivo (em breve)
+                {isImporting ? 'Importando CSV...' : 'Importar arquivo CSV'}
               </button>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleImportFileChange}
+                className="hidden"
+              />
+
               <p className="text-xs text-slate-500">
-                O upload real de arquivos CSV/XLSX será liberado na próxima etapa.
+                Apenas CSV está disponível nesta fase. XLSX, fila assíncrona e importação
+                avançada entram nas próximas etapas.
               </p>
             </div>
           </div>
@@ -484,7 +605,8 @@ export default function CustomerBasesPage() {
               <h3 className="mt-4 text-lg font-semibold text-slate-900">Nenhuma base criada</h3>
               <p className="mt-2 max-w-xl text-sm text-slate-600">
                 Crie sua primeira base própria para organizar contatos privados do seu usuário.
-                Nesta fase, ainda não há importação nem integração com campanhas.
+                Depois disso, você já poderá importar um CSV simples sem integração com
+                campanhas.
               </p>
             </div>
           ) : (
