@@ -1,19 +1,8 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Database,
-  Download,
-  FileSpreadsheet,
-  Mail,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Upload,
-  UserLock,
-  X,
-} from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { Database, Mail, Pencil, Plus, RefreshCw, Settings2, Trash2, UserLock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
@@ -49,17 +38,6 @@ type ItemResponse = {
   error?: string;
 };
 
-type ImportResponse = {
-  data?: {
-    import_id: string;
-    total_rows: number;
-    valid_rows: number;
-    invalid_rows: number;
-    duplicate_rows: number;
-  };
-  error?: string;
-};
-
 const STATUS_LABELS: Record<CustomerContactListStatus, string> = {
   active: 'Ativa',
   inactive: 'Inativa',
@@ -69,16 +47,6 @@ const STATUS_BADGES: Record<CustomerContactListStatus, string> = {
   active: 'bg-emerald-100 text-emerald-700',
   inactive: 'bg-slate-200 text-slate-700',
 };
-
-const ACCEPTED_COLUMNS = [
-  { name: 'email', required: true },
-  { name: 'nome', required: false },
-  { name: 'empresa', required: false },
-  { name: 'telefone', required: false },
-  { name: 'cidade', required: false },
-  { name: 'estado', required: false },
-  { name: 'tags', required: false },
-];
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('pt-BR', {
@@ -121,12 +89,9 @@ function StatusBadge({ status }: { status: CustomerContactListStatus }) {
 
 export default function CustomerBasesPage() {
   const isReadOnly = useIsReadOnly();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [lists, setLists] = useState<CustomerContactList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [selectedImportListId, setSelectedImportListId] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingList, setEditingList] = useState<CustomerContactList | null>(null);
   const [deletingList, setDeletingList] = useState<CustomerContactList | null>(null);
@@ -141,23 +106,6 @@ export default function CustomerBasesPage() {
     description: '',
     status: 'active' as CustomerContactListStatus,
   });
-
-  function handleDownloadCsvTemplate() {
-    const csvContent = [
-      'email,nome,empresa,telefone,cidade,estado,tags',
-      'contato@empresa.com.br,João Silva,Empresa XYZ,11999999999,São Paulo,SP,software',
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'modelo-base-propria.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
 
   async function loadLists() {
     try {
@@ -187,21 +135,6 @@ export default function CustomerBasesPage() {
   useEffect(() => {
     loadLists();
   }, []);
-
-  useEffect(() => {
-    if (lists.length === 0) {
-      if (selectedImportListId) {
-        setSelectedImportListId('');
-      }
-      return;
-    }
-
-    const hasSelectedList = lists.some((item) => item.id === selectedImportListId);
-
-    if (!hasSelectedList) {
-      setSelectedImportListId(lists[0].id);
-    }
-  }, [lists, selectedImportListId]);
 
   const totals = useMemo(() => {
     return lists.reduce(
@@ -347,66 +280,6 @@ export default function CustomerBasesPage() {
     }
   }
 
-  function triggerCsvUpload() {
-    if (!selectedImportListId) {
-      toast.error('Selecione uma base para receber os contatos.');
-      return;
-    }
-
-    fileInputRef.current?.click();
-  }
-
-  async function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
-    if (!file) {
-      return;
-    }
-
-    if (!selectedImportListId) {
-      toast.error('Selecione uma base para receber os contatos.');
-      return;
-    }
-
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast.error('Apenas arquivos .csv são aceitos nesta fase.');
-      return;
-    }
-
-    try {
-      setIsImporting(true);
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(`/api/customer-contact-lists/${selectedImportListId}/import`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = (await response.json()) as ImportResponse;
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao importar arquivo CSV.');
-      }
-
-      const importedCount = result.data?.valid_rows ?? 0;
-      const invalidCount = result.data?.invalid_rows ?? 0;
-      const duplicateCount = result.data?.duplicate_rows ?? 0;
-
-      toast.success(
-        `Importação concluída: ${importedCount} contatos adicionados, ${invalidCount} inválidos e ${duplicateCount} duplicados.`,
-      );
-
-      await loadLists();
-    } catch (error: any) {
-      toast.error(error?.message || 'Erro ao importar arquivo CSV.');
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
   return (
     <div className="min-h-full overflow-y-auto bg-[#f8fafc] p-6">
       <div className="flex flex-col gap-6">
@@ -418,8 +291,8 @@ export default function CustomerBasesPage() {
             <div>
               <h1 className="text-2xl font-bold text-[#0f172a]">Bases Próprias</h1>
               <p className="text-sm text-slate-600">
-                Importe e organize bases próprias de contatos. Nesta fase, as bases ficam visíveis
-                apenas para o usuário que as criou.
+                Organize suas bases privadas de contatos. O fluxo desta área começa com a criação
+                da base e segue para a gestão individual de cada uma.
               </p>
             </div>
           </div>
@@ -439,111 +312,12 @@ export default function CustomerBasesPage() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-4 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <FileSpreadsheet className="size-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Importação de contatos</h2>
-                <p className="text-sm text-slate-600">
-                  Importe arquivos CSV contendo sua própria base de contatos. Nesta primeira
-                  versão funcional, apenas arquivos estruturados com cabeçalhos são aceitos.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Colunas aceitas</h3>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ACCEPTED_COLUMNS.map((column) => (
-                    <span
-                      key={column.name}
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                        column.required
-                          ? 'border border-blue-200 bg-blue-50 text-blue-800'
-                          : 'border border-slate-200 bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      {column.name}
-                      {column.required ? ' (obrigatório)' : ' (opcional)'}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                A primeira linha do arquivo deve conter os nomes das colunas.
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 lg:min-w-64">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Base de destino
-                </label>
-                <select
-                  value={selectedImportListId}
-                  onChange={(e) => setSelectedImportListId(e.target.value)}
-                  disabled={lists.length === 0 || isReadOnly || isImporting}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd] disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  {lists.length === 0 ? (
-                    <option value="">Crie uma base antes de importar</option>
-                  ) : (
-                    lists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDownloadCsvTemplate}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <Download className="size-4" />
-                Baixar modelo CSV
-              </button>
-
-              <button
-                type="button"
-                onClick={triggerCsvUpload}
-                disabled={lists.length === 0 || isReadOnly || isImporting}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-              >
-                <Upload className="size-4" />
-                {isImporting ? 'Importando CSV...' : 'Importar arquivo CSV'}
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleImportFileChange}
-                className="hidden"
-              />
-
-              <p className="text-xs text-slate-500">
-                Apenas CSV está disponível nesta fase. XLSX, fila assíncrona e importação
-                avançada entram nas próximas etapas.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Minhas bases</h2>
               <p className="text-sm text-slate-600">
-                Gerencie nome, descrição e status das bases privadas vinculadas ao seu usuário.
+                Crie, edite e acesse cada base individualmente para importar arquivos CSV e
+                acompanhar o histórico.
               </p>
             </div>
 
@@ -605,8 +379,8 @@ export default function CustomerBasesPage() {
               <h3 className="mt-4 text-lg font-semibold text-slate-900">Nenhuma base criada</h3>
               <p className="mt-2 max-w-xl text-sm text-slate-600">
                 Crie sua primeira base própria para organizar contatos privados do seu usuário.
-                Depois disso, você já poderá importar um CSV simples sem integração com
-                campanhas.
+                Depois disso, você poderá entrar na base para importar CSV e acompanhar os
+                resultados.
               </p>
             </div>
           ) : (
@@ -672,6 +446,13 @@ export default function CustomerBasesPage() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/email/customer-bases/${list.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-[#0f49bd] transition hover:bg-blue-100"
+                          >
+                            <Settings2 className="size-4" />
+                            Gerenciar
+                          </Link>
                           <button
                             type="button"
                             onClick={() => openEditModal(list)}

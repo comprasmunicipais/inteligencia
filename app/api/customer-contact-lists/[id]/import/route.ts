@@ -230,6 +230,65 @@ async function insertContactsInChunks(
   }
 }
 
+export async function GET(_request: NextRequest, context: RouteContext) {
+  try {
+    const auth = await getAuthenticatedContext();
+
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const companyId = auth.companyId;
+    const userId = auth.userId;
+
+    if (!companyId || !userId) {
+      return NextResponse.json({ error: 'Contexto de autenticação inválido.' }, { status: 401 });
+    }
+
+    const { id } = await context.params;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da base é obrigatório.' }, { status: 400 });
+    }
+
+    const { data: list, error: listError } = await auth.supabase
+      .from('customer_contact_lists')
+      .select('id')
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .eq('owner_user_id', userId)
+      .single();
+
+    if (listError || !list) {
+      return NextResponse.json({ error: 'Base não encontrada.' }, { status: 404 });
+    }
+
+    const { data, error } = await auth.supabase
+      .from('customer_contact_imports')
+      .select(
+        'id, original_file_name, file_type, status, total_rows, valid_rows, invalid_rows, duplicate_rows, created_at, started_at, finished_at',
+      )
+      .eq('list_id', id)
+      .eq('company_id', companyId)
+      .eq('owner_user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return NextResponse.json(
+        { error: `Erro ao carregar histórico de importações: ${error.message}` },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ data: data || [] });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message || 'Erro interno ao carregar histórico de importações.' },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   let importId: string | null = null;
 
