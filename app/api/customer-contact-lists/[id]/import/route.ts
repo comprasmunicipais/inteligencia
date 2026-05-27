@@ -25,23 +25,54 @@ type RouteContext = {
 };
 
 type ParsedCsvRow = string[];
+type MappedField = 'email' | 'name' | 'company_name' | 'phone' | 'city' | 'state' | 'tags';
 
 const MAX_ROWS = 5000;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHUNK_SIZE = 500;
 
-const HEADER_ALIASES = {
-  email: ['email'],
-  name: ['nome', 'name'],
-  company_name: ['empresa', 'company'],
-  phone: ['telefone', 'phone'],
-  city: ['cidade', 'city'],
-  state: ['estado', 'state'],
-  tags: ['tags'],
+const HEADER_ALIASES: Record<MappedField, string[]> = {
+  email: ['email', 'e_mail', 'mail', 'endereco_email', 'endereço_email'],
+  name: ['nome', 'name', 'contato', 'contact_name', 'nome_contato', 'responsavel', 'responsável'],
+  company_name: [
+    'empresa',
+    'company',
+    'company_name',
+    'nome_empresa',
+    'empresa_nome',
+    'razao_social',
+    'razão_social',
+    'organizacao',
+    'organização',
+  ],
+  phone: ['telefone', 'phone', 'celular', 'whatsapp', 'tel', 'telefone_1', 'telefone1'],
+  city: ['cidade', 'city', 'municipio', 'município'],
+  state: ['estado', 'state', 'uf'],
+  tags: ['tags', 'tag', 'categoria', 'segmento'],
 } as const;
 
 function normalizeHeader(value: string) {
-  return value.replace(/^\uFEFF+/, '').trim().toLowerCase();
+  return value
+    .replace(/^\uFEFF+/, '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function mapHeaderToField(header: string): MappedField | null {
+  const normalizedHeader = normalizeHeader(header);
+
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES) as Array<[MappedField, string[]]>) {
+    if (aliases.map(normalizeHeader).includes(normalizedHeader)) {
+      return field;
+    }
+  }
+
+  return null;
 }
 
 function normalizeOptionalText(value: string | undefined) {
@@ -83,19 +114,30 @@ function parseCsv(content: string): ParsedCsvRow[] {
 }
 
 function getHeaderIndexes(headers: string[]) {
-  const normalizedHeaders = headers.map(normalizeHeader);
+  const indexes: Partial<Record<MappedField, number>> = {};
+  const unmappedHeaders: Array<{ index: number; key: string }> = [];
 
-  const indexes = Object.entries(HEADER_ALIASES).reduce<Record<string, number>>((acc, [key, aliases]) => {
-    const foundIndex = normalizedHeaders.findIndex((header) => aliases.some((alias) => alias === header));
+  headers.forEach((header, index) => {
+    const mappedField = mapHeaderToField(header);
+    const normalizedHeader = normalizeHeader(header);
 
-    if (foundIndex >= 0) {
-      acc[key] = foundIndex;
+    if (mappedField && indexes[mappedField] === undefined) {
+      indexes[mappedField] = index;
+      return;
     }
 
-    return acc;
-  }, {});
+    if (normalizedHeader) {
+      unmappedHeaders.push({
+        index,
+        key: normalizedHeader,
+      });
+    }
+  });
 
-  return indexes;
+  return {
+    indexes,
+    unmappedHeaders,
+  };
 }
 
 async function getAuthenticatedContext(): Promise<AuthContext> {
@@ -319,7 +361,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const headers = parsedRows[0];
-    const headerIndexes = getHeaderIndexes(headers);
+    const { indexes: headerIndexes, unmappedHeaders } = getHeaderIndexes(headers);
 
     if (headerIndexes.email === undefined) {
       return NextResponse.json(
@@ -327,6 +369,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 400 },
       );
     }
+
+    const emailHeaderIndex = headerIndexes.email;
 
     const dataRows = parsedRows.slice(1);
 
@@ -366,7 +410,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const candidateEmails = new Set<string>();
     const parsedCandidates = dataRows.map((row) => {
-      const emailOriginal = row[headerIndexes.email] ?? '';
+      const emailOriginal = row[emailHeaderIndex] ?? '';
       const emailNormalized = normalizeEmail(emailOriginal);
 
       if (emailNormalized && EMAIL_REGEX.test(emailNormalized)) {
@@ -382,6 +426,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         city: headerIndexes.city !== undefined ? row[headerIndexes.city] : undefined,
         state: headerIndexes.state !== undefined ? row[headerIndexes.state] : undefined,
         tags: headerIndexes.tags !== undefined ? row[headerIndexes.tags] : undefined,
+        customFields: unmappedHeaders.reduce<Record<string, string>>((acc, header) => {
+          const value = row[header.index];
+          const normalizedValue = normalizeOptionalText(value);
+
+          if (normalizedValue) {
+            acc[header.key] = normalizedValue;
+          }
+
+          return acc;
+        }, {}),
       };
     });
 
@@ -433,6 +487,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         city: normalizeOptionalText(row.city),
         state: normalizeOptionalText(row.state),
         tags: parseTags(row.tags),
+        custom_fields:
+          row.customFields && Object.keys(row.customFields).length > 0 ? row.customFields : null,
         validation_status: 'not_checked',
         source: 'upload',
       });
