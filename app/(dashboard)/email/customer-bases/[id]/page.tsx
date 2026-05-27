@@ -169,6 +169,8 @@ export default function CustomerBaseDetailPage({
   const [contactsPageSize] = useState(50);
   const [contactsTotal, setContactsTotal] = useState(0);
   const [contactsTotalPages, setContactsTotalPages] = useState(1);
+  const [contactToDelete, setContactToDelete] = useState<CustomerContact | null>(null);
+  const [isDeletingContact, setIsDeletingContact] = useState(false);
 
   function handleDownloadCsvTemplate() {
     const csvContent = [
@@ -377,6 +379,41 @@ export default function CustomerBaseDetailPage({
     }
 
     await loadContacts(listId, nextPage, searchInput);
+  }
+
+  async function handleDeleteContact() {
+    if (!listId || !contactToDelete) {
+      return;
+    }
+
+    try {
+      setIsDeletingContact(true);
+
+      const response = await fetch(
+        `/api/customer-contact-lists/${listId}/contacts/${contactToDelete.id}`,
+        {
+          method: 'DELETE',
+        },
+      );
+
+      const result = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao excluir contato.');
+      }
+
+      const nextPage =
+        contacts.length === 1 && contactsPage > 1 ? contactsPage - 1 : contactsPage;
+
+      await Promise.all([loadBase(listId), loadContacts(listId, nextPage, searchInput)]);
+
+      toast.success('Contato removido da base com sucesso.');
+      setContactToDelete(null);
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao excluir contato.');
+    } finally {
+      setIsDeletingContact(false);
+    }
   }
 
   return (
@@ -734,6 +771,9 @@ export default function CustomerBaseDetailPage({
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Criado em
                           </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Ações
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -769,6 +809,16 @@ export default function CustomerBaseDetailPage({
                             </td>
                             <td className="px-4 py-4 text-sm text-slate-600">
                               {formatDateTime(contact.created_at)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <button
+                                type="button"
+                                onClick={() => setContactToDelete(contact)}
+                                disabled={isReadOnly || isDeletingContact}
+                                className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Excluir
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -807,6 +857,43 @@ export default function CustomerBaseDetailPage({
           </>
         )}
       </div>
+
+      {contactToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-slate-900">Excluir contato</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Esta ação removerá este contato da base. Esta operação não pode ser desfeita.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <p className="font-medium text-slate-900">
+                {contactToDelete.name?.trim() || contactToDelete.email_normalized}
+              </p>
+              <p className="mt-1 break-all text-slate-600">{contactToDelete.email_normalized}</p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setContactToDelete(null)}
+                disabled={isDeletingContact}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteContact}
+                disabled={isDeletingContact}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingContact ? 'Excluindo...' : 'Excluir contato'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
