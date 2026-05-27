@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Papa from 'papaparse';
 import { createClient } from '@/lib/supabase/server';
 
 type AuthContext =
@@ -66,52 +67,19 @@ function parseTags(value: string | undefined) {
 }
 
 function parseCsv(content: string): ParsedCsvRow[] {
-  const rows: ParsedCsvRow[] = [];
-  let currentValue = '';
-  let currentRow: string[] = [];
-  let inQuotes = false;
+  const result = Papa.parse<string[]>(content, {
+    skipEmptyLines: 'greedy',
+  });
 
-  for (let index = 0; index < content.length; index += 1) {
-    const char = content[index];
-    const nextChar = content[index + 1];
+  const parsingErrors = result.errors.filter(
+    (error) => error.code !== 'UndetectableDelimiter',
+  );
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentValue += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      currentRow.push(currentValue);
-      currentValue = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') {
-        index += 1;
-      }
-
-      currentRow.push(currentValue);
-      rows.push(currentRow);
-      currentRow = [];
-      currentValue = '';
-      continue;
-    }
-
-    currentValue += char;
+  if (parsingErrors.length > 0) {
+    throw new Error(parsingErrors[0]?.message || 'Erro ao ler o arquivo CSV.');
   }
 
-  if (currentValue.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentValue);
-    rows.push(currentRow);
-  }
-
-  return rows;
+  return result.data.filter((row): row is ParsedCsvRow => Array.isArray(row));
 }
 
 function getHeaderIndexes(headers: string[]) {
