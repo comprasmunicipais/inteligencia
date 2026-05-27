@@ -766,9 +766,6 @@ export default function CustomerBaseDetailPage({
                             Status
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Origem
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Criado em
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -803,9 +800,6 @@ export default function CustomerBaseDetailPage({
                             </td>
                             <td className="px-4 py-4 text-sm text-slate-700">
                               {contact.validation_status || '—'}
-                            </td>
-                            <td className="px-4 py-4 text-sm text-slate-700">
-                              {contact.source || '—'}
                             </td>
                             <td className="px-4 py-4 text-sm text-slate-600">
                               {formatDateTime(contact.created_at)}
