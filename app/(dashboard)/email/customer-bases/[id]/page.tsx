@@ -59,6 +59,30 @@ type ImportResponse = {
   error?: string;
 };
 
+type CustomerContact = {
+  id: string;
+  email_normalized: string;
+  email_original: string;
+  name: string | null;
+  company_name: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
+  validation_status: string;
+  source: string;
+  custom_fields: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type ContactsResponse = {
+  data?: CustomerContact[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  error?: string;
+};
+
 const ACCEPTED_COLUMNS = [
   { name: 'email', required: true },
   { name: 'nome', required: false },
@@ -133,10 +157,18 @@ export default function CustomerBaseDetailPage({
   const [listId, setListId] = useState('');
   const [list, setList] = useState<CustomerContactList | null>(null);
   const [imports, setImports] = useState<CustomerContactImport[]>([]);
+  const [contacts, setContacts] = useState<CustomerContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshingImports, setIsRefreshingImports] = useState(false);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [contactsError, setContactsError] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [contactsPage, setContactsPage] = useState(1);
+  const [contactsPageSize] = useState(50);
+  const [contactsTotal, setContactsTotal] = useState(0);
+  const [contactsTotalPages, setContactsTotalPages] = useState(1);
 
   function handleDownloadCsvTemplate() {
     const csvContent = [
@@ -199,16 +231,59 @@ export default function CustomerBaseDetailPage({
     }
   }
 
+  async function loadContacts(currentListId: string, page = 1, search = '') {
+    try {
+      setIsLoadingContacts(true);
+      setContactsError('');
+
+      const searchParams = new URLSearchParams({
+        page: String(page),
+        pageSize: String(contactsPageSize),
+      });
+
+      if (search.trim()) {
+        searchParams.set('search', search.trim());
+      }
+
+      const response = await fetch(
+        `/api/customer-contact-lists/${currentListId}/contacts?${searchParams.toString()}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+        },
+      );
+
+      const result = (await response.json()) as ContactsResponse;
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar contatos da base.');
+      }
+
+      setContacts(result.data || []);
+      setContactsTotal(result.total || 0);
+      setContactsPage(result.page || page);
+      setContactsTotalPages(result.totalPages || 1);
+    } catch (error: any) {
+      setContactsError(error?.message || 'Erro ao carregar contatos da base.');
+      setContacts([]);
+      setContactsTotal(0);
+      setContactsTotalPages(1);
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  }
+
   async function loadPage(currentListId: string) {
     try {
       setIsLoading(true);
       setLoadError('');
 
-      await Promise.all([loadBase(currentListId), loadImports(currentListId)]);
+      await Promise.all([loadBase(currentListId), loadImports(currentListId), loadContacts(currentListId, 1, '')]);
     } catch (error: any) {
       setLoadError(error?.message || 'Erro ao carregar a base.');
       setList(null);
       setImports([]);
+      setContacts([]);
     } finally {
       setIsLoading(false);
       setIsRefreshingImports(false);
@@ -280,12 +355,28 @@ export default function CustomerBaseDetailPage({
         `Importação concluída: ${importedCount} contatos adicionados, ${invalidCount} inválidos e ${duplicateCount} duplicados.`,
       );
 
-      await Promise.all([loadBase(listId), loadImports(listId, true)]);
+      await Promise.all([loadBase(listId), loadImports(listId, true), loadContacts(listId, contactsPage, searchInput)]);
     } catch (error: any) {
       toast.error(error?.message || 'Erro ao importar arquivo CSV.');
     } finally {
       setIsImporting(false);
     }
+  }
+
+  async function handleContactsSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!listId) return;
+
+    await loadContacts(listId, 1, searchInput);
+  }
+
+  async function handleContactsPageChange(nextPage: number) {
+    if (!listId || nextPage < 1 || nextPage > contactsTotalPages) {
+      return;
+    }
+
+    await loadContacts(listId, nextPage, searchInput);
   }
 
   return (
@@ -568,11 +659,150 @@ export default function CustomerBaseDetailPage({
               )}
             </div>
 
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-sm">
-              <h2 className="text-base font-semibold text-slate-900">Visualização de contatos em breve</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                A próxima etapa desta base trará listagem e gestão detalhada dos contatos importados.
-              </p>
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Contatos importados</h2>
+                  <p className="text-sm text-slate-600">
+                    Consulte os contatos desta base com busca simples por e-mail, nome ou empresa.
+                  </p>
+                </div>
+
+                <form onSubmit={handleContactsSearch} className="flex w-full max-w-md items-center gap-2">
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Buscar por e-mail, nome ou empresa"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoadingContacts}
+                    className="rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Buscar
+                  </button>
+                </form>
+              </div>
+
+              {isLoadingContacts ? (
+                <div className="px-6 py-16 text-center text-sm text-slate-500">
+                  Carregando contatos...
+                </div>
+              ) : contactsError ? (
+                <div className="px-6 py-16 text-center">
+                  <h3 className="text-lg font-semibold text-slate-900">Erro ao carregar contatos</h3>
+                  <p className="mt-2 text-sm text-slate-600">{contactsError}</p>
+                </div>
+              ) : contacts.length === 0 ? (
+                <div className="px-6 py-16 text-center">
+                  <h3 className="text-lg font-semibold text-slate-900">Nenhum contato encontrado</h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {searchInput.trim()
+                      ? 'Nenhum contato corresponde ao filtro informado.'
+                      : 'Esta base ainda não possui contatos importados.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            E-mail
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Nome
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Empresa
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Telefone
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Cidade/UF
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Status
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Origem
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Criado em
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contacts.map((contact) => (
+                          <tr key={contact.id} className="border-b border-slate-100 align-top">
+                            <td className="px-4 py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {contact.email_normalized}
+                                </span>
+                                {contact.email_original !== contact.email_normalized && (
+                                  <span className="text-xs text-slate-500">{contact.email_original}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {contact.name?.trim() || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {contact.company_name?.trim() || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {contact.phone?.trim() || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {[contact.city?.trim(), contact.state?.trim()].filter(Boolean).join('/') || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {contact.validation_status || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-700">
+                              {contact.source || '—'}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-slate-600">
+                              {formatDateTime(contact.created_at)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                    <p className="text-sm text-slate-600">
+                      {contactsTotal.toLocaleString('pt-BR')} contatos no total. Página {contactsPage} de{' '}
+                      {contactsTotalPages}.
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleContactsPageChange(contactsPage - 1)}
+                        disabled={contactsPage <= 1 || isLoadingContacts}
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleContactsPageChange(contactsPage + 1)}
+                        disabled={contactsPage >= contactsTotalPages || isLoadingContacts}
+                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
