@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Database, Mail, Pencil, Plus, RefreshCw, Settings2, Trash2, UserLock, X } from 'lucide-react';
+import { Database, Download, FileSpreadsheet, Mail, Pencil, Plus, RefreshCw, Settings2, Trash2, UserLock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
@@ -47,6 +47,16 @@ const STATUS_BADGES: Record<CustomerContactListStatus, string> = {
   active: 'bg-emerald-100 text-emerald-700',
   inactive: 'bg-slate-200 text-slate-700',
 };
+
+const ACCEPTED_COLUMNS = [
+  { name: 'email', required: true },
+  { name: 'nome', required: false },
+  { name: 'empresa', required: false },
+  { name: 'telefone', required: false },
+  { name: 'cidade', required: false },
+  { name: 'estado', required: false },
+  { name: 'tags', required: false },
+];
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('pt-BR', {
@@ -106,6 +116,23 @@ export default function CustomerBasesPage() {
     description: '',
     status: 'active' as CustomerContactListStatus,
   });
+
+  function handleDownloadCsvTemplate() {
+    const csvContent = [
+      'email,nome,empresa,telefone,cidade,estado,tags',
+      'contato@empresa.com.br,João Silva,Empresa XYZ,11999999999,São Paulo,SP,software',
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modelo-base-propria.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 
   async function loadLists() {
     try {
@@ -309,6 +336,61 @@ export default function CustomerBasesPage() {
           <CounterCard label="Válidos" value={totals.valid} tone="text-emerald-600" />
           <CounterCard label="Inválidos" value={totals.invalid} tone="text-amber-600" />
           <CounterCard label="Duplicados" value={totals.duplicates} tone="text-rose-600" />
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <FileSpreadsheet className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Como funciona a importação</h2>
+                <p className="text-sm text-slate-600">
+                  Crie uma base própria e depois acesse essa base para importar seus contatos por
+                  CSV.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Colunas aceitas</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ACCEPTED_COLUMNS.map((column) => (
+                    <span
+                      key={column.name}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                        column.required
+                          ? 'border border-blue-200 bg-blue-50 text-blue-800'
+                          : 'border border-slate-200 bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      {column.name}
+                      {column.required ? ' obrigatório' : ' opcional'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                A primeira linha do arquivo deve conter os nomes das colunas.
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 lg:min-w-64">
+              <button
+                type="button"
+                onClick={handleDownloadCsvTemplate}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <Download className="size-4" />
+                Baixar modelo CSV
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -524,6 +606,25 @@ export default function CustomerBasesPage() {
                   placeholder="Descreva a origem ou o objetivo desta base"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#0f49bd]"
                 />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <h3 className="text-sm font-semibold text-slate-900">Padrão do arquivo</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Depois de criar a base, você poderá importar um CSV com a coluna email
+                  obrigatória.
+                </p>
+                <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  email, nome, empresa, telefone, cidade, estado, tags
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDownloadCsvTemplate}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Download className="size-4" />
+                  Baixar modelo CSV
+                </button>
               </div>
             </div>
 
