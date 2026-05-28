@@ -178,6 +178,14 @@ type SendResult = {
   truncated: boolean;
 };
 
+type PrivateQueuePreparationResult = {
+  created_jobs: number;
+  skipped_duplicates: number;
+  eligible_contacts: number;
+  total_contacts: number;
+  message: string;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1181,7 +1189,7 @@ function SummaryStep({
   const hasHtml = emailForm.html_content.trim().length > 0;
   const hasText = emailForm.text_content.trim().length > 0;
   const hasAudience = audienceFilters.totalCount > 0;
-  const isReady = hasSubject && (hasHtml || hasText) && hasAudience && audienceSource === 'cm_pro';
+  const isReady = hasSubject && (hasHtml || hasText) && hasAudience;
 
   const audienceTags: string[] = [];
   if (audienceSource === 'cm_pro') {
@@ -1368,6 +1376,7 @@ function CheckRow({
 // -----------------------------------------------------------------------------
 
 function SendStep({
+  audienceSource,
   audienceCount,
   remainingCount,
   selectedAccountId,
@@ -1376,8 +1385,11 @@ function SendStep({
   onConfirmChange,
   sendLimit,
   onSendLimitChange,
+  privateQueueResult,
+  isPreparingPrivateQueue = false,
   isReadOnly = false,
 }: {
+  audienceSource: AudienceSource;
   audienceCount: number;
   remainingCount: number;
   selectedAccountId: string;
@@ -1386,6 +1398,8 @@ function SendStep({
   onConfirmChange: (v: boolean) => void;
   sendLimit: number;
   onSendLimitChange: (v: number) => void;
+  privateQueueResult: PrivateQueuePreparationResult | null;
+  isPreparingPrivateQueue?: boolean;
   isReadOnly?: boolean;
 }) {
   const [accounts, setAccounts] = useState<SendingAccount[]>([]);
@@ -1483,13 +1497,15 @@ function SendStep({
 
         {selected && (
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            Seu envio será processado automaticamente para garantir a melhor performance de entrega.
+            {audienceSource === 'customer_base'
+              ? 'Bases Próprias ainda não estão liberadas para envio nesta fase. Nesta etapa você apenas prepara a fila privada.'
+              : 'Seu envio será processado automaticamente para garantir a melhor performance de entrega.'}
           </div>
         )}
       </div>
 
       {/* Truncation warning */}
-      {remainingCount > 0 && (
+      {audienceSource === 'cm_pro' && remainingCount > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-blue-600" />
           <p className="text-sm text-blue-800">
@@ -1503,71 +1519,116 @@ function SendStep({
         </div>
       )}
 
-      {/* Send limit selector */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
-            <Users className="size-4 text-[#0f49bd]" />
+      {audienceSource === 'cm_pro' ? (
+        <>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
+                <Users className="size-4 text-[#0f49bd]" />
+              </div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Quantos e-mails deseja enviar? Selecione um % ou o número de destinatários que deseja
+              </h3>
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={remainingCount}
+              step={1}
+              value={sendLimit}
+              onChange={(e) => {
+                const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), remainingCount);
+                onSendLimitChange(val);
+              }}
+              disabled={isReadOnly}
+              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd] disabled:opacity-60"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[25, 50, 75, 100].map((pct) => {
+                const val = Math.max(1, Math.round(remainingCount * pct / 100));
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => onSendLimitChange(val)}
+                    disabled={isReadOnly}
+                    className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pct}%
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              {audienceCount === remainingCount ? (
+                <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e todos estão disponíveis para este disparo.</>
+              ) : (
+                <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e {remainingCount.toLocaleString('pt-BR')} ainda não foram enviados nesta campanha.</>
+              )}
+            </p>
           </div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Quantos e-mails deseja enviar? Selecione um % ou o número de destinatários que deseja
-          </h3>
-        </div>
-        <input
-          type="number"
-          min={1}
-          max={remainingCount}
-          step={1}
-          value={sendLimit}
-          onChange={(e) => {
-            const val = Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), remainingCount);
-            onSendLimitChange(val);
-          }}
-          disabled={isReadOnly}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd] disabled:opacity-60"
-        />
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[25, 50, 75, 100].map((pct) => {
-            const val = Math.max(1, Math.round(remainingCount * pct / 100));
-            return (
-              <button
-                key={pct}
-                type="button"
-                onClick={() => onSendLimitChange(val)}
-                disabled={isReadOnly}
-                className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {pct}%
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          {audienceCount === remainingCount ? (
-            <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e todos estão disponíveis para este disparo.</>
-          ) : (
-            <>A audiência selecionada tem {audienceCount.toLocaleString('pt-BR')} destinatários, e {remainingCount.toLocaleString('pt-BR')} ainda não foram enviados nesta campanha.</>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
+                <Zap className="size-4 text-[#0f49bd]" />
+              </div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Resumo do disparo</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-[#0f172a]">
+                {sendLimit.toLocaleString('pt-BR')}
+              </span>
+              <span className="text-sm text-slate-500">destinatários no total</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
+              <Database className="size-4 text-[#0f49bd]" />
+            </div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Preparação da fila privada</h3>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Nenhum e-mail foi enviado nesta etapa. Esta ação apenas cria jobs privados em <code>customer_email_job_queue</code>.
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
+            <div>
+              <p className="text-xs text-slate-500">Audiência atual</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{audienceCount.toLocaleString('pt-BR')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Conta selecionada</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{selected?.name ?? 'Não selecionada'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Status</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{isPreparingPrivateQueue ? 'Preparando...' : 'Aguardando ação'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Envio real</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">Desabilitado</p>
+            </div>
+          </div>
+
+          {privateQueueResult && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm font-semibold text-emerald-900">Fila privada preparada</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                <div><p className="text-xs uppercase tracking-wide text-emerald-700">Jobs criados</p><p className="mt-1 font-semibold text-emerald-900">{privateQueueResult.created_jobs.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Duplicados ignorados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.skipped_duplicates.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Elegíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.eligible_contacts.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Total</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.total_contacts.toLocaleString('pt-BR')}</p></div>
+              </div>
+              <p className="mt-3 text-sm text-emerald-900">{privateQueueResult.message}</p>
+              <p className="mt-2 text-xs text-emerald-800">Nenhum e-mail foi enviado nesta etapa.</p>
+            </div>
           )}
-        </p>
-      </div>
-
-      {/* Dispatch summary */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
-            <Zap className="size-4 text-[#0f49bd]" />
-          </div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Resumo do disparo</h3>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-bold text-[#0f172a]">
-            {sendLimit.toLocaleString('pt-BR')}
-          </span>
-          <span className="text-sm text-slate-500">destinatários no total</span>
-        </div>
-      </div>
+      )}
 
-      {/* Confirmation checkbox */}
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:bg-slate-50">
         <input
           type="checkbox"
@@ -1577,10 +1638,20 @@ function SendStep({
           className="mt-0.5 size-4 accent-[#0f49bd] disabled:opacity-50"
         />
         <span className="text-sm text-slate-700">
-          Confirmo o envio de{' '}
-          <strong>{sendLimit.toLocaleString('pt-BR')} e-mails</strong>
-          {selected ? ` via conta "${selected.name}"` : ''}.
-          Esta ação não pode ser desfeita.
+          {audienceSource === 'customer_base' ? (
+            <>
+              Confirmo a preparação da fila privada para a campanha
+              {selected ? ` usando a conta "${selected.name}"` : ''}.
+              Nenhum e-mail será enviado nesta etapa.
+            </>
+          ) : (
+            <>
+              Confirmo o envio de{' '}
+              <strong>{sendLimit.toLocaleString('pt-BR')} e-mails</strong>
+              {selected ? ` via conta "${selected.name}"` : ''}.
+              Esta ação não pode ser desfeita.
+            </>
+          )}
         </span>
       </label>
     </div>
@@ -1699,7 +1770,9 @@ export default function CampaignDetailPage() {
   const [sendConfirmed, setSendConfirmed] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [isPreparingPrivateQueue, setIsPreparingPrivateQueue] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [privateQueueResult, setPrivateQueueResult] = useState<PrivateQueuePreparationResult | null>(null);
   const [sendLimit, setSendLimit] = useState(audienceFilters.totalCount);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [limitData, setLimitData] = useState({ emails_used: 0, emails_limit: 10000 });
@@ -1933,12 +2006,52 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const handlePreparePrivateQueue = async () => {
+    if (!selectedAccountId) {
+      toast.error('Selecione uma conta de envio.');
+      return;
+    }
+    if (!sendConfirmed) {
+      toast.error('Confirme a preparação da fila privada antes de continuar.');
+      return;
+    }
+
+    try {
+      setIsPreparingPrivateQueue(true);
+      const res = await fetch(`/api/email/campaigns/${campaignId}/customer-send/prepare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sending_account_id: selectedAccountId }),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || 'Erro ao preparar fila privada.');
+      }
+
+      setPrivateQueueResult(json);
+      setCampaign((current) =>
+        current
+          ? {
+              ...current,
+              status: 'Agendada',
+              sending_account_id: selectedAccountId,
+            }
+          : current,
+      );
+      toast.success(json.message || 'Fila privada preparada.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao preparar fila privada.');
+    } finally {
+      setIsPreparingPrivateQueue(false);
+    }
+  };
+
   // ── Navigation ─────────────────────────────────────────────────────────────
   const summaryIsReady =
     emailForm.subject.trim().length > 0 &&
     (emailForm.html_content.trim().length > 0 || emailForm.text_content.trim().length > 0) &&
-    audienceFilters.totalCount > 0 &&
-    audienceSource === 'cm_pro';
+    audienceFilters.totalCount > 0;
 
   const remainingCount = Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0));
 
@@ -1948,17 +2061,17 @@ export default function CampaignDetailPage() {
     } else if (currentStep === 2) {
       if (await saveAudienceStep()) setCurrentStep(3);
     } else if (currentStep === 3) {
-      if (audienceSource === 'customer_base') {
-        toast.error('Bases Próprias ainda não estão liberadas para envio nesta fase.');
-        return;
-      }
       if (!summaryIsReady) {
         toast.error('Corrija os itens pendentes antes de avançar para o envio.');
         return;
       }
       setCurrentStep(4);
     } else if (currentStep === 4) {
-      await handleSend();
+      if (audienceSource === 'customer_base') {
+        await handlePreparePrivateQueue();
+      } else {
+        await handleSend();
+      }
     }
   };
 
@@ -2029,6 +2142,7 @@ export default function CampaignDetailPage() {
         )}
         {currentStep === 4 && !sendResult && (
           <SendStep
+            audienceSource={audienceSource}
             audienceCount={audienceFilters.totalCount}
             remainingCount={remainingCount}
             selectedAccountId={selectedAccountId}
@@ -2037,6 +2151,8 @@ export default function CampaignDetailPage() {
             onConfirmChange={setSendConfirmed}
             sendLimit={sendLimit}
             onSendLimitChange={setSendLimit}
+            privateQueueResult={privateQueueResult}
+            isPreparingPrivateQueue={isPreparingPrivateQueue}
             isReadOnly={isReadOnly}
           />
         )}
@@ -2076,7 +2192,7 @@ export default function CampaignDetailPage() {
                 </button>
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 4 && audienceSource === 'cm_pro' && (
                 <button
                   type="button"
                   onClick={handleSendTest}
@@ -2100,6 +2216,7 @@ export default function CampaignDetailPage() {
                 disabled={
                   isSaving ||
                   isSending ||
+                  isPreparingPrivateQueue ||
                   (currentStep === 2 &&
                     (audienceSource === 'cm_pro'
                       ? audienceFilters.totalCount === 0
@@ -2111,7 +2228,16 @@ export default function CampaignDetailPage() {
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {currentStep === STEPS.length ? (
-                  isSending ? (
+                  audienceSource === 'customer_base' ? (
+                    isPreparingPrivateQueue ? (
+                      'Preparando fila...'
+                    ) : (
+                      <>
+                        <Database className="size-4" />
+                        Preparar fila privada
+                      </>
+                    )
+                  ) : isSending ? (
                     'Enviando...'
                   ) : (
                     <>
