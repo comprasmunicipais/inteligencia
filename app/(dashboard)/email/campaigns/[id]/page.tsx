@@ -182,7 +182,22 @@ type PrivateQueuePreparationResult = {
   created_jobs: number;
   skipped_duplicates: number;
   eligible_contacts: number;
+  available_contacts: number;
+  already_sent_contacts: number;
+  requested_send_limit: number | null;
+  applied_send_limit: number;
   total_contacts: number;
+  message: string;
+};
+
+type PrivateQueueStats = {
+  eligible_contacts: number;
+  available_contacts: number;
+  already_sent_contacts: number;
+  active_job_contacts: number;
+  skipped_duplicates: number;
+  total_contacts: number;
+  has_active_jobs: boolean;
   message: string;
 };
 
@@ -1385,6 +1400,7 @@ function SendStep({
   onConfirmChange,
   sendLimit,
   onSendLimitChange,
+  privateQueueStats,
   privateQueueResult,
   isPreparingPrivateQueue = false,
   isReadOnly = false,
@@ -1398,6 +1414,7 @@ function SendStep({
   onConfirmChange: (v: boolean) => void;
   sendLimit: number;
   onSendLimitChange: (v: number) => void;
+  privateQueueStats: PrivateQueueStats | null;
   privateQueueResult: PrivateQueuePreparationResult | null;
   isPreparingPrivateQueue?: boolean;
   isReadOnly?: boolean;
@@ -1416,6 +1433,7 @@ function SendStep({
   const selected = accounts.find((a) => a.id === selectedAccountId) ?? null;
   const willTruncate = selected !== null && audienceCount > selected.hourly_limit;
   const effectiveCount = selected ? Math.min(audienceCount, selected.hourly_limit) : audienceCount;
+  const privateRemainingCount = privateQueueStats?.available_contacts ?? 0;
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -1589,11 +1607,66 @@ function SendStep({
             <div className="flex size-7 items-center justify-center rounded-lg bg-blue-50">
               <Database className="size-4 text-[#0f49bd]" />
             </div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Preparação da fila privada</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Quantos e-mails deseja preparar?
+            </h3>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Nenhum e-mail foi enviado nesta etapa. Esta ação apenas cria jobs privados em <code>customer_email_job_queue</code>.
+            Nenhum e-mail será enviado nesta etapa. Esta ação apenas cria jobs privados.
           </div>
+
+          {privateQueueStats?.has_active_jobs && (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Há uma fila privada em andamento. Conclua o processamento antes de preparar novos destinatários.
+            </div>
+          )}
+
+          <div className="mt-4">
+            <input
+              type="number"
+              min={1}
+              max={Math.max(1, privateRemainingCount)}
+              step={1}
+              value={privateRemainingCount > 0 ? sendLimit : 0}
+              onChange={(e) => {
+                const val = Math.min(
+                  Math.max(1, parseInt(e.target.value, 10) || 1),
+                  Math.max(1, privateRemainingCount),
+                );
+                onSendLimitChange(val);
+              }}
+              disabled={isReadOnly || privateRemainingCount === 0 || Boolean(privateQueueStats?.has_active_jobs)}
+              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#0f49bd] disabled:opacity-60"
+            />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[25, 50, 75, 100].map((pct) => {
+                const val = Math.max(1, Math.round(privateRemainingCount * pct / 100));
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => onSendLimitChange(val)}
+                    disabled={isReadOnly || privateRemainingCount === 0 || Boolean(privateQueueStats?.has_active_jobs)}
+                    className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pct}%
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              {privateQueueStats ? (
+                <>
+                  A base própria tem {privateQueueStats.eligible_contacts.toLocaleString('pt-BR')} contatos elegíveis,
+                  dos quais {privateQueueStats.already_sent_contacts.toLocaleString('pt-BR')} já foram enviados nesta campanha
+                  e {privateQueueStats.available_contacts.toLocaleString('pt-BR')} estão disponíveis para nova preparação.
+                </>
+              ) : (
+                <>Carregando disponibilidade da fila privada...</>
+              )}
+            </p>
+          </div>
+
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
             <div>
               <p className="text-xs text-slate-500">Audiência atual</p>
@@ -1608,19 +1681,27 @@ function SendStep({
               <p className="mt-1 text-sm font-medium text-slate-900">{isPreparingPrivateQueue ? 'Preparando...' : 'Aguardando ação'}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Envio real</p>
-              <p className="mt-1 text-sm font-medium text-slate-900">Desabilitado</p>
+              <p className="text-xs text-slate-500">Limite aplicado</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">
+                {privateRemainingCount > 0 ? sendLimit.toLocaleString('pt-BR') : '0'}
+              </p>
             </div>
           </div>
 
           {privateQueueResult && (
             <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <p className="text-sm font-semibold text-emerald-900">Fila privada preparada</p>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
                 <div><p className="text-xs uppercase tracking-wide text-emerald-700">Jobs criados</p><p className="mt-1 font-semibold text-emerald-900">{privateQueueResult.created_jobs.toLocaleString('pt-BR')}</p></div>
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Duplicados ignorados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.skipped_duplicates.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Já enviados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.already_sent_contacts.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Disponíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.available_contacts.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Limite aplicado</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.applied_send_limit.toLocaleString('pt-BR')}</p></div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Elegíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.eligible_contacts.toLocaleString('pt-BR')}</p></div>
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Total</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.total_contacts.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-slate-600">Solicitado</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.requested_send_limit?.toLocaleString('pt-BR') ?? 'Todos disponíveis'}</p></div>
               </div>
               <p className="mt-3 text-sm text-emerald-900">{privateQueueResult.message}</p>
               <p className="mt-2 text-xs text-emerald-800">Nenhum e-mail foi enviado nesta etapa.</p>
@@ -1772,14 +1853,54 @@ export default function CampaignDetailPage() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isPreparingPrivateQueue, setIsPreparingPrivateQueue] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [privateQueueStats, setPrivateQueueStats] = useState<PrivateQueueStats | null>(null);
   const [privateQueueResult, setPrivateQueueResult] = useState<PrivateQueuePreparationResult | null>(null);
   const [sendLimit, setSendLimit] = useState(audienceFilters.totalCount);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [limitData, setLimitData] = useState({ emails_used: 0, emails_limit: 10000 });
 
   useEffect(() => {
+    if (audienceSource === 'customer_base') {
+      setSendLimit(Math.max(0, privateQueueStats?.available_contacts ?? 0));
+      return;
+    }
+
     setSendLimit(Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0)));
-  }, [audienceFilters.totalCount, campaign?.sent_count]);
+  }, [audienceFilters.totalCount, audienceSource, campaign?.sent_count, privateQueueStats?.available_contacts]);
+
+  useEffect(() => {
+    if (audienceSource !== 'customer_base' || isNew || !selectedCustomerListId) {
+      setPrivateQueueStats(null);
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      try {
+        const response = await fetch(`/api/email/campaigns/${campaignId}/customer-send/prepare`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao carregar disponibilidade da fila privada.');
+        }
+
+        if (!active) return;
+        setPrivateQueueStats(result as PrivateQueueStats);
+      } catch (error) {
+        if (!active) return;
+        console.error('Erro ao carregar disponibilidade da fila privada:', error);
+        setPrivateQueueStats(null);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [audienceSource, campaignId, isNew, selectedCustomerListId]);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2021,7 +2142,7 @@ export default function CampaignDetailPage() {
       const res = await fetch(`/api/email/campaigns/${campaignId}/customer-send/prepare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sending_account_id: selectedAccountId }),
+        body: JSON.stringify({ sending_account_id: selectedAccountId, send_limit: sendLimit }),
       });
       const json = await res.json();
 
@@ -2036,6 +2157,21 @@ export default function CampaignDetailPage() {
               ...current,
               status: 'Agendada',
               sending_account_id: selectedAccountId,
+            }
+          : current,
+      );
+      setPrivateQueueStats((current) =>
+        current
+          ? {
+              ...current,
+              available_contacts: Math.max(0, json.available_contacts - json.applied_send_limit),
+              already_sent_contacts: json.already_sent_contacts,
+              active_job_contacts: json.created_jobs,
+              has_active_jobs: json.created_jobs > 0,
+              message:
+                json.created_jobs > 0
+                  ? 'Há uma fila privada em andamento. Conclua o processamento antes de preparar novos destinatários.'
+                  : current.message,
             }
           : current,
       );
@@ -2151,6 +2287,7 @@ export default function CampaignDetailPage() {
             onConfirmChange={setSendConfirmed}
             sendLimit={sendLimit}
             onSendLimitChange={setSendLimit}
+            privateQueueStats={privateQueueStats}
             privateQueueResult={privateQueueResult}
             isPreparingPrivateQueue={isPreparingPrivateQueue}
             isReadOnly={isReadOnly}
@@ -2222,7 +2359,11 @@ export default function CampaignDetailPage() {
                       ? audienceFilters.totalCount === 0
                       : !selectedCustomerListId)) ||
                   (currentStep === 3 && !summaryIsReady) ||
-                  (currentStep === 4 && (!selectedAccountId || !sendConfirmed)) ||
+                  (currentStep === 4 &&
+                    (!selectedAccountId ||
+                      !sendConfirmed ||
+                      (audienceSource === 'customer_base' &&
+                        (!privateQueueStats || privateQueueStats.available_contacts === 0 || privateQueueStats.has_active_jobs)))) ||
                   isReadOnly
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0f49bd] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0c3c9c] disabled:cursor-not-allowed disabled:opacity-60"
