@@ -229,7 +229,19 @@ export async function GET(req: NextRequest) {
   const authHeader = (req.headers.get('authorization') ?? '').trim();
 
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: 'Unauthorized',
+        hasCronSecret: Boolean(cronSecret),
+        authHeaderPresent: Boolean(authHeader),
+        authHeaderStartsWithBearer: authHeader.startsWith('Bearer '),
+        authHeaderLength: authHeader.length,
+        expectedHeaderLength: cronSecret ? `Bearer ${cronSecret}`.length : null,
+        nodeEnv: process.env.NODE_ENV,
+        vercelEnv: process.env.VERCEL_ENV ?? null,
+      },
+      { status: 401 },
+    );
   }
 
   const supabase = await createAdminClient();
