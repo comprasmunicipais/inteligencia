@@ -191,12 +191,27 @@ type PrivateQueuePreparationResult = {
 };
 
 type PrivateQueueStats = {
+  campaign_id: string;
+  list_id: string;
+  list_name: string;
+  total_contacts: number;
   eligible_contacts: number;
   available_contacts: number;
   already_sent_contacts: number;
+  sent_jobs: number;
+  pending_jobs: number;
   active_job_contacts: number;
+  processing_jobs: number;
+  failed_jobs: number;
+  skipped_jobs: number;
+  retry_jobs: number;
+  total_jobs: number;
+  last_sent_at: string | null;
+  last_failure_at: string | null;
+  last_failure_reason: string | null;
+  last_failure_code: string | null;
+  can_prepare_more: boolean;
   skipped_duplicates: number;
-  total_contacts: number;
   has_active_jobs: boolean;
   message: string;
 };
@@ -1402,6 +1417,7 @@ function SendStep({
   onSendLimitChange,
   privateQueueStats,
   privateQueueResult,
+  isLoadingPrivateQueueStats = false,
   isPreparingPrivateQueue = false,
   isReadOnly = false,
 }: {
@@ -1416,6 +1432,7 @@ function SendStep({
   onSendLimitChange: (v: number) => void;
   privateQueueStats: PrivateQueueStats | null;
   privateQueueResult: PrivateQueuePreparationResult | null;
+  isLoadingPrivateQueueStats?: boolean;
   isPreparingPrivateQueue?: boolean;
   isReadOnly?: boolean;
 }) {
@@ -1707,6 +1724,76 @@ function SendStep({
               <p className="mt-2 text-xs text-emerald-800">Nenhum e-mail foi enviado nesta etapa.</p>
             </div>
           )}
+
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Status da fila privada</p>
+                <p className="text-xs text-slate-500">
+                  {privateQueueStats?.list_name
+                    ? `Base: ${privateQueueStats.list_name}`
+                    : 'Visão operacional da campanha com Bases Próprias'}
+                </p>
+              </div>
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                  privateQueueStats?.has_active_jobs
+                    ? 'bg-amber-100 text-amber-800'
+                    : privateQueueStats?.can_prepare_more
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {privateQueueStats?.has_active_jobs
+                  ? 'Fila privada em andamento'
+                  : privateQueueStats?.can_prepare_more
+                    ? 'Pode preparar nova leva'
+                    : 'Todos os contatos disponíveis já foram preparados/enviados'}
+              </span>
+            </div>
+
+            {isLoadingPrivateQueueStats && !privateQueueStats ? (
+              <p className="mt-4 text-sm text-slate-500">Carregando status da fila privada...</p>
+            ) : privateQueueStats ? (
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Disponíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.available_contacts.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Preparados/Pendentes</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.pending_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Enviados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.sent_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Falhas</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.failed_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Em retry</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.retry_jobs.toLocaleString('pt-BR')}</p></div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Ignorados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.skipped_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Em processamento</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.processing_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Total de jobs</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.total_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Elegíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.eligible_contacts.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Total de contatos</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.total_contacts.toLocaleString('pt-BR')}</p></div>
+                </div>
+                <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                  <p>
+                    <span className="font-medium text-slate-900">Último envio:</span>{' '}
+                    {privateQueueStats.last_sent_at
+                      ? new Date(privateQueueStats.last_sent_at).toLocaleString('pt-BR')
+                      : 'Nenhum envio concluído ainda'}
+                  </p>
+                  <p className="mt-2">
+                    <span className="font-medium text-slate-900">Último erro:</span>{' '}
+                    {privateQueueStats.last_failure_reason
+                      ? `${privateQueueStats.last_failure_reason}${privateQueueStats.last_failure_code ? ` (${privateQueueStats.last_failure_code})` : ''}`
+                      : 'Nenhuma falha registrada'}
+                  </p>
+                  {privateQueueStats.last_failure_at && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Registrado em {new Date(privateQueueStats.last_failure_at).toLocaleString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">Não foi possível carregar o status da fila privada.</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -1852,6 +1939,7 @@ export default function CampaignDetailPage() {
   const [isSending, setIsSending] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isPreparingPrivateQueue, setIsPreparingPrivateQueue] = useState(false);
+  const [isLoadingPrivateQueueStats, setIsLoadingPrivateQueueStats] = useState(false);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
   const [privateQueueStats, setPrivateQueueStats] = useState<PrivateQueueStats | null>(null);
   const [privateQueueResult, setPrivateQueueResult] = useState<PrivateQueuePreparationResult | null>(null);
@@ -1868,39 +1956,45 @@ export default function CampaignDetailPage() {
     setSendLimit(Math.max(0, audienceFilters.totalCount - (campaign?.sent_count ?? 0)));
   }, [audienceFilters.totalCount, audienceSource, campaign?.sent_count, privateQueueStats?.available_contacts]);
 
-  useEffect(() => {
+  const loadPrivateQueueStats = useCallback(async () => {
     if (audienceSource !== 'customer_base' || isNew || !selectedCustomerListId) {
       setPrivateQueueStats(null);
       return;
     }
 
+    try {
+      setIsLoadingPrivateQueueStats(true);
+      const response = await fetch(`/api/email/campaigns/${campaignId}/customer-send/status`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao carregar status da fila privada.');
+      }
+
+      setPrivateQueueStats(result as PrivateQueueStats);
+    } catch (error) {
+      console.error('Erro ao carregar status da fila privada:', error);
+      setPrivateQueueStats(null);
+    } finally {
+      setIsLoadingPrivateQueueStats(false);
+    }
+  }, [audienceSource, campaignId, isNew, selectedCustomerListId]);
+
+  useEffect(() => {
     let active = true;
 
     (async () => {
-      try {
-        const response = await fetch(`/api/email/campaigns/${campaignId}/customer-send/prepare`, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao carregar disponibilidade da fila privada.');
-        }
-
-        if (!active) return;
-        setPrivateQueueStats(result as PrivateQueueStats);
-      } catch (error) {
-        if (!active) return;
-        console.error('Erro ao carregar disponibilidade da fila privada:', error);
-        setPrivateQueueStats(null);
-      }
+      if (!active) return;
+      await loadPrivateQueueStats();
     })();
 
     return () => {
       active = false;
     };
-  }, [audienceSource, campaignId, isNew, selectedCustomerListId]);
+  }, [loadPrivateQueueStats]);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2160,21 +2254,7 @@ export default function CampaignDetailPage() {
             }
           : current,
       );
-      setPrivateQueueStats((current) =>
-        current
-          ? {
-              ...current,
-              available_contacts: Math.max(0, json.available_contacts - json.applied_send_limit),
-              already_sent_contacts: json.already_sent_contacts,
-              active_job_contacts: json.created_jobs,
-              has_active_jobs: json.created_jobs > 0,
-              message:
-                json.created_jobs > 0
-                  ? 'Há uma fila privada em andamento. Conclua o processamento antes de preparar novos destinatários.'
-                  : current.message,
-            }
-          : current,
-      );
+      await loadPrivateQueueStats();
       toast.success(json.message || 'Fila privada preparada.');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao preparar fila privada.');
@@ -2289,6 +2369,7 @@ export default function CampaignDetailPage() {
             onSendLimitChange={setSendLimit}
             privateQueueStats={privateQueueStats}
             privateQueueResult={privateQueueResult}
+            isLoadingPrivateQueueStats={isLoadingPrivateQueueStats}
             isPreparingPrivateQueue={isPreparingPrivateQueue}
             isReadOnly={isReadOnly}
           />
