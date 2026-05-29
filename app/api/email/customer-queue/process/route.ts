@@ -11,6 +11,7 @@ const INACTIVE_ACCOUNT_RETRY_MINUTES = 30;
 const HOURLY_LIMIT_RETRY_MINUTES = 10;
 const DAILY_LIMIT_RETRY_HOURS = 24;
 const TEMPORARY_SMTP_RETRY_MINUTES = 10;
+const QSTASH_REQUEUE_DELAY = '60s';
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
   'https://app.comprasmunicipais.com.br';
@@ -224,6 +225,89 @@ async function countTotalSentForWindow(
   return publicSent + privateSent;
 }
 
+async function triggerPrivateQueueQStash(delay?: string) {
+  const qstashToken = process.env.QSTASH_TOKEN;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+  const cronSecret = process.env.CRON_SECRET?.trim();
+
+  if (!qstashToken || !appUrl || !cronSecret) {
+    return {
+      triggered: false,
+      error: 'QStash não configurado: verifique QSTASH_TOKEN, NEXT_PUBLIC_APP_URL e CRON_SECRET.',
+    };
+  }
+
+  const destinationUrl = `${appUrl}/api/email/customer-queue/process`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${qstashToken}`,
+    'Upstash-Method': 'GET',
+    'Upstash-Retries': '3',
+    'Upstash-Forward-Authorization': `Bearer ${cronSecret}`,
+  };
+
+  if (delay) {
+    headers['Upstash-Delay'] = delay;
+  }
+
+  try {
+    const response = await fetch(`https://qstash.upstash.io/v2/publish/${destinationUrl}`, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      return {
+        triggered: false,
+        error: (await response.text()) || `Falha ao publicar trigger QStash (${response.status}).`,
+      };
+    }
+
+    return { triggered: true, error: null };
+  } catch (error: any) {
+    return {
+      triggered: false,
+      error: error?.message || 'Falha ao publicar trigger QStash.',
+    };
+  }
+}
+
+async function getPendingQueueState(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+): Promise<{
+  pendingEligibleAfterRun: number;
+  pendingRetryFutureAfterRun: number;
+}> {
+  const [
+    { count: pendingEligibleAfterRun, error: pendingEligibleError },
+    { count: pendingRetryFutureAfterRun, error: pendingFutureError },
+  ] = await Promise.all([
+    supabase
+      .from('customer_email_job_queue')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .or('next_attempt_at.is.null,next_attempt_at.lte.now()'),
+    supabase
+      .from('customer_email_job_queue')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .not('next_attempt_at', 'is', null)
+      .gt('next_attempt_at', new Date().toISOString()),
+  ]);
+
+  if (pendingEligibleError || pendingFutureError) {
+    throw new Error(
+      pendingEligibleError?.message ||
+        pendingFutureError?.message ||
+        'Erro ao consultar estado remanescente da fila privada.',
+    );
+  }
+
+  return {
+    pendingEligibleAfterRun: pendingEligibleAfterRun ?? 0,
+    pendingRetryFutureAfterRun: pendingRetryFutureAfterRun ?? 0,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const authHeader = (req.headers.get('authorization') ?? '').trim();
@@ -263,12 +347,17 @@ export async function GET(req: NextRequest) {
   const touchedCampaignIds = new Set<string>(jobs.map((job) => job.campaign_id));
 
   if (jobs.length === 0) {
+    const pendingState = await getPendingQueueState(supabase);
     return NextResponse.json({
       claimed: 0,
       sent: 0,
       failed: 0,
       skipped: 0,
       retried: 0,
+      requeued: false,
+      pending_eligible_after_run: pendingState.pendingEligibleAfterRun,
+      pending_retry_future_after_run: pendingState.pendingRetryFutureAfterRun,
+      qstash_trigger_error: null,
       limit_used: limit,
       campaign_ids: [],
       message: 'Processor privado/manual executado. Nenhum job elegível foi encontrado.',
@@ -635,12 +724,30 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const pendingState = await getPendingQueueState(supabase);
+  const shouldRequeue =
+    pendingState.pendingEligibleAfterRun > 0 &&
+    (jobs.length > 0 || sent > 0 || failed > 0 || skipped > 0 || retried > 0);
+
+  let requeued = false;
+  let qstashTriggerError: string | null = null;
+
+  if (shouldRequeue) {
+    const triggerResult = await triggerPrivateQueueQStash(QSTASH_REQUEUE_DELAY);
+    requeued = triggerResult.triggered;
+    qstashTriggerError = triggerResult.error;
+  }
+
   return NextResponse.json({
     claimed: jobs.length,
     sent,
     failed,
     skipped,
     retried,
+    requeued,
+    pending_eligible_after_run: pendingState.pendingEligibleAfterRun,
+    pending_retry_future_after_run: pendingState.pendingRetryFutureAfterRun,
+    qstash_trigger_error: qstashTriggerError,
     limit_used: limit,
     campaign_ids: [...touchedCampaignIds],
     message: 'Processor privado/manual executado. Esta rota processa apenas a customer_email_job_queue.',

@@ -24,6 +24,47 @@ type PreparationStats = {
   available_contacts_list: EligibleContact[];
 };
 
+async function triggerPrivateQueueQStash() {
+  const qstashToken = process.env.QSTASH_TOKEN;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!qstashToken || !appUrl || !cronSecret) {
+    return {
+      triggered: false,
+      error: 'QStash não configurado: verifique QSTASH_TOKEN, NEXT_PUBLIC_APP_URL e CRON_SECRET.',
+    };
+  }
+
+  const destinationUrl = `${appUrl}/api/email/customer-queue/process`;
+
+  try {
+    const response = await fetch(`https://qstash.upstash.io/v2/publish/${destinationUrl}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${qstashToken}`,
+        'Upstash-Method': 'GET',
+        'Upstash-Retries': '3',
+        'Upstash-Forward-Authorization': `Bearer ${cronSecret}`,
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        triggered: false,
+        error: (await response.text()) || `Falha ao publicar trigger QStash (${response.status}).`,
+      };
+    }
+
+    return { triggered: true, error: null };
+  } catch (error: any) {
+    return {
+      triggered: false,
+      error: error?.message || 'Falha ao publicar trigger QStash.',
+    };
+  }
+}
+
 async function loadPreparationContext(context: RouteContext) {
   const { id: campaignId } = await context.params;
   const supabase = await createClient();
@@ -360,6 +401,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         requested_send_limit: safeRequestedLimit,
         applied_send_limit: 0,
         total_contacts: stats.total_contacts,
+        qstash_triggered: false,
+        qstash_trigger_error: null,
         message: 'Nenhum destinatário disponível para preparação nesta campanha.',
       });
     }
@@ -394,6 +437,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: updateCampaignError.message }, { status: 500 });
     }
 
+    const qstashTrigger = await triggerPrivateQueueQStash();
+
     return NextResponse.json({
       created_jobs: jobsToInsert.length,
       skipped_duplicates: stats.skipped_duplicates,
@@ -403,6 +448,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       requested_send_limit: safeRequestedLimit,
       applied_send_limit: appliedSendLimit,
       total_contacts: stats.total_contacts,
+      qstash_triggered: qstashTrigger.triggered,
+      qstash_trigger_error: qstashTrigger.error,
       message:
         'Jobs privados preparados com sucesso. Nenhum e-mail foi enviado nesta etapa.',
     });
