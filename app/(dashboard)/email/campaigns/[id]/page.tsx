@@ -1451,6 +1451,35 @@ function SendStep({
   const willTruncate = selected !== null && audienceCount > selected.hourly_limit;
   const effectiveCount = selected ? Math.min(audienceCount, selected.hourly_limit) : audienceCount;
   const privateRemainingCount = privateQueueStats?.available_contacts ?? 0;
+  const privateTotalJobs = privateQueueStats?.total_jobs ?? 0;
+  const privateSentJobs = privateQueueStats?.sent_jobs ?? 0;
+  const privateFailedJobs = privateQueueStats?.failed_jobs ?? 0;
+  const privatePendingJobs = privateQueueStats?.pending_jobs ?? 0;
+  const privateProcessingJobs = privateQueueStats?.processing_jobs ?? 0;
+  const privateSkippedJobs = privateQueueStats?.skipped_jobs ?? 0;
+  const privateCompletedJobs = privateSentJobs + privateFailedJobs + privateSkippedJobs;
+  const privateSentPercentage =
+    privateTotalJobs > 0 ? Math.round((privateSentJobs / privateTotalJobs) * 100) : 0;
+  const privateStatusLabel =
+    privatePendingJobs > 0 || privateProcessingJobs > 0
+      ? 'Envio em andamento'
+      : privateTotalJobs === 0
+        ? 'Nenhum envio preparado'
+        : privateFailedJobs > 0
+          ? 'Concluído com falhas'
+          : privateCompletedJobs === privateTotalJobs
+            ? 'Envio concluído'
+            : 'Pode preparar nova leva';
+  const privateStatusTone =
+    privatePendingJobs > 0 || privateProcessingJobs > 0
+      ? 'bg-amber-100 text-amber-800'
+      : privateTotalJobs === 0
+        ? 'bg-slate-200 text-slate-700'
+        : privateFailedJobs > 0
+          ? 'bg-red-100 text-red-800'
+          : privateCompletedJobs === privateTotalJobs
+            ? 'bg-emerald-100 text-emerald-800'
+            : 'bg-slate-200 text-slate-700';
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -1736,19 +1765,9 @@ function SendStep({
                 </p>
               </div>
               <span
-                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                  privateQueueStats?.has_active_jobs
-                    ? 'bg-amber-100 text-amber-800'
-                    : privateQueueStats?.can_prepare_more
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-200 text-slate-700'
-                }`}
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${privateStatusTone}`}
               >
-                {privateQueueStats?.has_active_jobs
-                  ? 'Fila privada em andamento'
-                  : privateQueueStats?.can_prepare_more
-                    ? 'Pode preparar nova leva'
-                    : 'Todos os contatos disponíveis já foram preparados/enviados'}
+                {privateStatusLabel}
               </span>
             </div>
 
@@ -1756,6 +1775,24 @@ function SendStep({
               <p className="mt-4 text-sm text-slate-500">Carregando status da fila privada...</p>
             ) : privateQueueStats ? (
               <>
+                <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{privateSentJobs.toLocaleString('pt-BR')} de {privateTotalJobs.toLocaleString('pt-BR')} enviados</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {privateSentPercentage}% do total preparado para a fila privada
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{privateSentPercentage}%</p>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-[#0f49bd] transition-all"
+                      style={{ width: `${privateSentPercentage}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600">{privateStatusLabel}</p>
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Disponíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.available_contacts.toLocaleString('pt-BR')}</p></div>
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Preparados/Pendentes</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.pending_jobs.toLocaleString('pt-BR')}</p></div>
