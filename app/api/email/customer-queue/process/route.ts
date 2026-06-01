@@ -276,10 +276,12 @@ async function getPendingQueueState(
 ): Promise<{
   pendingEligibleAfterRun: number;
   pendingRetryFutureAfterRun: number;
+  nextRetryAt: string | null;
 }> {
   const [
     { count: pendingEligibleAfterRun, error: pendingEligibleError },
     { count: pendingRetryFutureAfterRun, error: pendingFutureError },
+    { data: nextRetryJob, error: nextRetryError },
   ] = await Promise.all([
     supabase
       .from('customer_email_job_queue')
@@ -292,12 +294,22 @@ async function getPendingQueueState(
       .eq('status', 'pending')
       .not('next_attempt_at', 'is', null)
       .gt('next_attempt_at', new Date().toISOString()),
+    supabase
+      .from('customer_email_job_queue')
+      .select('next_attempt_at')
+      .eq('status', 'pending')
+      .not('next_attempt_at', 'is', null)
+      .gt('next_attempt_at', new Date().toISOString())
+      .order('next_attempt_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
-  if (pendingEligibleError || pendingFutureError) {
+  if (pendingEligibleError || pendingFutureError || nextRetryError) {
     throw new Error(
       pendingEligibleError?.message ||
         pendingFutureError?.message ||
+        nextRetryError?.message ||
         'Erro ao consultar estado remanescente da fila privada.',
     );
   }
@@ -305,7 +317,22 @@ async function getPendingQueueState(
   return {
     pendingEligibleAfterRun: pendingEligibleAfterRun ?? 0,
     pendingRetryFutureAfterRun: pendingRetryFutureAfterRun ?? 0,
+    nextRetryAt: nextRetryJob?.next_attempt_at ?? null,
   };
+}
+
+function getSafeQStashDelay(nextRetryAt: string | null): string | null {
+  if (!nextRetryAt) {
+    return null;
+  }
+
+  const nextRetryMs = new Date(nextRetryAt).getTime();
+  if (!Number.isFinite(nextRetryMs)) {
+    return null;
+  }
+
+  const diffSeconds = Math.ceil((nextRetryMs - Date.now()) / 1000);
+  return `${Math.max(60, diffSeconds)}s`;
 }
 
 export async function GET(req: NextRequest) {
@@ -348,16 +375,33 @@ export async function GET(req: NextRequest) {
 
   if (jobs.length === 0) {
     const pendingState = await getPendingQueueState(supabase);
+    const futureRetryDelay =
+      pendingState.pendingEligibleAfterRun === 0 && pendingState.pendingRetryFutureAfterRun > 0
+        ? getSafeQStashDelay(pendingState.nextRetryAt)
+        : null;
+    let requeued = false;
+    let qstashTriggerError: string | null = null;
+
+    if (pendingState.pendingEligibleAfterRun > 0) {
+      const triggerResult = await triggerPrivateQueueQStash(QSTASH_REQUEUE_DELAY);
+      requeued = triggerResult.triggered;
+      qstashTriggerError = triggerResult.error;
+    } else if (futureRetryDelay) {
+      const triggerResult = await triggerPrivateQueueQStash(futureRetryDelay);
+      requeued = triggerResult.triggered;
+      qstashTriggerError = triggerResult.error;
+    }
+
     return NextResponse.json({
       claimed: 0,
       sent: 0,
       failed: 0,
       skipped: 0,
       retried: 0,
-      requeued: false,
+      requeued,
       pending_eligible_after_run: pendingState.pendingEligibleAfterRun,
       pending_retry_future_after_run: pendingState.pendingRetryFutureAfterRun,
-      qstash_trigger_error: null,
+      qstash_trigger_error: qstashTriggerError,
       limit_used: limit,
       campaign_ids: [],
       message: 'Processor privado/manual executado. Nenhum job elegível foi encontrado.',
@@ -725,15 +769,23 @@ export async function GET(req: NextRequest) {
   }
 
   const pendingState = await getPendingQueueState(supabase);
-  const shouldRequeue =
+  const shouldRequeueNow =
     pendingState.pendingEligibleAfterRun > 0 &&
     (jobs.length > 0 || sent > 0 || failed > 0 || skipped > 0 || retried > 0);
+  const futureRetryDelay =
+    !shouldRequeueNow && pendingState.pendingRetryFutureAfterRun > 0
+      ? getSafeQStashDelay(pendingState.nextRetryAt)
+      : null;
 
   let requeued = false;
   let qstashTriggerError: string | null = null;
 
-  if (shouldRequeue) {
+  if (shouldRequeueNow) {
     const triggerResult = await triggerPrivateQueueQStash(QSTASH_REQUEUE_DELAY);
+    requeued = triggerResult.triggered;
+    qstashTriggerError = triggerResult.error;
+  } else if (futureRetryDelay) {
+    const triggerResult = await triggerPrivateQueueQStash(futureRetryDelay);
     requeued = triggerResult.triggered;
     qstashTriggerError = triggerResult.error;
   }
