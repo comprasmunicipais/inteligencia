@@ -187,12 +187,32 @@ export default async function DealDetailPage({
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('company_id')
+    .select('company_id, role')
     .eq('id', user.id)
     .single();
 
   if (profileError || !profile?.company_id) {
     notFound();
+  }
+
+  const isDemo = user.user_metadata?.is_demo === true;
+  const isDevUser = user.email === 'feddamico@hotmail.com';
+  const isPlatformAdmin = profile.role === 'platform_admin';
+
+  if (!isPlatformAdmin && !isDemo && !isDevUser) {
+    const { data: companyBilling } = await supabase
+      .from('companies')
+      .select('plan_id, status')
+      .eq('id', profile.company_id)
+      .single();
+
+    if (companyBilling?.status && ['past_due', 'cancelled', 'inactive'].includes(companyBilling.status)) {
+      redirect('/settings?billing=blocked');
+    }
+
+    if (companyBilling?.plan_id === null) {
+      redirect('/signup/plan?error=plan_required');
+    }
   }
 
   const { data: deal, error: dealError } = await supabase

@@ -62,8 +62,19 @@ export default function DashboardLayout({
     }
   }, [loading, user, companyId, companyBilling, role, roleLoading, router, isDemo, isDevUser]);
 
+  const isPlatformAdmin = role === 'platform_admin';
+  const isExemptUser = isPlatformAdmin || isDemo || isDevUser;
+
+  if (user && !isDemo && !isDevUser && roleLoading) {
+    return null;
+  }
+
+  if (!loading && user && companyId && !isExemptUser && companyBilling === undefined) {
+    return null;
+  }
+
   // User authenticated but not linked to a company
-  if (!loading && !roleLoading && user && !companyId && role !== 'platform_admin' && !isDemo && !isDevUser) {
+  if (!loading && !roleLoading && user && !companyId && !isExemptUser) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f6f8] p-6">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
@@ -94,11 +105,6 @@ export default function DashboardLayout({
         </div>
       </div>
     );
-  }
-
-  // Waiting for plan check — render nothing to avoid flash before redirect
-  if (!loading && !roleLoading && user && companyId && companyBilling === undefined && role !== 'platform_admin') {
-    return null;
   }
 
   return (
