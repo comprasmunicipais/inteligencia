@@ -58,16 +58,6 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 });
     }
 
-    console.log('[customer-send/status] campaign diagnostics', {
-      campaignId,
-      companyId,
-      campaign_id: campaign.id,
-      campaign_company_id: campaign.company_id,
-      campaign_audience_source: campaign.audience_source,
-      campaign_customer_contact_list_id: campaign.customer_contact_list_id,
-      campaignError: campaignError ?? null,
-    });
-
     if (campaign.audience_source !== 'customer_base') {
       return NextResponse.json({ error: 'Esta campanha não usa Bases Próprias.' }, { status: 400 });
     }
