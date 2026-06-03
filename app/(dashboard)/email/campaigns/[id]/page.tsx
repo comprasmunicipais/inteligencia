@@ -971,7 +971,7 @@ function AudienceStep({
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900">Bases Próprias</p>
-                <p className="text-xs text-slate-500">Seleção e preview, sem envio nesta etapa.</p>
+                <p className="text-xs text-slate-500">Seleção e envio usando sua base de contatos.</p>
               </div>
             </div>
           </button>
@@ -979,7 +979,7 @@ function AudienceStep({
 
         {source === 'customer_base' && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Bases Próprias ainda não estão liberadas para envio nesta fase.
+            Selecione uma base para revisar os contatos e seguir com o envio.
           </div>
         )}
 
@@ -1132,7 +1132,7 @@ function AudienceStep({
                           <p className="text-xs text-slate-500">Preview da audiência da base própria selecionada</p>
                         </div>
                         <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                          Bases Próprias ainda não estão liberadas para envio nesta fase.
+                          Base pronta para envio
                         </span>
                       </div>
 
@@ -1264,7 +1264,6 @@ function SummaryStep({
               {!hasSubject && <li>Assunto do e-mail não preenchido</li>}
               {!hasHtml && <li>Conteúdo HTML do e-mail ausente</li>}
               {!hasAudience && <li>Audiência com 0 destinatários</li>}
-              {audienceSource === 'customer_base' && <li>Bases Próprias ainda não estão liberadas para envio nesta fase.</li>}
             </ul>
           </div>
         </div>
@@ -1323,7 +1322,7 @@ function SummaryStep({
 
         {audienceSource === 'customer_base' && (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Bases Próprias ainda não estão liberadas para envio nesta fase.
+            Esta campanha usará os contatos da base selecionada no momento do envio.
           </p>
         )}
 
@@ -1564,7 +1563,7 @@ function SendStep({
         {selected && (
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             {audienceSource === 'customer_base'
-              ? 'Bases Próprias ainda não estão liberadas para envio nesta fase. Nesta etapa você apenas prepara a fila privada.'
+              ? 'Os contatos selecionados entrarão na fila de envio e serão processados automaticamente.'
               : 'Seu envio será processado automaticamente para garantir a melhor performance de entrega.'}
           </div>
         )}
@@ -1656,16 +1655,16 @@ function SendStep({
               <Database className="size-4 text-[#0f49bd]" />
             </div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Quantos e-mails deseja preparar?
+              Quantos e-mails deseja enviar?
             </h3>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Nenhum e-mail será enviado nesta etapa. Esta ação apenas cria jobs privados.
+            Os e-mails selecionados entrarão na fila de envio agora e serão processados automaticamente.
           </div>
 
           {privateQueueStats?.has_active_jobs && (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Há uma fila privada em andamento. Conclua o processamento antes de preparar novos destinatários.
+              Há um envio em andamento para esta base. Aguarde a conclusão para iniciar uma nova leva.
             </div>
           )}
 
@@ -1707,10 +1706,10 @@ function SendStep({
                 <>
                   A base própria tem {privateQueueStats.eligible_contacts.toLocaleString('pt-BR')} contatos elegíveis,
                   dos quais {privateQueueStats.already_sent_contacts.toLocaleString('pt-BR')} já foram enviados nesta campanha
-                  e {privateQueueStats.available_contacts.toLocaleString('pt-BR')} estão disponíveis para nova preparação.
+                  e {privateQueueStats.available_contacts.toLocaleString('pt-BR')} estão disponíveis para uma nova leva.
                 </>
               ) : (
-                <>Carregando disponibilidade da fila privada...</>
+                <>Carregando disponibilidade do envio...</>
               )}
             </p>
           </div>
@@ -1726,7 +1725,7 @@ function SendStep({
             </div>
             <div>
               <p className="text-xs text-slate-500">Status</p>
-              <p className="mt-1 text-sm font-medium text-slate-900">{isPreparingPrivateQueue ? 'Preparando...' : 'Aguardando ação'}</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{isPreparingPrivateQueue ? 'Iniciando envio...' : privateStatusLabel}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Limite aplicado</p>
@@ -1738,9 +1737,9 @@ function SendStep({
 
           {privateQueueResult && (
             <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-900">Fila privada preparada</p>
+              <p className="text-sm font-semibold text-emerald-900">Envio iniciado</p>
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
-                <div><p className="text-xs uppercase tracking-wide text-emerald-700">Jobs criados</p><p className="mt-1 font-semibold text-emerald-900">{privateQueueResult.created_jobs.toLocaleString('pt-BR')}</p></div>
+                <div><p className="text-xs uppercase tracking-wide text-emerald-700">E-mails programados</p><p className="mt-1 font-semibold text-emerald-900">{privateQueueResult.created_jobs.toLocaleString('pt-BR')}</p></div>
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Duplicados ignorados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.skipped_duplicates.toLocaleString('pt-BR')}</p></div>
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Já enviados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.already_sent_contacts.toLocaleString('pt-BR')}</p></div>
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Disponíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.available_contacts.toLocaleString('pt-BR')}</p></div>
@@ -1752,18 +1751,18 @@ function SendStep({
                 <div><p className="text-xs uppercase tracking-wide text-slate-600">Solicitado</p><p className="mt-1 font-semibold text-slate-900">{privateQueueResult.requested_send_limit?.toLocaleString('pt-BR') ?? 'Todos disponíveis'}</p></div>
               </div>
               <p className="mt-3 text-sm text-emerald-900">{privateQueueResult.message}</p>
-              <p className="mt-2 text-xs text-emerald-800">Nenhum e-mail foi enviado nesta etapa.</p>
+              <p className="mt-2 text-xs text-emerald-800">O processamento continuará automaticamente até a conclusão do envio.</p>
             </div>
           )}
 
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Status da fila privada</p>
+                <p className="text-sm font-semibold text-slate-900">Status do envio</p>
                 <p className="text-xs text-slate-500">
                   {privateQueueStats?.list_name
                     ? `Base: ${privateQueueStats.list_name}`
-                    : 'Visão operacional da campanha com Bases Próprias'}
+                    : 'Acompanhe o andamento desta campanha com Bases Próprias'}
                 </p>
               </div>
               <span
@@ -1787,7 +1786,7 @@ function SendStep({
             </div>
 
             {isLoadingPrivateQueueStats && !privateQueueStats ? (
-              <p className="mt-4 text-sm text-slate-500">Carregando status da fila privada...</p>
+              <p className="mt-4 text-sm text-slate-500">Carregando status do envio...</p>
             ) : privateQueueStats ? (
               <>
                 <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
@@ -1795,7 +1794,7 @@ function SendStep({
                     <div>
                       <p className="text-sm font-medium text-slate-900">{privateSentJobs.toLocaleString('pt-BR')} de {privateTotalJobs.toLocaleString('pt-BR')} enviados</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {privateSentPercentage}% do total preparado para a fila privada
+                        {privateSentPercentage}% do total programado para envio
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900">{privateSentPercentage}%</p>
@@ -1810,15 +1809,15 @@ function SendStep({
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Disponíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.available_contacts.toLocaleString('pt-BR')}</p></div>
-                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Preparados/Pendentes</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.pending_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Aguardando envio</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.pending_jobs.toLocaleString('pt-BR')}</p></div>
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Enviados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.sent_jobs.toLocaleString('pt-BR')}</p></div>
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Falhas</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.failed_jobs.toLocaleString('pt-BR')}</p></div>
-                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Em retry</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.retry_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Nova tentativa</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.retry_jobs.toLocaleString('pt-BR')}</p></div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Ignorados</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.skipped_jobs.toLocaleString('pt-BR')}</p></div>
-                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Em processamento</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.processing_jobs.toLocaleString('pt-BR')}</p></div>
-                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Total de jobs</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.total_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Processando</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.processing_jobs.toLocaleString('pt-BR')}</p></div>
+                  <div><p className="text-xs uppercase tracking-wide text-slate-600">Total de e-mails</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.total_jobs.toLocaleString('pt-BR')}</p></div>
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Elegíveis</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.eligible_contacts.toLocaleString('pt-BR')}</p></div>
                   <div><p className="text-xs uppercase tracking-wide text-slate-600">Total de contatos</p><p className="mt-1 font-semibold text-slate-900">{privateQueueStats.total_contacts.toLocaleString('pt-BR')}</p></div>
                 </div>
@@ -1843,7 +1842,7 @@ function SendStep({
                 </div>
               </>
             ) : (
-              <p className="mt-4 text-sm text-slate-500">Não foi possível carregar o status da fila privada.</p>
+              <p className="mt-4 text-sm text-slate-500">Não foi possível carregar o status do envio.</p>
             )}
           </div>
         </div>
@@ -1860,9 +1859,9 @@ function SendStep({
         <span className="text-sm text-slate-700">
           {audienceSource === 'customer_base' ? (
             <>
-              Confirmo a preparação da fila privada para a campanha
+              Confirmo o início do envio da campanha
               {selected ? ` usando a conta "${selected.name}"` : ''}.
-              Nenhum e-mail será enviado nesta etapa.
+              Os e-mails selecionados entrarão na fila de envio automaticamente.
             </>
           ) : (
             <>
@@ -2315,7 +2314,7 @@ export default function CampaignDetailPage() {
       return;
     }
     if (!sendConfirmed) {
-      toast.error('Confirme a preparação da fila privada antes de continuar.');
+      toast.error('Confirme o início do envio antes de continuar.');
       return;
     }
 
@@ -2329,7 +2328,7 @@ export default function CampaignDetailPage() {
       const json = await res.json();
 
       if (!res.ok) {
-        throw new Error(json.error || 'Erro ao preparar fila privada.');
+        throw new Error(json.error || 'Erro ao iniciar envio.');
       }
 
       setPrivateQueueResult(json);
@@ -2343,9 +2342,9 @@ export default function CampaignDetailPage() {
           : current,
       );
       await loadPrivateQueueStats();
-      toast.success(json.message || 'Fila privada preparada.');
+      toast.success(json.message || 'Envio iniciado.');
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao preparar fila privada.');
+      toast.error(err.message || 'Erro ao iniciar envio.');
     } finally {
       setIsPreparingPrivateQueue(false);
     }
@@ -2541,11 +2540,16 @@ export default function CampaignDetailPage() {
                 {currentStep === STEPS.length ? (
                   audienceSource === 'customer_base' ? (
                     isPreparingPrivateQueue ? (
-                      'Preparando fila...'
+                      'Iniciando envio...'
+                    ) : privateQueueStats &&
+                      privateQueueStats.total_jobs > 0 &&
+                      privateQueueStats.available_contacts === 0 &&
+                      !privateQueueStats.has_active_jobs ? (
+                      'Envio concluído'
                     ) : (
                       <>
                         <Database className="size-4" />
-                        Preparar fila privada
+                        Iniciar envio
                       </>
                     )
                   ) : isSending ? (
