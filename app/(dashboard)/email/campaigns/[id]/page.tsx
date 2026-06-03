@@ -1419,6 +1419,7 @@ function SendStep({
   privateQueueResult,
   isLoadingPrivateQueueStats = false,
   isPreparingPrivateQueue = false,
+  privateQueueLastUpdatedAt = null,
   isReadOnly = false,
 }: {
   audienceSource: AudienceSource;
@@ -1434,6 +1435,7 @@ function SendStep({
   privateQueueResult: PrivateQueuePreparationResult | null;
   isLoadingPrivateQueueStats?: boolean;
   isPreparingPrivateQueue?: boolean;
+  privateQueueLastUpdatedAt?: Date | null;
   isReadOnly?: boolean;
 }) {
   const [accounts, setAccounts] = useState<SendingAccount[]>([]);
@@ -1770,6 +1772,19 @@ function SendStep({
                 {privateStatusLabel}
               </span>
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+              <p>Atualização automática a cada 15 segundos</p>
+              <p>
+                Última atualização:{' '}
+                {privateQueueLastUpdatedAt
+                  ? privateQueueLastUpdatedAt.toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })
+                  : '--:--:--'}
+              </p>
+            </div>
 
             {isLoadingPrivateQueueStats && !privateQueueStats ? (
               <p className="mt-4 text-sm text-slate-500">Carregando status da fila privada...</p>
@@ -1980,6 +1995,7 @@ export default function CampaignDetailPage() {
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
   const [privateQueueStats, setPrivateQueueStats] = useState<PrivateQueueStats | null>(null);
   const [privateQueueResult, setPrivateQueueResult] = useState<PrivateQueuePreparationResult | null>(null);
+  const [privateQueueLastUpdatedAt, setPrivateQueueLastUpdatedAt] = useState<Date | null>(null);
   const [sendLimit, setSendLimit] = useState(audienceFilters.totalCount);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [limitData, setLimitData] = useState({ emails_used: 0, emails_limit: 10000 });
@@ -1996,6 +2012,7 @@ export default function CampaignDetailPage() {
   const loadPrivateQueueStats = useCallback(async () => {
     if (audienceSource !== 'customer_base' || isNew || !selectedCustomerListId) {
       setPrivateQueueStats(null);
+      setPrivateQueueLastUpdatedAt(null);
       return;
     }
 
@@ -2012,6 +2029,7 @@ export default function CampaignDetailPage() {
       }
 
       setPrivateQueueStats(result as PrivateQueueStats);
+      setPrivateQueueLastUpdatedAt(new Date());
     } catch (error) {
       console.error('Erro ao carregar status da fila privada:', error);
       setPrivateQueueStats(null);
@@ -2032,6 +2050,39 @@ export default function CampaignDetailPage() {
       active = false;
     };
   }, [loadPrivateQueueStats]);
+
+  useEffect(() => {
+    const shouldPoll =
+      currentStep === 4 &&
+      audienceSource === 'customer_base' &&
+      !isNew &&
+      !!selectedCustomerListId &&
+      (
+        (privateQueueStats?.pending_jobs ?? 0) > 0 ||
+        (privateQueueStats?.processing_jobs ?? 0) > 0 ||
+        (privateQueueStats !== null &&
+          ((privateQueueStats.pending_jobs ?? 0) > 0 || (privateQueueStats.processing_jobs ?? 0) > 0))
+      );
+
+    if (!shouldPoll) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadPrivateQueueStats();
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [
+    audienceSource,
+    currentStep,
+    isNew,
+    loadPrivateQueueStats,
+    privateQueueStats,
+    selectedCustomerListId,
+  ]);
 
   // ── Load campaign ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2408,6 +2459,7 @@ export default function CampaignDetailPage() {
             privateQueueResult={privateQueueResult}
             isLoadingPrivateQueueStats={isLoadingPrivateQueueStats}
             isPreparingPrivateQueue={isPreparingPrivateQueue}
+            privateQueueLastUpdatedAt={privateQueueLastUpdatedAt}
             isReadOnly={isReadOnly}
           />
         )}
