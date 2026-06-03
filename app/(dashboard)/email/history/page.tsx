@@ -17,6 +17,7 @@ type EmailJob = {
   recipient_email: string;
   recipient_name: string | null;
   status: string;
+  origin: 'cm_pro' | 'customer_base';
   email_campaigns: {
     name: string;
     subject: string | null;
@@ -72,6 +73,30 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function OriginBadge({ origin }: { origin: EmailJob['origin'] }) {
+  if (origin === 'customer_base') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+        Base Própria
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+      CM Pro
+    </span>
+  );
+}
+
+function normalizeCampaignRelation(
+  value: { name: string; subject: string | null } | { name: string; subject: string | null }[] | null,
+) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return value ?? null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,23 +121,62 @@ export default function EmailHistoryPage() {
       try {
         setIsLoading(true);
         const since = new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString();
+
+        const [
+          { data: publicJobs, error: publicError },
+          { data: privateJobs, error: privateError },
+        ] = await Promise.all([
+          supabase
+            .from('email_job_queue')
+            .select(
+              'id, sent_at, created_at, recipient_email, recipient_name, status, email_campaigns(name, subject)',
+            )
+            .gte('created_at', since)
+            .neq('status', 'pending')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('customer_email_job_queue')
+            .select(
+              'id, sent_at, created_at, recipient_email, recipient_name, status, email_campaigns(name, subject)',
+            )
+            .gte('created_at', since)
+            .neq('status', 'pending')
+            .order('created_at', { ascending: false }),
+        ]);
+
+        if (publicError || privateError) throw publicError || privateError;
+
+        const mergedJobs = [
+          ...((publicJobs ?? []).map((job: any) => ({
+            id: job.id,
+            sent_at: job.sent_at,
+            created_at: job.created_at,
+            recipient_email: job.recipient_email,
+            recipient_name: job.recipient_name,
+            status: job.status,
+            email_campaigns: normalizeCampaignRelation(job.email_campaigns),
+            origin: 'cm_pro' as const,
+          }))),
+          ...((privateJobs ?? []).map((job: any) => ({
+            id: job.id,
+            sent_at: job.sent_at,
+            created_at: job.created_at,
+            recipient_email: job.recipient_email,
+            recipient_name: job.recipient_name,
+            status: job.status,
+            email_campaigns: normalizeCampaignRelation(job.email_campaigns),
+            origin: 'customer_base' as const,
+          }))),
+        ].sort(
+          (a, b) =>
+            new Date(b.sent_at ?? b.created_at).getTime() - new Date(a.sent_at ?? a.created_at).getTime(),
+        );
+
         const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
+        const to = from + PAGE_SIZE;
 
-        const { data, error, count } = await supabase
-          .from('email_job_queue')
-          .select(
-            'id, sent_at, created_at, recipient_email, recipient_name, status, email_campaigns(name, subject)',
-            { count: 'exact' },
-          )
-          .gte('created_at', since)
-          .neq('status', 'pending')
-          .order('created_at', { ascending: false })
-          .range(from, to);
-
-        if (error) throw error;
-        setJobs((data ?? []) as unknown as EmailJob[]);
-        setTotal(count ?? 0);
+        setJobs(mergedJobs.slice(from, to));
+        setTotal(mergedJobs.length);
       } catch (err) {
         console.error('Erro ao carregar histórico:', err);
         toast.error('Erro ao carregar histórico de emails.');
@@ -208,6 +272,9 @@ export default function EmailHistoryPage() {
                         Destinatário
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Origem
+                      </th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Status
                       </th>
                     </tr>
@@ -231,6 +298,9 @@ export default function EmailHistoryPage() {
                           {job.recipient_name && (
                             <p className="text-xs text-slate-400">{job.recipient_name}</p>
                           )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <OriginBadge origin={job.origin} />
                         </td>
                         <td className="px-5 py-3.5">
                           <StatusBadge status={job.status} />

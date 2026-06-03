@@ -9,6 +9,7 @@ import { useCompany } from '@/components/providers/CompanyProvider';
 import { useIsReadOnly } from '@/hooks/useIsReadOnly';
 
 type CampaignStatus = 'Rascunho' | 'Agendada' | 'Ativa' | 'Enviada' | 'Pausada';
+type AudienceSource = 'cm_pro' | 'customer_base' | null;
 
 type CampaignObjective =
   | 'Prospecção'
@@ -29,6 +30,7 @@ type Campaign = {
   preheader: string | null;
   html_content: string | null;
   text_content: string | null;
+  audience_source: AudienceSource;
   audience_filters: unknown;
   created_at: string;
   updated_at: string;
@@ -47,6 +49,22 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.className}`}>
       {cfg.label}
+    </span>
+  );
+}
+
+function AudienceSourceBadge({ source }: { source: AudienceSource }) {
+  if (source === 'customer_base') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+        Base Própria
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+      CM Pro
     </span>
   );
 }
@@ -333,7 +351,14 @@ export default function EmailCampaignsPage() {
                       onClick={() => router.push(`/email/campaigns/${campaign.id}`)}
                       className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
                     >
-                      <td className="px-4 py-4 text-sm font-medium text-slate-900">{campaign.name}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-slate-900">{campaign.name}</span>
+                          <div>
+                            <AudienceSourceBadge source={campaign.audience_source ?? 'cm_pro'} />
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.objective}</td>
                       <td className="px-4 py-4"><StatusBadge status={campaign.status} /></td>
                       <td className="px-4 py-4 text-sm text-slate-700">{campaign.sent_count ?? 0}</td>
