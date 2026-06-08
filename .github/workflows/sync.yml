@@ -17,6 +17,7 @@ jobs:
   sync-pncp:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         modalidade: [6, 8, 1]
     env:
@@ -36,18 +37,47 @@ jobs:
           HAS_MORE=true
 
           while [ "$HAS_MORE" = "true" ] && [ "$PAGINA" -le "$MAX_PAGINAS" ]; do
-            echo "--- Página $PAGINA ---"
+            echo "--- Pagina $PAGINA ---"
 
-            RESPONSE=$(curl -s \
+            TMP_BODY=$(mktemp)
+            CURL_EXIT=0
+            HTTP_STATUS=$(curl --fail --silent --show-error \
+              --retry 3 \
+              --retry-delay 10 \
+              --retry-all-errors \
+              --connect-timeout 20 \
+              --max-time 120 \
               -H "Accept: application/json" \
-              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=${PAGINA}&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}")
+              -o "$TMP_BODY" \
+              -w "%{http_code}" \
+              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=${PAGINA}&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}") || CURL_EXIT=$?
 
+            if [ "$CURL_EXIT" -ne 0 ]; then
+              echo "Falha ao consultar PNCP. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} resultado=erro exit_code=${CURL_EXIT} status_http=${HTTP_STATUS:-000}"
+              if [ -f "$TMP_BODY" ]; then
+                BODY_PREVIEW=$(head -c 200 "$TMP_BODY" | tr '\n' ' ')
+                echo "Primeiros 200 caracteres da resposta de erro: $BODY_PREVIEW"
+              fi
+              rm -f "$TMP_BODY"
+              exit "$CURL_EXIT"
+            fi
+
+            RESPONSE=$(cat "$TMP_BODY")
+            rm -f "$TMP_BODY"
+
+            echo "Consulta PNCP concluida. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} resultado=sucesso status_http=${HTTP_STATUS}"
             echo "Primeiros 200 chars do PNCP: ${RESPONSE:0:200}"
 
-            TOTAL=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))' 2>/dev/null || echo 0)
-            echo "Itens recebidos na página $PAGINA: $TOTAL"
+            if ! echo "$RESPONSE" | python3 -c 'import sys,json; json.load(sys.stdin)' >/dev/null 2>&1; then
+              echo "Resposta invalida do PNCP. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} resultado=json_invalido status_http=${HTTP_STATUS}"
+              echo "Primeiros 200 caracteres da resposta invalida: ${RESPONSE:0:200}"
+              exit 1
+            fi
 
-            if [ "$TOTAL" = "0" ] || [ "$TOTAL" = "erro ao parsear" ]; then
+            TOTAL=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("data",[])))')
+            echo "Itens recebidos na pagina $PAGINA: $TOTAL"
+
+            if [ "$TOTAL" = "0" ]; then
               echo "Sem dados, encerrando loop."
               break
             fi
@@ -58,10 +88,10 @@ jobs:
               -d "$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("data",[])))')" \
               "https://inteligencia-sooty.vercel.app/api/pncp/ingest")
 
-            echo "Resultado ingest página $PAGINA: $INGEST"
+            echo "Resultado ingest pagina $PAGINA: $INGEST"
 
-            PAGINAS_RESTANTES=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("paginasRestantes", 0))' 2>/dev/null || echo 0)
-            echo "Páginas restantes: $PAGINAS_RESTANTES"
+            PAGINAS_RESTANTES=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("paginasRestantes", 0))')
+            echo "Paginas restantes: $PAGINAS_RESTANTES"
 
             if [ "$PAGINAS_RESTANTES" = "0" ] || [ "$PAGINAS_RESTANTES" = "" ]; then
               HAS_MORE=false
@@ -70,7 +100,7 @@ jobs:
             PAGINA=$((PAGINA + 1))
           done
 
-          echo "Loop encerrado após $((PAGINA - 1)) página(s)."
+          echo "Loop encerrado apos $((PAGINA - 1)) pagina(s)."
 
   recalcular-scores:
     runs-on: ubuntu-latest
