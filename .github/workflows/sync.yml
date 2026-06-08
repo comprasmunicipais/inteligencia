@@ -35,25 +35,52 @@ jobs:
           PAGINA=1
           MAX_PAGINAS=20
           HAS_MORE=true
+          TOTAL_PAGINAS_ESPERADO=0
 
           while [ "$HAS_MORE" = "true" ] && [ "$PAGINA" -le "$MAX_PAGINAS" ]; do
             echo "--- Pagina $PAGINA ---"
 
-            TMP_BODY=$(mktemp)
-            CURL_EXIT=0
-            HTTP_STATUS=$(curl --fail --silent --show-error \
-              --retry 3 \
-              --retry-delay 10 \
-              --retry-all-errors \
-              --connect-timeout 20 \
-              --max-time 120 \
-              -H "Accept: application/json" \
-              -o "$TMP_BODY" \
-              -w "%{http_code}" \
-              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=${PAGINA}&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}") || CURL_EXIT=$?
+            TENTATIVA_204=1
+            while true; do
+              TMP_BODY=$(mktemp)
+              CURL_EXIT=0
+              HTTP_STATUS=$(curl --fail --silent --show-error \
+                --retry 3 \
+                --retry-delay 10 \
+                --retry-all-errors \
+                --connect-timeout 20 \
+                --max-time 120 \
+                -H "Accept: application/json" \
+                -o "$TMP_BODY" \
+                -w "%{http_code}" \
+                "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?pagina=${PAGINA}&tamanhoPagina=50&dataFinal=${DATA_FINAL}&codigoModalidadeContratacao=${{ matrix.modalidade }}") || CURL_EXIT=$?
+
+              if [ "$HTTP_STATUS" = "204" ]; then
+                echo "Consulta PNCP retornou 204. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} tentativa=${TENTATIVA_204} status_http=${HTTP_STATUS} total_paginas_esperado=${TOTAL_PAGINAS_ESPERADO}"
+                rm -f "$TMP_BODY"
+
+                if [ "$TOTAL_PAGINAS_ESPERADO" -gt 0 ] && [ "$PAGINA" -le "$TOTAL_PAGINAS_ESPERADO" ]; then
+                  if [ "$TENTATIVA_204" -lt 4 ]; then
+                    echo "204 inconsistente do PNCP; repetindo a mesma pagina."
+                    TENTATIVA_204=$((TENTATIVA_204 + 1))
+                    sleep 10
+                    continue
+                  fi
+
+                  echo "PNCP retornou 204 inesperado na pagina ${PAGINA} da modalidade ${{ matrix.modalidade }}, mas ainda havia paginas restantes."
+                  exit 1
+                fi
+
+                echo "PNCP retornou 204 sem paginas restantes esperadas. Encerrando loop."
+                HAS_MORE=false
+                break 2
+              fi
+
+              break
+            done
 
             if [ "$CURL_EXIT" -ne 0 ]; then
-              echo "Falha ao consultar PNCP. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} resultado=erro exit_code=${CURL_EXIT} status_http=${HTTP_STATUS:-000}"
+              echo "Falha ao consultar PNCP. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} tentativa=${TENTATIVA_204} resultado=erro exit_code=${CURL_EXIT} status_http=${HTTP_STATUS:-000}"
               if [ -f "$TMP_BODY" ]; then
                 BODY_PREVIEW=$(head -c 200 "$TMP_BODY" | tr '\n' ' ')
                 echo "Primeiros 200 caracteres da resposta de erro: $BODY_PREVIEW"
@@ -65,7 +92,7 @@ jobs:
             RESPONSE=$(cat "$TMP_BODY")
             rm -f "$TMP_BODY"
 
-            echo "Consulta PNCP concluida. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} resultado=sucesso status_http=${HTTP_STATUS}"
+            echo "Consulta PNCP concluida. modalidade=${{ matrix.modalidade }} pagina=${PAGINA} tentativa=${TENTATIVA_204} resultado=sucesso status_http=${HTTP_STATUS}"
             echo "Primeiros 200 chars do PNCP: ${RESPONSE:0:200}"
 
             if ! echo "$RESPONSE" | python3 -c 'import sys,json; json.load(sys.stdin)' >/dev/null 2>&1; then
@@ -92,6 +119,7 @@ jobs:
 
             PAGINAS_RESTANTES=$(echo "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("paginasRestantes", 0))')
             echo "Paginas restantes: $PAGINAS_RESTANTES"
+            TOTAL_PAGINAS_ESPERADO=$((PAGINA + PAGINAS_RESTANTES))
 
             if [ "$PAGINAS_RESTANTES" = "0" ] || [ "$PAGINAS_RESTANTES" = "" ]; then
               HAS_MORE=false
