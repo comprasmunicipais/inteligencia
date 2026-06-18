@@ -1225,7 +1225,7 @@ export default function AccountDetailPage() {
  
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-8 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h3 className="font-bold text-gray-900">Linha do Tempo</h3>
+                <h3 className="font-bold text-gray-900">Próximas Ações</h3>
                 <button
                   onClick={() => {
                     setEditingEvent({ title: '', date: new Date().toISOString().split('T')[0], type: 'meeting', description: '' });
