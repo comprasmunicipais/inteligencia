@@ -43,7 +43,7 @@ const sidebarItems = [
       { name: 'Contatos', href: '/crm/contacts', icon: Users },
       { name: 'Propostas', href: '/crm/proposals', icon: FileText },
       { name: 'Contratos', href: '/crm/contracts', icon: Handshake },
-      { name: 'Minhas Ações', href: '/crm/tasks', icon: CheckSquare },
+      { name: 'Próximas Ações', href: '/crm/tasks', icon: CheckSquare },
     ],
   },
   {
