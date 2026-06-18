@@ -6,6 +6,7 @@ export const mapTaskToDTO = (row: any): TaskDTO => {
     id: row.id,
     company_id: row.company_id,
     municipality_id: row.municipality_id,
+    contact_id: row.contact_id || undefined,
     title: row.title || '-',
     description: row.description,
     due_date: row.due_date,
@@ -14,5 +15,6 @@ export const mapTaskToDTO = (row: any): TaskDTO => {
     created_at: row.created_at,
     updated_at: row.updated_at,
     account_name: row.municipalities?.name || undefined,
+    contact_name: row.contacts?.name || undefined,
   };
 };

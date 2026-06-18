@@ -9,7 +9,7 @@ export const taskService = {
   async getAll(companyId: string): Promise<TaskDTO[]> {
     const { data, error } = await supabase
       .from('tasks')
-      .select('*, municipalities(name)')
+      .select('*, municipalities(name), contacts(name)')
       .eq('company_id', companyId)
       .order('due_date', { ascending: true });
     
@@ -29,7 +29,7 @@ export const taskService = {
     const { data, error } = await supabase
       .from('tasks')
       .insert([task])
-      .select('*')
+      .select('*, municipalities(name), contacts(name)')
       .single();
     
     if (error) {
@@ -49,7 +49,7 @@ export const taskService = {
       .from('tasks')
       .update(updates)
       .eq('id', id)
-      .select('*')
+      .select('*, municipalities(name), contacts(name)')
       .single();
     
     if (error) {

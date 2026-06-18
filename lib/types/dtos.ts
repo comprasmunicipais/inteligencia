@@ -118,12 +118,14 @@ export interface TaskDTO {
   id: string;
   company_id: string;
   municipality_id?: string;
+  contact_id?: string;
   title: string;
   description?: string;
   due_date?: string;
   priority: string;
   status: string;
   account_name?: string;
+  contact_name?: string;
   created_at?: string;
   updated_at?: string;
 }
