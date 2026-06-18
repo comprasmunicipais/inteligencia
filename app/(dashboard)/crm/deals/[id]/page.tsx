@@ -449,7 +449,7 @@ export default async function DealDetailPage({
               </p>
               <div className="mt-1.5 flex items-start justify-between gap-3">
                 <h3 className="text-base font-semibold text-slate-900">
-                  Próximos Passos
+                  Próximas Ações
                 </h3>
                 <Link
                   href="/crm/tasks"
