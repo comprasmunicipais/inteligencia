@@ -37,7 +37,7 @@ import {
 import { useCompany } from '@/components/providers/CompanyProvider';
 import { accountService } from '@/lib/services/accounts';
 import { contactService } from '@/lib/services/contacts';
-import { timelineService } from '@/lib/services/timeline-events';
+import { taskService } from '@/lib/services/tasks';
 import { documentService, MunicipalityDocument } from '@/lib/services/documents';
 import { dealService } from '@/lib/services/deals';
 import { proposalService } from '@/lib/services/proposals';
@@ -46,13 +46,13 @@ import { opportunityService } from '@/lib/services/opportunities';
 import {
   MunicipalityDTO,
   ContactDTO,
-  TimelineEventDTO,
+  TaskDTO,
   DealDTO,
   ProposalDTO,
   ContractDTO,
   OpportunityDTO
 } from '@/lib/types/dtos';
-import { Region, DealStage, AccountStatus, ContactStatus } from '@/lib/types/enums';
+import { Region, DealStage, AccountStatus, ContactStatus, TaskPriority, TaskStatus } from '@/lib/types/enums';
 import { createClient } from '@/lib/supabase/client';
  
 type MunicipalityEmailDTO = {
@@ -79,7 +79,7 @@ export default function AccountDetailPage() {
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<MunicipalityDTO | null>(null);
   const [contacts, setContacts] = useState<ContactDTO[]>([]);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEventDTO[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<TaskDTO[]>([]);
   const [documents, setDocuments] = useState<MunicipalityDocument[]>([]);
   const [deals, setDeals] = useState<DealDTO[]>([]);
   const [proposals, setProposals] = useState<ProposalDTO[]>([]);
@@ -119,6 +119,11 @@ export default function AccountDetailPage() {
   const [uploading, setUploading] = useState(false);
  
   const loadData = useCallback(async () => {
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [
@@ -135,7 +140,7 @@ export default function AccountDetailPage() {
       ] = await Promise.all([
         accountService.getById(params.id as string),
         contactService.getByMunicipality(params.id as string),
-        timelineService.getByMunicipality(params.id as string),
+        taskService.getAll(companyId!).then((items) => items.filter((item) => item.municipality_id === params.id)),
         documentService.getByMunicipality(params.id as string),
         dealService.getByMunicipality(params.id as string),
         proposalService.getByMunicipality(params.id as string),
@@ -175,13 +180,13 @@ export default function AccountDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, companyId]);
  
   useEffect(() => {
-    if (params.id) {
+    if (params.id && companyId) {
       loadData();
     }
-  }, [params.id, loadData]);
+  }, [params.id, companyId, loadData]);
 
   const unifiedEmails = useMemo(() => {
     const normalizedMap = new Map<string, MunicipalityEmailDTO>();
@@ -342,21 +347,29 @@ export default function AccountDetailPage() {
  
     try {
       if (editingEvent.id) {
-        const updated = await timelineService.update(editingEvent.id, editingEvent);
+        const updated = await taskService.update(editingEvent.id, {
+          title: editingEvent.title,
+          description: editingEvent.description,
+          due_date: editingEvent.date,
+        });
         setTimelineEvents(timelineEvents.map(ev => ev.id === updated.id ? updated : ev));
-        toast.success('Evento atualizado!');
+        toast.success('Tarefa atualizada!');
       } else {
-        const created = await timelineService.create({
-          ...editingEvent,
+        const created = await taskService.create({
+          title: editingEvent.title,
+          description: editingEvent.description,
+          due_date: editingEvent.date,
+          status: TaskStatus.PENDING,
+          priority: TaskPriority.MEDIUM,
           municipality_id: account!.id,
           company_id: companyId!
         });
         setTimelineEvents([created, ...timelineEvents]);
-        toast.success('Evento adicionado!');
+        toast.success('Tarefa adicionada!');
       }
       setIsEventModalOpen(false);
     } catch (error) {
-      toast.error('Erro ao salvar evento.');
+      toast.error('Erro ao salvar tarefa.');
     }
   };
  
@@ -1233,7 +1246,7 @@ export default function AccountDetailPage() {
                   }}
                   className="text-xs font-bold text-[#0f49bd] hover:underline flex items-center gap-1"
                 >
-                  <Plus className="size-3" /> Adicionar Evento
+                  <Plus className="size-3" /> Nova Tarefa
                 </button>
               </div>
               <div className="p-8 space-y-8">
@@ -1249,7 +1262,7 @@ export default function AccountDetailPage() {
                           <h4 className="font-bold text-gray-900 text-sm">{item.title}</h4>
                           <button
                             onClick={() => {
-                              setEditingEvent({ ...item });
+                              setEditingEvent({ ...item, date: item.due_date ? item.due_date.slice(0, 10) : '' });
                               setIsEventModalOpen(true);
                             }}
                             className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded transition-all"
@@ -1258,9 +1271,9 @@ export default function AccountDetailPage() {
                           </button>
                           <button
                             onClick={async () => {
-                              if (confirm('Excluir este evento?')) {
+                              if (confirm('Excluir esta tarefa?')) {
                                 try {
-                                  await timelineService.delete(item.id);
+                                  await taskService.delete(item.id);
                                   setTimelineEvents(timelineEvents.filter(ev => ev.id !== item.id));
                                   toast.success('Evento excluído.');
                                 } catch (error) {
@@ -1274,7 +1287,7 @@ export default function AccountDetailPage() {
                           </button>
                         </div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase">
-                          {item.date ? formatDate(item.date) : 'N/A'}
+                          {item.due_date ? formatDate(item.due_date) : 'N/A'}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500">{item.description}</p>
@@ -1459,7 +1472,7 @@ export default function AccountDetailPage() {
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{editingEvent?.id ? 'Editar Evento' : 'Adicionar Evento'}</DialogTitle>
+            <DialogTitle>{editingEvent?.id ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
             <DialogDescription>
               Registre uma interação ou marco importante com esta prefeitura.
             </DialogDescription>
@@ -1477,7 +1490,7 @@ export default function AccountDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">Data</label>
+                  <label className="text-sm font-bold text-gray-700">Prazo</label>
                   <input
                     type="date"
                     className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
