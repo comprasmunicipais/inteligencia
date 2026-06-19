@@ -8,6 +8,7 @@ export const mapTaskToDTO = (row: any): TaskDTO => {
     municipality_id: row.municipality_id,
     contact_id: row.contact_id || undefined,
     deal_id: row.deal_id || undefined,
+    owner_user_id: row.owner_user_id || undefined,
     title: row.title || '-',
     description: row.description,
     due_date: row.due_date,

@@ -53,7 +53,7 @@ const initialTasks = [
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 5);
 
 export default function TasksPage() {
-  const { companyId } = useCompany();
+  const { companyId, user } = useCompany();
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<TaskDTO[]>([]);
   const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
@@ -132,6 +132,7 @@ export default function TasksPage() {
         priority: newTask.priority,
         description: newTask.description,
         company_id: companyId!,
+        owner_user_id: user?.id,
         status: TaskStatus.PENDING
       });
 

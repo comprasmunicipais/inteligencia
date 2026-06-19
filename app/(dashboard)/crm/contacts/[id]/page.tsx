@@ -42,7 +42,7 @@ import { TaskPriority, TaskStatus } from '@/lib/types/enums';
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { companyId } = useCompany();
+  const { companyId, user } = useCompany();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,15 +155,16 @@ export default function ContactDetailPage() {
     }
 
     setSaving(true);
-    try {
-      const created = await taskService.create({
-        company_id: contact.company_id,
-        municipality_id: contact.municipality_id,
-        contact_id: contact.id,
-        title: newTask.title,
-        description: newTask.description,
-        due_date: newTask.due_date,
-        status: TaskStatus.PENDING,
+      try {
+        const created = await taskService.create({
+          company_id: contact.company_id,
+          municipality_id: contact.municipality_id,
+          contact_id: contact.id,
+          owner_user_id: user?.id,
+          title: newTask.title,
+          description: newTask.description,
+          due_date: newTask.due_date,
+          status: TaskStatus.PENDING,
         priority: TaskPriority.MEDIUM,
         updated_at: new Date().toISOString(),
       });

@@ -356,14 +356,15 @@ export default function AccountDetailPage() {
         toast.success('Tarefa atualizada!');
       } else {
         const created = await taskService.create({
-          title: editingEvent.title,
-          description: editingEvent.description,
-          due_date: editingEvent.date,
-          status: TaskStatus.PENDING,
-          priority: TaskPriority.MEDIUM,
-          municipality_id: account!.id,
-          company_id: companyId!
-        });
+            title: editingEvent.title,
+            description: editingEvent.description,
+            due_date: editingEvent.date,
+            status: TaskStatus.PENDING,
+            priority: TaskPriority.MEDIUM,
+            municipality_id: account!.id,
+            company_id: companyId!,
+            owner_user_id: user?.id
+          });
         setTimelineEvents([created, ...timelineEvents]);
         toast.success('Tarefa adicionada!');
       }
