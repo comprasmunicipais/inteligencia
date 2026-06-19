@@ -9,6 +9,7 @@ import {
   Phone, 
   Building2, 
   Calendar, 
+  Plus,
   User,
   MapPin,
   Briefcase,
@@ -36,6 +37,7 @@ import { useCompany } from '@/components/providers/CompanyProvider';
 import { contactService } from '@/lib/services/contacts';
 import { taskService } from '@/lib/services/tasks';
 import { ContactDTO, TaskDTO } from '@/lib/types/dtos';
+import { TaskPriority, TaskStatus } from '@/lib/types/enums';
 
 export default function ContactDetailPage() {
   const params = useParams();
@@ -46,10 +48,16 @@ export default function ContactDetailPage() {
   const [saving, setSaving] = useState(false);
   const [contact, setContact] = useState<ContactDTO | null>(null);
   const [contactTasks, setContactTasks] = useState<TaskDTO[]>([]);
+  const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [editData, setEditData] = useState<ContactDTO | null>(null);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    due_date: '',
+  });
 
   const loadContact = useCallback(async () => {
     setLoading(true);
@@ -118,6 +126,58 @@ export default function ContactDetailPage() {
       toast.success(`Contato movido para ${newStatus === 'active' ? 'Ativo' : 'Inativo'}!`);
     } catch (error) {
       toast.error('Erro ao mover contato.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenAddTaskModal = () => {
+    if (!contact?.municipality_id) {
+      toast.error('Este contato não possui prefeitura vinculada.');
+      return;
+    }
+
+    setIsAddTaskModalOpen(true);
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contact) return;
+
+    if (!contact.municipality_id) {
+      toast.error('Este contato não possui prefeitura vinculada.');
+      return;
+    }
+
+    if (!newTask.title || !newTask.due_date) {
+      toast.error('Preencha título e prazo da ação.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const created = await taskService.create({
+        company_id: contact.company_id,
+        municipality_id: contact.municipality_id,
+        contact_id: contact.id,
+        title: newTask.title,
+        description: newTask.description,
+        due_date: newTask.due_date,
+        status: TaskStatus.PENDING,
+        priority: TaskPriority.MEDIUM,
+        updated_at: new Date().toISOString(),
+      });
+
+      setContactTasks((prev) => [created, ...prev]);
+      setIsAddTaskModalOpen(false);
+      setNewTask({
+        title: '',
+        description: '',
+        due_date: '',
+      });
+      toast.success('Próxima ação criada com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao criar próxima ação.');
     } finally {
       setSaving(false);
     }
@@ -307,8 +367,15 @@ export default function ContactDetailPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="border-b border-gray-100 px-8 py-4 bg-gray-50/50">
+              <div className="border-b border-gray-100 px-8 py-4 bg-gray-50/50 flex items-center justify-between gap-4">
                 <h3 className="font-bold text-gray-900">Próximas Ações</h3>
+                <button
+                  onClick={handleOpenAddTaskModal}
+                  className="flex items-center gap-2 rounded-lg bg-[#0f49bd] px-3 py-2 text-xs font-bold text-white hover:bg-[#0a3690] transition-colors shadow-sm"
+                >
+                  <Plus className="size-3.5" />
+                  Nova Ação
+                </button>
               </div>
               <div className="p-8">
                 {contactTasks.length === 0 ? (
@@ -379,6 +446,61 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </div>
+      <Dialog open={isAddTaskModalOpen} onOpenChange={setIsAddTaskModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Nova Ação</DialogTitle>
+            <DialogDescription>
+              Cadastre uma próxima ação vinculada a este contato.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddTask} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Título</label>
+              <input
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                value={newTask.title}
+                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Descrição</label>
+              <textarea
+                rows={3}
+                className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] resize-none"
+                value={newTask.description}
+                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-700">Prazo</label>
+              <input
+                type="datetime-local"
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd]"
+                value={newTask.due_date}
+                onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+              />
+            </div>
+            <DialogFooter className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddTaskModalOpen(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-[#0f49bd] text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-[#0a3690] shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {saving && <Loader2 className="size-4 animate-spin" />}
+                Criar Ação
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       {/* Edit Contact Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
