@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/cron/task-reminders", "schedule": "*/15 * * * *" },
     { "path": "/api/pncp/sync", "schedule": "0 6 * * *" },
     { "path": "/api/pncp/scrape", "schedule": "0 7 * * *" },
     { "path": "/api/pncp/scores", "schedule": "0 8 * * *" },

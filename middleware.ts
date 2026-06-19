@@ -16,7 +16,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/email/track') ||
     pathname.startsWith('/api/email/queue/process') ||
     pathname.startsWith('/api/email/customer-queue/process') ||
-    pathname.startsWith('/api/cron/task-reminders') ||
     pathname.startsWith('/api/cron/trial-expiring') ||
     pathname.startsWith('/api/billing/webhook') ||
     pathname.startsWith('/api/auth') ||
