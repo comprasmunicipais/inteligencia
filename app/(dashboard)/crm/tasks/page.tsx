@@ -6,13 +6,11 @@ import {
   CheckCircle2, 
   Circle, 
   Clock, 
-  Calendar, 
   Plus, 
   Filter,
   MoreHorizontal,
-  AlertCircle,
   Building2,
-  X,
+  User,
   Edit,
   Trash2,
   Copy,
@@ -244,8 +242,8 @@ export default function TasksPage() {
   return (
     <>
       <Header 
-        title="Minhas Ações" 
-        subtitle="Gerencie suas tarefas, compromissos e prazos de licitações." 
+        title="Próximas Ações" 
+        subtitle="Gerencie as próximas ações comerciais do CRM." 
       />
       
       <div className="flex-1 overflow-y-auto p-8 bg-[#f8fafc]">
@@ -368,6 +366,12 @@ export default function TasksPage() {
                           <Building2 className="size-3.5" />
                           {task.account_name}
                         </div>
+                        {task.contact_name && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                            <User className="size-3.5" />
+                            {task.contact_name}
+                          </div>
+                        )}
                         <div className={cn(
                           "flex items-center gap-1.5 text-xs font-bold",
                           isOverdue ? "text-red-600" : "text-gray-500"
