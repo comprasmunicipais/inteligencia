@@ -240,6 +240,22 @@ export default function TasksPage() {
     toast.info('Filtros limpos.');
   };
 
+  const getTaskContext = (task: TaskDTO) => {
+    if (task.deal_id || task.deal_title) {
+      return 'Negócio';
+    }
+
+    if (task.contact_id || task.contact_name) {
+      return 'Contato';
+    }
+
+    if (task.municipality_id || task.account_name) {
+      return 'Prefeitura';
+    }
+
+    return null;
+  };
+
   return (
     <>
       <Header 
@@ -300,6 +316,7 @@ export default function TasksPage() {
                   !!task.due_date &&
                   new Date(task.due_date).getTime() < new Date().getTime() &&
                   task.status === TaskStatus.PENDING;
+                const taskContext = getTaskContext(task);
 
                 return (
                   <div key={task.id} className="p-6 hover:bg-gray-50/50 transition-colors flex items-start gap-4 group">
@@ -363,6 +380,11 @@ export default function TasksPage() {
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-4 mt-2">
+                        {taskContext && (
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                            {taskContext}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
                           <Building2 className="size-3.5" />
                           {task.account_name}
