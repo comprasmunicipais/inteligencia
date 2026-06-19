@@ -235,6 +235,18 @@ export default async function DealDetailPage({
   let linkedOpportunity: OpportunityDetailRow | null = null;
   let linkedOpportunityUnavailable = false;
 
+  const { data: tasksData } = await supabase
+    .from('tasks')
+    .select('id, title, description, due_date, priority, status')
+    .eq('company_id', profile.company_id)
+    .eq('deal_id', deal.id)
+    .neq('status', 'concluÃ­do')
+    .neq('status', 'finalizado')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .limit(5);
+
+  openTasks = (tasksData ?? []) as TaskDetailRow[];
+
   if (deal.status) {
     const { data: stageData } = await supabase
       .from('pipeline_stages')
@@ -285,7 +297,7 @@ export default async function DealDetailPage({
       .from('tasks')
       .select('id, title, description, due_date, priority, status')
       .eq('company_id', profile.company_id)
-      .eq('municipality_id', deal.municipality_id)
+      .eq('deal_id', deal.id)
       .neq('status', 'concluÃ­do')
       .neq('status', 'finalizado')
       .order('due_date', { ascending: true, nullsFirst: false })
@@ -459,7 +471,7 @@ export default async function DealDetailPage({
                 </Link>
               </div>
               <p className="mt-1 text-sm text-slate-600">
-                Ações comerciais abertas relacionadas a esta prefeitura
+                Ações comerciais abertas relacionadas a este negócio
               </p>
             </div>
 
@@ -499,7 +511,7 @@ export default async function DealDetailPage({
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
                 <p className="text-sm leading-6 text-slate-600">
-                  Nenhuma ação comercial aberta para esta prefeitura.
+                  Nenhuma ação comercial aberta para este negócio.
                 </p>
               </div>
             )}
