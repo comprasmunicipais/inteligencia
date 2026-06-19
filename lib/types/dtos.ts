@@ -119,6 +119,7 @@ export interface TaskDTO {
   company_id: string;
   municipality_id?: string;
   contact_id?: string;
+  deal_id?: string;
   title: string;
   description?: string;
   due_date?: string;
@@ -126,6 +127,7 @@ export interface TaskDTO {
   status: string;
   account_name?: string;
   contact_name?: string;
+  deal_title?: string;
   created_at?: string;
   updated_at?: string;
 }

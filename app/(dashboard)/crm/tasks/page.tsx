@@ -6,6 +6,7 @@ import {
   CheckCircle2, 
   Circle, 
   Clock, 
+  Briefcase,
   Plus, 
   Filter,
   MoreHorizontal,
@@ -370,6 +371,12 @@ export default function TasksPage() {
                           <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
                             <User className="size-3.5" />
                             {task.contact_name}
+                          </div>
+                        )}
+                        {task.deal_title && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                            <Briefcase className="size-3.5" />
+                            {task.deal_title}
                           </div>
                         )}
                         <div className={cn(

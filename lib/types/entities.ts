@@ -89,6 +89,7 @@ export interface TaskEntity extends BaseEntity {
   company_id: string;
   municipality_id?: string;
   contact_id?: string;
+  deal_id?: string;
   title: string;
   description?: string;
   due_date?: string;
