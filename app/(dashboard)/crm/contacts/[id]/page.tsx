@@ -34,7 +34,8 @@ import {
 } from "@/components/ui/dialog";
 import { useCompany } from '@/components/providers/CompanyProvider';
 import { contactService } from '@/lib/services/contacts';
-import { ContactDTO } from '@/lib/types/dtos';
+import { taskService } from '@/lib/services/tasks';
+import { ContactDTO, TaskDTO } from '@/lib/types/dtos';
 
 export default function ContactDetailPage() {
   const params = useParams();
@@ -44,6 +45,7 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [contact, setContact] = useState<ContactDTO | null>(null);
+  const [contactTasks, setContactTasks] = useState<TaskDTO[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -54,6 +56,8 @@ export default function ContactDetailPage() {
     try {
       const data = await contactService.getById(params.id as string);
       setContact(data);
+      const tasks = await taskService.getAll(data.company_id);
+      setContactTasks(tasks.filter(task => task.contact_id === data.id));
     } catch (error) {
       toast.error('Erro ao carregar contato.');
     } finally {
@@ -299,6 +303,44 @@ export default function ContactDetailPage() {
                     {contact.status === 'active' ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="border-b border-gray-100 px-8 py-4 bg-gray-50/50">
+                <h3 className="font-bold text-gray-900">Próximas Ações</h3>
+              </div>
+              <div className="p-8">
+                {contactTasks.length === 0 ? (
+                  <p className="text-sm text-gray-500">Nenhuma próxima ação cadastrada para este contato.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {contactTasks.map((task) => (
+                      <div key={task.id} className="rounded-xl border border-gray-100 bg-white p-4">
+                        <h4 className="text-sm font-bold text-gray-900">{task.title}</h4>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                            <Calendar className="size-3.5" />
+                            {task.due_date ? formatDate(task.due_date) : 'Sem data'}
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                            task.priority === 'alta' ? "bg-red-50 text-red-600" :
+                            task.priority === 'média' ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
+                          )}>
+                            {task.priority}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                            task.status === 'concluída' ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+                          )}>
+                            {task.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
