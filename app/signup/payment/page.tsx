@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { CONTRACT_TEXT, CONTRACT_VERSION, hashContract } from '@/lib/contract/contractText';
+import { buildContractText, CONTRACT_VERSION, hashContract } from '@/lib/contract/contractText';
 
 type BillingCycle = 'monthly' | 'semiannual' | 'annual';
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD';
@@ -40,6 +40,12 @@ const CYCLE_SUFFIX: Record<BillingCycle, string> = {
   monthly: '/m?s',
   semiannual: '/semestre',
   annual: '/ano',
+};
+
+const CONTRACT_PERIOD_LABELS: Record<BillingCycle, string> = {
+  monthly: 'mensal',
+  semiannual: 'semestral',
+  annual: 'anual',
 };
 
 function getPlanPrice(plan: PlanData, cycle: BillingCycle): number {
@@ -399,7 +405,7 @@ export default function SignupPaymentPage() {
         .then((r) => r.json())
         .catch(() => ({ ip: null }));
 
-      const hash = await hashContract(CONTRACT_TEXT);
+      const hash = await hashContract(contractText);
 
       await supabase.from('contract_acceptances').insert({
         company_id: profile?.company_id,
@@ -437,6 +443,18 @@ export default function SignupPaymentPage() {
 
   const effectiveBillingCycle: BillingCycle = isImplantacaoPlan(plan) ? 'monthly' : pending.billingCycle;
   const price = getPlanPrice(plan, effectiveBillingCycle);
+  const contractText = buildContractText({
+    razaoSocial,
+    cnpjCpf: cpfCnpj,
+    address: companyAddress,
+    email: userEmail,
+    plano: plan.name,
+    valor: formatCurrency(price),
+    periodicidade: CONTRACT_PERIOD_LABELS[effectiveBillingCycle],
+    dataContratacao: new Date().toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+    }),
+  });
 
   if (cardPending) {
     return (
@@ -1766,7 +1784,7 @@ export default function SignupPaymentPage() {
               </button>
             </div>
             <div className="contract-scroll-area" ref={scrollRef} onScroll={handleScrollContract}>
-              <pre className="contract-text">{CONTRACT_TEXT}</pre>
+              <pre className="contract-text">{contractText}</pre>
             </div>
             <div className="contract-modal-footer">
               {!scrolledToBottom && (

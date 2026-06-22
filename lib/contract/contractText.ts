@@ -311,6 +311,33 @@ D'Amico Editora Ltda | CNPJ 05.904.375/0001-08 | contato@comprasmunicipais.com.b
 
 export const CONTRACT_VERSION = 'v1.0';
 
+export interface ContractTemplateData {
+  razaoSocial?: string | null;
+  cnpjCpf?: string | null;
+  address?: string | null;
+  email?: string | null;
+  plano?: string | null;
+  valor?: string | null;
+  periodicidade?: string | null;
+  dataContratacao?: string | null;
+}
+
+function fallbackContractValue(value?: string | null): string {
+  return value?.trim() ? value.trim() : 'não informado';
+}
+
+export function buildContractText(data: ContractTemplateData): string {
+  return CONTRACT_TEXT
+    .replace(/\[RAZAO SOCIAL DO CONTRATANTE\]/g, fallbackContractValue(data.razaoSocial))
+    .replace(/\[CNPJ\/CPF\]/g, fallbackContractValue(data.cnpjCpf))
+    .replace(/\[PLANO CONTRATADO\]/g, fallbackContractValue(data.plano))
+    .replace(/\[VALOR\]/g, fallbackContractValue(data.valor))
+    .replace(/\[MENSAL \/ SEMESTRAL \/ ANUAL\]/g, fallbackContractValue(data.periodicidade))
+    .replace(/\[DATA\]/g, fallbackContractValue(data.dataContratacao))
+    .replace(/\[EMAIL CADASTRADO\]/g, fallbackContractValue(data.email))
+    .replace(/\[ENDERECO COMPLETO\]/g, fallbackContractValue(data.address));
+}
+
 export async function hashContract(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);

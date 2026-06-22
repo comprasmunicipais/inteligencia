@@ -1,16 +1,7 @@
 import { PDFDocument, PDFPage, StandardFonts, rgb } from 'pdf-lib'
-import { CONTRACT_TEXT } from './contractText'
+import { buildContractText, ContractTemplateData } from './contractText'
 
-export interface ContractData {
-  razaoSocial: string
-  cnpjCpf: string
-  address: string
-  email: string
-  plano: string
-  valor: string
-  periodicidade: string
-  dataContratacao: string
-}
+export interface ContractData extends ContractTemplateData {}
 
 const PAGE_WIDTH = 595
 const PAGE_HEIGHT = 842
@@ -56,18 +47,8 @@ export async function generateContractPdf(data: ContractData): Promise<Uint8Arra
     })
   }
 
-  // Replace all placeholders with real data
-  const filledText = CONTRACT_TEXT
-    .replace(/\[RAZAO SOCIAL DO CONTRATANTE\]/g, data.razaoSocial || '(não informado)')
-    .replace(/\[CNPJ\/CPF\]/g, data.cnpjCpf || '(não informado)')
-    .replace(/\[PLANO CONTRATADO\]/g, data.plano)
-    .replace(/\[VALOR\]/g, data.valor)
-    .replace(/\[MENSAL \/ SEMESTRAL \/ ANUAL\]/g, data.periodicidade)
-    .replace(/\[DATA\]/g, data.dataContratacao)
-    .replace(/\[EMAIL CADASTRADO\]/g, data.email)
-    .replace(/\[ENDERECO COMPLETO\]/g, data.address || '(não informado)')
+  const filledText = buildContractText(data)
 
-  // Expand all lines with word-wrap
   const allLines: string[] = []
   for (const raw of filledText.split('\n')) {
     allLines.push(...wrapLine(raw, 90))
@@ -84,7 +65,6 @@ export async function generateContractPdf(data: ContractData): Promise<Uint8Arra
       y = PAGE_HEIGHT - MARGIN_TOP
     }
 
-    // Style: first line = large bold title, section headers = bold, rest = regular
     let font = fontRegular
     let size = BODY_SIZE
     if (lineIndex === 0) {
