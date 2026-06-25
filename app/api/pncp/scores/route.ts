@@ -111,7 +111,7 @@ async function recalculateAndNotify(companyId: string): Promise<{ updated: numbe
     .from('profiles')
     .select('id, email, role')
     .eq('company_id', companyId)
-    .in('role', ['user', 'admin']);
+    .in('role', ['user', 'company_admin']);
 
   const users = companyUsers || [];
 

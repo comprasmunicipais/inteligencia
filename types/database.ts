@@ -35,7 +35,7 @@ export interface Database {
           tenant_id: string
           full_name: string | null
           avatar_url: string | null
-          role: 'admin' | 'user'
+          role: 'user' | 'company_admin' | 'platform_admin'
           email: string
         }
         Insert: {
@@ -43,7 +43,7 @@ export interface Database {
           tenant_id: string
           full_name?: string | null
           avatar_url?: string | null
-          role?: 'admin' | 'user'
+          role?: 'user' | 'company_admin' | 'platform_admin'
           email: string
         }
         Update: {
@@ -51,7 +51,7 @@ export interface Database {
           tenant_id?: string
           full_name?: string | null
           avatar_url?: string | null
-          role?: 'admin' | 'user'
+          role?: 'user' | 'company_admin' | 'platform_admin'
           email?: string
         }
       }

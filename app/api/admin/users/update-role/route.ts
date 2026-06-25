@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user_id e role são obrigatórios.' }, { status: 400 });
     }
 
-    const validRoles = ['user', 'admin', 'platform_admin'];
+    const validRoles = ['user', 'company_admin', 'platform_admin'];
     if (!validRoles.includes(role)) {
       return NextResponse.json({ error: 'Role inválida.' }, { status: 400 });
     }

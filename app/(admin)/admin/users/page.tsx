@@ -242,7 +242,7 @@ export default function AdminUsersPage() {
             >
               <option value="">Papel: Todos</option>
               <option value="user">Usuário Comum</option>
-              <option value="admin">Admin</option>
+              <option value="company_admin">Admin</option>
               <option value="platform_admin">Super Admin</option>
             </select>
             {hasActiveFilters && (
@@ -304,9 +304,9 @@ export default function AdminUsersPage() {
                     <span className={cn(
                       "text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider",
                       user.role === 'platform_admin' ? "bg-red-50 text-red-700" :
-                      user.role === 'admin' ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
+                      user.role === 'company_admin' ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
                     )}>
-                      {user.role === 'platform_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'Usuário'}
+                      {user.role === 'platform_admin' ? 'Super Admin' : user.role === 'company_admin' ? 'Admin' : 'Usuário'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -348,10 +348,10 @@ export default function AdminUsersPage() {
                           Resetar Senha
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleUpdateRole(user.id, user.role === 'admin' ? 'user' : 'admin')}
+                          onClick={() => handleUpdateRole(user.id, user.role === 'company_admin' ? 'user' : 'company_admin')}
                           className="text-xs font-bold"
                         >
-                          <Shield className="size-4 mr-2" /> {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
+                          <Shield className="size-4 mr-2" /> {user.role === 'company_admin' ? 'Remover Admin' : 'Tornar Admin'}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setDeleteTargetUser(user)}
@@ -400,7 +400,7 @@ export default function AdminUsersPage() {
                 onChange={(e) => setEditData({ ...editData, role: e.target.value })}
               >
                 <option value="user">Usuário Comum</option>
-                <option value="admin">Administrador da Empresa</option>
+                <option value="company_admin">Administrador da Empresa</option>
                 <option value="platform_admin">Super Admin da Plataforma</option>
               </select>
             </div>
@@ -498,7 +498,7 @@ export default function AdminUsersPage() {
                 onChange={(e) => setInviteData({ ...inviteData, role: e.target.value })}
               >
                 <option value="user">Usuário Comum</option>
-                <option value="admin">Administrador da Empresa</option>
+                <option value="company_admin">Administrador da Empresa</option>
                 <option value="platform_admin">Super Admin da Plataforma</option>
               </select>
             </div>
@@ -816,7 +816,7 @@ export default function AdminUsersPage() {
                 onChange={(e) => setCreateData({ ...createData, role: e.target.value })}
               >
                 <option value="user">Usuário Comum</option>
-                <option value="admin">Administrador da Empresa</option>
+                <option value="company_admin">Administrador da Empresa</option>
                 <option value="platform_admin">Super Admin da Plataforma</option>
               </select>
             </div>
