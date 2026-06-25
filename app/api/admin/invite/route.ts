@@ -88,7 +88,6 @@ export async function POST(request: NextRequest) {
           email,
           company_id,
           role,
-          status: 'inactive',
         },
         { onConflict: 'id' }
       );

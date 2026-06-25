@@ -1,6 +1,6 @@
 'use server';
 
-import { adminService, Company, UserProfile } from '@/lib/services/admin';
+import { adminService, Company } from '@/lib/services/admin';
 import { revalidatePath } from 'next/cache';
 
 export async function getCompaniesAction() {
@@ -39,7 +39,7 @@ export async function updateUserRoleAction(id: string, role: string) {
 }
 
 export async function updateUserStatusAction(id: string, status: string) {
-  const result = await adminService.updateUserStatus(id, status);
-  revalidatePath('/admin/users');
-  return result;
+  void id;
+  void status;
+  throw new Error('Atualização de status de usuário não suportada.');
 }

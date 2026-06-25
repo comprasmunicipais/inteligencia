@@ -18,7 +18,7 @@ import {
   CreditCard,
   Trash2,
 } from 'lucide-react';
-import { cn, formatDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,10 +120,22 @@ export default function AdminUsersPage() {
     }
   };
 
+  const formatLastLogin = (value: string | null | undefined) => {
+    if (!value) return 'Nunca';
+
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  };
+
   const handleUpdateRole = async (id: string, role: string) => {
     try {
-      const updated = await updateUserRoleAction(id, role);
-      setUsers(users.map(u => u.id === id ? updated : u));
+      await updateUserRoleAction(id, role);
+      await loadUsers();
       toast.success(`Papel do usuário atualizado para ${role}.`);
     } catch (error) {
       toast.error('Erro ao atualizar papel.');
@@ -263,7 +275,7 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4">Usuário</th>
                 <th className="px-6 py-4">Empresa</th>
                 <th className="px-6 py-4">Papel</th>
-                <th className="px-6 py-4">Último Acesso</th>
+                <th className="px-6 py-4">Último login</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
@@ -310,7 +322,7 @@ export default function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm text-gray-500">{user.last_access ? formatDate(user.last_access) : 'Nunca'}</span>
+                    <span className="text-sm text-gray-500">{formatLastLogin(user.last_sign_in_at)}</span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <DropdownMenu>
