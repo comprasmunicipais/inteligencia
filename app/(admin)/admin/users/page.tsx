@@ -132,6 +132,21 @@ export default function AdminUsersPage() {
     }).format(new Date(value));
   };
 
+  const getAuthStatusMeta = (status: UserProfile['auth_status']) => {
+    switch (status) {
+      case 'active':
+        return { label: 'Ativo', className: 'bg-emerald-50 text-emerald-700' };
+      case 'inactive':
+        return { label: 'Inativo', className: 'bg-gray-100 text-gray-600' };
+      case 'pending':
+        return { label: 'Pendente', className: 'bg-amber-50 text-amber-700' };
+      case 'deleted':
+        return { label: 'Excluído', className: 'bg-red-50 text-red-700' };
+      default:
+        return { label: 'Pendente', className: 'bg-amber-50 text-amber-700' };
+    }
+  };
+
   const handleUpdateRole = async (id: string, role: string) => {
     try {
       await updateUserRoleAction(id, role);
@@ -275,6 +290,7 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4">Usuário</th>
                 <th className="px-6 py-4">Empresa</th>
                 <th className="px-6 py-4">Papel</th>
+                <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Último login</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -282,18 +298,21 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <Loader2 className="size-8 text-[#0f49bd] animate-spin mx-auto" />
                     <p className="text-xs text-gray-400 mt-2 font-bold uppercase">Carregando usuários...</p>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
-              ) : filteredUsers.map((user) => (
+              ) : filteredUsers.map((user) => {
+                const authStatus = getAuthStatusMeta(user.auth_status);
+
+                return (
                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -319,6 +338,14 @@ export default function AdminUsersPage() {
                       user.role === 'company_admin' ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
                     )}>
                       {user.role === 'platform_admin' ? 'Super Admin' : user.role === 'company_admin' ? 'Admin' : 'Usuário'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider",
+                      authStatus.className
+                    )}>
+                      {authStatus.label}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -375,7 +402,8 @@ export default function AdminUsersPage() {
                     </DropdownMenu>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

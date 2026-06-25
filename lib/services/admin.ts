@@ -16,6 +16,11 @@ export interface UserProfile {
   company_id: string;
   full_name?: string | null;
   last_sign_in_at?: string | null;
+  banned_until?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+  deleted_at?: string | null;
+  auth_status: 'active' | 'inactive' | 'pending' | 'deleted';
   company?: {
     name: string;
   } | null;
@@ -29,6 +34,37 @@ type UserProfileRow = {
   full_name?: string | null;
   company?: { name: string } | { name: string }[] | null;
 };
+
+type AuthUserSummary = {
+  last_sign_in_at: string | null;
+  banned_until: string | null;
+  email_confirmed_at: string | null;
+  confirmed_at: string | null;
+  deleted_at: string | null;
+  auth_status: UserProfile['auth_status'];
+};
+
+function deriveAuthStatus(authUser: {
+  banned_until?: string;
+  email_confirmed_at?: string;
+  confirmed_at?: string;
+  deleted_at?: string;
+}): UserProfile['auth_status'] {
+  if (authUser.deleted_at) {
+    return 'deleted';
+  }
+
+  const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until) : null;
+  if (bannedUntil && !Number.isNaN(bannedUntil.getTime()) && bannedUntil.getTime() > Date.now()) {
+    return 'inactive';
+  }
+
+  if (!authUser.email_confirmed_at && !authUser.confirmed_at) {
+    return 'pending';
+  }
+
+  return 'active';
+}
 
 export const adminService = {
   // Companies
@@ -114,7 +150,7 @@ export const adminService = {
 
     if (error) throw error;
 
-    const authUsersById = new Map<string, string | null>();
+    const authUsersById = new Map<string, AuthUserSummary>();
     let page = 1;
 
     while (true) {
@@ -128,7 +164,14 @@ export const adminService = {
       const authUsers = authUsersPage.users ?? [];
 
       for (const authUser of authUsers) {
-        authUsersById.set(authUser.id, authUser.last_sign_in_at ?? null);
+        authUsersById.set(authUser.id, {
+          last_sign_in_at: authUser.last_sign_in_at ?? null,
+          banned_until: authUser.banned_until ?? null,
+          email_confirmed_at: authUser.email_confirmed_at ?? null,
+          confirmed_at: authUser.confirmed_at ?? null,
+          deleted_at: authUser.deleted_at ?? null,
+          auth_status: deriveAuthStatus(authUser),
+        });
       }
 
       if (authUsers.length < 1000) {
@@ -138,15 +181,24 @@ export const adminService = {
       page += 1;
     }
 
-    return (data as UserProfileRow[]).map((profile) => ({
+    return (data as UserProfileRow[]).map((profile) => {
+      const authUser = authUsersById.get(profile.id);
+
+      return {
       id: profile.id,
       email: profile.email,
       full_name: profile.full_name ?? null,
       role: profile.role,
       company_id: profile.company_id,
       company: Array.isArray(profile.company) ? profile.company[0] : profile.company,
-      last_sign_in_at: authUsersById.get(profile.id) ?? null,
-    }));
+      last_sign_in_at: authUser?.last_sign_in_at ?? null,
+      banned_until: authUser?.banned_until ?? null,
+      email_confirmed_at: authUser?.email_confirmed_at ?? null,
+      confirmed_at: authUser?.confirmed_at ?? null,
+      deleted_at: authUser?.deleted_at ?? null,
+      auth_status: authUser?.auth_status ?? 'pending',
+    };
+    });
   },
 
   async updateUserRole(id: string, role: string) {
