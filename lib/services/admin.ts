@@ -21,8 +21,27 @@ export interface UserProfile {
   confirmed_at?: string | null;
   deleted_at?: string | null;
   auth_status: 'active' | 'inactive' | 'pending' | 'deleted';
+  company_status?: string | null;
+  plan_id?: string | null;
+  subscription_status?: string | null;
+  access_status: 'granted' | 'blocked';
+  access_reason:
+    | 'platform_admin'
+    | 'demo'
+    | 'dev_user'
+    | 'user_inactive'
+    | 'user_pending'
+    | 'user_deleted'
+    | 'no_company'
+    | 'company_past_due'
+    | 'company_cancelled'
+    | 'company_inactive'
+    | 'no_plan'
+    | 'active_subscription';
   company?: {
     name: string;
+    status?: string | null;
+    plan_id?: string | null;
   } | null;
 }
 
@@ -32,7 +51,7 @@ type UserProfileRow = {
   role: string;
   company_id: string;
   full_name?: string | null;
-  company?: { name: string } | { name: string }[] | null;
+  company?: { name: string; status?: string | null; plan_id?: string | null } | { name: string; status?: string | null; plan_id?: string | null }[] | null;
 };
 
 type AuthUserSummary = {
@@ -41,7 +60,13 @@ type AuthUserSummary = {
   email_confirmed_at: string | null;
   confirmed_at: string | null;
   deleted_at: string | null;
+  is_demo: boolean;
   auth_status: UserProfile['auth_status'];
+};
+
+type SubscriptionSummary = {
+  company_id: string;
+  status: string | null;
 };
 
 function deriveAuthStatus(authUser: {
@@ -64,6 +89,61 @@ function deriveAuthStatus(authUser: {
   }
 
   return 'active';
+}
+
+function deriveAccessStatus(user: {
+  email: string;
+  role: string;
+  company_id?: string | null;
+  auth_status: UserProfile['auth_status'];
+  company_status?: string | null;
+  plan_id?: string | null;
+  is_demo?: boolean;
+}): Pick<UserProfile, 'access_status' | 'access_reason'> {
+  if (user.role === 'platform_admin') {
+    return { access_status: 'granted', access_reason: 'platform_admin' };
+  }
+
+  if (user.is_demo) {
+    return { access_status: 'granted', access_reason: 'demo' };
+  }
+
+  if (user.email === 'feddamico@hotmail.com') {
+    return { access_status: 'granted', access_reason: 'dev_user' };
+  }
+
+  if (user.auth_status === 'inactive') {
+    return { access_status: 'blocked', access_reason: 'user_inactive' };
+  }
+
+  if (user.auth_status === 'pending') {
+    return { access_status: 'blocked', access_reason: 'user_pending' };
+  }
+
+  if (user.auth_status === 'deleted') {
+    return { access_status: 'blocked', access_reason: 'user_deleted' };
+  }
+
+  if (!user.company_id) {
+    return { access_status: 'blocked', access_reason: 'no_company' };
+  }
+
+  switch (user.company_status) {
+    case 'past_due':
+      return { access_status: 'blocked', access_reason: 'company_past_due' };
+    case 'cancelled':
+      return { access_status: 'blocked', access_reason: 'company_cancelled' };
+    case 'inactive':
+      return { access_status: 'blocked', access_reason: 'company_inactive' };
+    default:
+      break;
+  }
+
+  if (!user.plan_id) {
+    return { access_status: 'blocked', access_reason: 'no_plan' };
+  }
+
+  return { access_status: 'granted', access_reason: 'active_subscription' };
 }
 
 export const adminService = {
@@ -137,7 +217,9 @@ export const adminService = {
         role,
         company_id,
         company:companies (
-          name
+          name,
+          status,
+          plan_id
         )
       `)
       .order('created_at', { ascending: false });
@@ -170,6 +252,7 @@ export const adminService = {
           email_confirmed_at: authUser.email_confirmed_at ?? null,
           confirmed_at: authUser.confirmed_at ?? null,
           deleted_at: authUser.deleted_at ?? null,
+          is_demo: authUser.user_metadata?.is_demo === true,
           auth_status: deriveAuthStatus(authUser),
         });
       }
@@ -181,23 +264,64 @@ export const adminService = {
       page += 1;
     }
 
+    const companyIds = Array.from(
+      new Set(
+        (data as UserProfileRow[])
+          .map((profile) => profile.company_id)
+          .filter((companyId): companyId is string => Boolean(companyId))
+      )
+    );
+
+    const subscriptionStatusByCompanyId = new Map<string, string | null>();
+
+    if (companyIds.length > 0) {
+      const { data: subscriptions, error: subscriptionsError } = await supabase
+        .from('subscriptions')
+        .select('company_id, status, created_at')
+        .in('company_id', companyIds)
+        .order('created_at', { ascending: false });
+
+      if (subscriptionsError) throw subscriptionsError;
+
+      for (const subscription of (subscriptions ?? []) as (SubscriptionSummary & { created_at?: string | null })[]) {
+        if (!subscriptionStatusByCompanyId.has(subscription.company_id)) {
+          subscriptionStatusByCompanyId.set(subscription.company_id, subscription.status);
+        }
+      }
+    }
+
     return (data as UserProfileRow[]).map((profile) => {
       const authUser = authUsersById.get(profile.id);
+      const company = Array.isArray(profile.company) ? profile.company[0] : profile.company;
+      const access = deriveAccessStatus({
+        email: profile.email,
+        role: profile.role,
+        company_id: profile.company_id,
+        auth_status: authUser?.auth_status ?? 'pending',
+        company_status: company?.status ?? null,
+        plan_id: company?.plan_id ?? null,
+        is_demo: authUser?.is_demo ?? false,
+      });
 
       return {
-      id: profile.id,
-      email: profile.email,
-      full_name: profile.full_name ?? null,
-      role: profile.role,
-      company_id: profile.company_id,
-      company: Array.isArray(profile.company) ? profile.company[0] : profile.company,
-      last_sign_in_at: authUser?.last_sign_in_at ?? null,
-      banned_until: authUser?.banned_until ?? null,
-      email_confirmed_at: authUser?.email_confirmed_at ?? null,
-      confirmed_at: authUser?.confirmed_at ?? null,
-      deleted_at: authUser?.deleted_at ?? null,
-      auth_status: authUser?.auth_status ?? 'pending',
-    };
+        id: profile.id,
+        email: profile.email,
+        full_name: profile.full_name ?? null,
+        role: profile.role,
+        company_id: profile.company_id,
+        company,
+        company_status: company?.status ?? null,
+        plan_id: company?.plan_id ?? null,
+        subscription_status: profile.company_id ? (subscriptionStatusByCompanyId.get(profile.company_id) ?? null) : null,
+        last_sign_in_at: authUser?.last_sign_in_at ?? null,
+        banned_until: authUser?.banned_until ?? null,
+        email_confirmed_at: authUser?.email_confirmed_at ?? null,
+        confirmed_at: authUser?.confirmed_at ?? null,
+        deleted_at: authUser?.deleted_at ?? null,
+        auth_status: authUser?.auth_status ?? 'pending',
+        access_status: access.access_status,
+        access_reason: access.access_reason,
+      };
     });
   },
 

@@ -147,6 +147,87 @@ export default function AdminUsersPage() {
     }
   };
 
+  const getAccessStatusMeta = (status: UserProfile['access_status']) => {
+    if (status === 'granted') {
+      return { label: 'Liberado', className: 'bg-emerald-50 text-emerald-700' };
+    }
+
+    return { label: 'Bloqueado', className: 'bg-red-50 text-red-700' };
+  };
+
+  const getAccessReasonLabel = (reason: UserProfile['access_reason']) => {
+    switch (reason) {
+      case 'platform_admin':
+        return 'Super admin';
+      case 'demo':
+        return 'Conta demo';
+      case 'dev_user':
+        return 'Exceção de desenvolvimento';
+      case 'user_inactive':
+        return 'Usuário inativo';
+      case 'user_pending':
+        return 'E-mail pendente';
+      case 'user_deleted':
+        return 'Usuário excluído';
+      case 'no_company':
+        return 'Sem empresa';
+      case 'company_past_due':
+        return 'Pagamento em atraso';
+      case 'company_cancelled':
+        return 'Assinatura cancelada';
+      case 'company_inactive':
+        return 'Assinatura inativa';
+      case 'no_plan':
+        return 'Sem plano';
+      case 'active_subscription':
+        return 'Acesso liberado';
+      default:
+        return 'Acesso liberado';
+    }
+  };
+
+  const getCompanyStatusMeta = (status: string | null | undefined) => {
+    switch (status) {
+      case 'active':
+        return { label: 'Ativa', className: 'bg-emerald-50 text-emerald-700' };
+      case 'pending':
+        return { label: 'Pendente', className: 'bg-amber-50 text-amber-700' };
+      case 'past_due':
+        return { label: 'Pagamento em atraso', className: 'bg-orange-50 text-orange-700' };
+      case 'cancelled':
+        return { label: 'Cancelada', className: 'bg-red-50 text-red-700' };
+      case 'inactive':
+        return { label: 'Inativa', className: 'bg-gray-100 text-gray-600' };
+      case 'suspended':
+        return { label: 'Suspensa', className: 'bg-red-50 text-red-700' };
+      default:
+        return { label: status || 'Não informado', className: 'bg-gray-100 text-gray-600' };
+    }
+  };
+
+  const getSubscriptionStatusMeta = (status: string | null | undefined) => {
+    switch (status) {
+      case 'active':
+        return { label: 'Ativa', className: 'bg-emerald-50 text-emerald-700' };
+      case 'inactive':
+        return { label: 'Inativa', className: 'bg-gray-100 text-gray-600' };
+      case 'cancelled':
+        return { label: 'Cancelada', className: 'bg-red-50 text-red-700' };
+      case 'past_due':
+        return { label: 'Pagamento em atraso', className: 'bg-orange-50 text-orange-700' };
+      case 'pending':
+        return { label: 'Pendente', className: 'bg-amber-50 text-amber-700' };
+      case 'trial':
+        return { label: 'Trial', className: 'bg-amber-50 text-amber-700' };
+      case null:
+      case undefined:
+      case '':
+        return { label: 'Sem assinatura', className: 'bg-gray-100 text-gray-600' };
+      default:
+        return { label: status, className: 'bg-gray-100 text-gray-600' };
+    }
+  };
+
   const handleUpdateRole = async (id: string, role: string) => {
     try {
       await updateUserRoleAction(id, role);
@@ -290,7 +371,8 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4">Usuário</th>
                 <th className="px-6 py-4">Empresa</th>
                 <th className="px-6 py-4">Papel</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Status do usuário</th>
+                <th className="px-6 py-4">Acesso ao CM Pro</th>
                 <th className="px-6 py-4">Último login</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -298,19 +380,20 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <Loader2 className="size-8 text-[#0f49bd] animate-spin mx-auto" />
                     <p className="text-xs text-gray-400 mt-2 font-bold uppercase">Carregando usuários...</p>
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
               ) : filteredUsers.map((user) => {
                 const authStatus = getAuthStatusMeta(user.auth_status);
+                const accessStatus = getAccessStatusMeta(user.access_status);
 
                 return (
                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -347,6 +430,17 @@ export default function AdminUsersPage() {
                     )}>
                       {authStatus.label}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <span className={cn(
+                        "inline-flex w-fit text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider",
+                        accessStatus.className
+                      )}>
+                        {accessStatus.label}
+                      </span>
+                      <span className="text-xs text-gray-500">{getAccessReasonLabel(user.access_reason)}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm text-gray-500">{formatLastLogin(user.last_sign_in_at)}</span>
@@ -615,24 +709,33 @@ export default function AdminUsersPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                   <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Status da Empresa</p>
-                  <span className={cn(
-                    'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
-                    companyDetail.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                  )}>
-                    {companyDetail.status === 'active' ? 'Ativa' : 'Suspensa'}
-                  </span>
+                  {(() => {
+                    const statusMeta = getCompanyStatusMeta(companyDetail.status);
+
+                    return (
+                      <span className={cn(
+                        'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
+                        statusMeta.className
+                      )}>
+                        {statusMeta.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                   <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Assinatura</p>
-                  <span className={cn(
-                    'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
-                    companyDetail.subscription?.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
-                    companyDetail.subscription?.status === 'trial' ? 'bg-amber-50 text-amber-700' :
-                    companyDetail.subscription?.status === 'past_due' ? 'bg-orange-50 text-orange-700' :
-                    'bg-red-50 text-red-700'
-                  )}>
-                    {companyDetail.subscription?.status ?? 'Sem assinatura'}
-                  </span>
+                  {(() => {
+                    const subscriptionMeta = getSubscriptionStatusMeta(companyDetail.subscription?.status);
+
+                    return (
+                      <span className={cn(
+                        'text-xs font-black px-2 py-0.5 rounded uppercase tracking-wide',
+                        subscriptionMeta.className
+                      )}>
+                        {subscriptionMeta.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                   <p className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1">Emails Usados (mês)</p>
@@ -662,6 +765,7 @@ export default function AdminUsersPage() {
                     onChange={(e) => setSelectedPlanId(e.target.value)}
                     className="flex-1 h-10 rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0f49bd]/20 focus:border-[#0f49bd] font-medium text-gray-700"
                   >
+                    <option value="">Sem plano</option>
                     {plans.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} — R${p.price_monthly?.toLocaleString('pt-BR')}/mês
@@ -685,10 +789,6 @@ export default function AdminUsersPage() {
                           ...prev,
                           id: prev.id,
                           plan_id: selectedPlanId,
-                          subscription: {
-                            status: 'active',
-                            billing_cycle: prev.subscription?.billing_cycle ?? 'monthly',
-                          },
                         } : prev);
                       } catch {
                         toast.error('Erro de conexão.');
