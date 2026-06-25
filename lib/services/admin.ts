@@ -1,4 +1,5 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { evaluateCompanyAccess, type AccessReason } from '@/lib/billing-guard';
 
 export interface Company {
   id: string;
@@ -26,18 +27,13 @@ export interface UserProfile {
   subscription_status?: string | null;
   access_status: 'granted' | 'blocked';
   access_reason:
+    | AccessReason
     | 'platform_admin'
     | 'demo'
     | 'dev_user'
     | 'user_inactive'
     | 'user_pending'
-    | 'user_deleted'
-    | 'no_company'
-    | 'company_past_due'
-    | 'company_cancelled'
-    | 'company_inactive'
-    | 'no_plan'
-    | 'active_subscription';
+    | 'user_deleted';
   company?: {
     name: string;
     status?: string | null;
@@ -98,6 +94,7 @@ function deriveAccessStatus(user: {
   auth_status: UserProfile['auth_status'];
   company_status?: string | null;
   plan_id?: string | null;
+  subscription_status?: string | null;
   is_demo?: boolean;
 }): Pick<UserProfile, 'access_status' | 'access_reason'> {
   if (user.role === 'platform_admin') {
@@ -128,22 +125,16 @@ function deriveAccessStatus(user: {
     return { access_status: 'blocked', access_reason: 'no_company' };
   }
 
-  switch (user.company_status) {
-    case 'past_due':
-      return { access_status: 'blocked', access_reason: 'company_past_due' };
-    case 'cancelled':
-      return { access_status: 'blocked', access_reason: 'company_cancelled' };
-    case 'inactive':
-      return { access_status: 'blocked', access_reason: 'company_inactive' };
-    default:
-      break;
-  }
+  const commercialDecision = evaluateCompanyAccess({
+    companyStatus: user.company_status ?? null,
+    planId: user.plan_id ?? null,
+    subscriptionStatus: user.subscription_status ?? null,
+  });
 
-  if (!user.plan_id) {
-    return { access_status: 'blocked', access_reason: 'no_plan' };
-  }
-
-  return { access_status: 'granted', access_reason: 'active_subscription' };
+  return {
+    access_status: commercialDecision.allowed ? 'granted' : 'blocked',
+    access_reason: commercialDecision.reason,
+  };
 }
 
 export const adminService = {
@@ -300,6 +291,7 @@ export const adminService = {
         auth_status: authUser?.auth_status ?? 'pending',
         company_status: company?.status ?? null,
         plan_id: company?.plan_id ?? null,
+        subscription_status: profile.company_id ? (subscriptionStatusByCompanyId.get(profile.company_id) ?? null) : null,
         is_demo: authUser?.is_demo ?? false,
       });
 

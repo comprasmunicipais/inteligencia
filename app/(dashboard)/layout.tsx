@@ -6,6 +6,7 @@ import { AlertTriangle } from 'lucide-react';
 import Sidebar from '@/components/shared/Sidebar';
 import { DemoBanner } from '@/components/demo/DemoBanner';
 import { useCompany } from '@/components/providers/CompanyProvider';
+import { evaluateCompanyAccess, type AccessReason } from '@/lib/billing-guard';
 import { createClient } from '@/lib/supabase/client';
 
 export default function DashboardLayout({
@@ -18,9 +19,17 @@ export default function DashboardLayout({
   const router = useRouter();
   const supabase = useRef(createClient()).current;
   // undefined = still loading
-  const [companyBilling, setCompanyBilling] = useState<{ planId: string | null; status: string | null } | undefined>(undefined);
+  const [companyBilling, setCompanyBilling] = useState<{ planId: string | null; status: string | null; subscriptionStatus: string | null } | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+
+  const getBlockedRoute = (reason: AccessReason) => {
+    if (reason === 'no_plan') {
+      return '/signup/plan?error=plan_required';
+    }
+
+    return `/settings?billing=blocked&reason=${reason}`;
+  };
 
   useEffect(() => {
     if (!user) { setRoleLoading(false); return; }
@@ -37,28 +46,40 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!companyId) { setCompanyBilling(undefined); return; }
-    supabase
-      .from('companies')
-      .select('plan_id, status')
-      .eq('id', companyId)
-      .single()
-      .then(({ data }) => {
+    Promise.all([
+      supabase
+        .from('companies')
+        .select('plan_id, status')
+        .eq('id', companyId)
+        .maybeSingle(),
+      supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('company_id', companyId)
+        .maybeSingle(),
+    ]).then(([companyResult, subscriptionResult]) => {
+        const companyData = companyResult.data;
+
         setCompanyBilling({
-          planId: data?.plan_id ?? null,
-          status: data?.status ?? null,
+          planId: companyData?.plan_id ?? null,
+          status: companyResult.error ? '__invalid__' : companyData?.status ?? null,
+          subscriptionStatus: subscriptionResult.error ? '__invalid__' : subscriptionResult.data?.status ?? null,
         });
       });
   }, [companyId, supabase]);
 
   useEffect(() => {
     if (roleLoading || role === 'platform_admin' || isDemo || isDevUser) return;
-    if (!loading && user && companyId && companyBilling?.status && ['past_due', 'cancelled', 'inactive'].includes(companyBilling.status)) {
-      router.replace('/settings?billing=blocked');
-      return;
-    }
+    if (!loading && user && companyId && companyBilling) {
+      const decision = evaluateCompanyAccess({
+        companyStatus: companyBilling.status,
+        planId: companyBilling.planId,
+        subscriptionStatus: companyBilling.subscriptionStatus,
+      });
 
-    if (!loading && user && companyId && companyBilling?.planId === null) {
-      router.replace('/signup/plan?error=plan_required');
+      if (!decision.allowed) {
+        router.replace(getBlockedRoute(decision.reason));
+      }
     }
   }, [loading, user, companyId, companyBilling, role, roleLoading, router, isDemo, isDevUser]);
 

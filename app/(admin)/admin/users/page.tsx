@@ -157,6 +157,8 @@ export default function AdminUsersPage() {
 
   const getAccessReasonLabel = (reason: UserProfile['access_reason']) => {
     switch (reason) {
+      case 'granted':
+        return 'Acesso liberado';
       case 'platform_admin':
         return 'Super admin';
       case 'demo':
@@ -171,18 +173,34 @@ export default function AdminUsersPage() {
         return 'Usuário excluído';
       case 'no_company':
         return 'Sem empresa';
+      case 'company_pending':
+        return 'Empresa pendente';
       case 'company_past_due':
         return 'Pagamento em atraso';
       case 'company_cancelled':
-        return 'Assinatura cancelada';
+        return 'Empresa cancelada';
       case 'company_inactive':
-        return 'Assinatura inativa';
+        return 'Empresa inativa';
+      case 'company_suspended':
+        return 'Empresa suspensa';
+      case 'company_invalid':
+        return 'Status da empresa inválido';
       case 'no_plan':
         return 'Sem plano';
-      case 'active_subscription':
-        return 'Acesso liberado';
+      case 'no_subscription':
+        return 'Sem assinatura';
+      case 'subscription_pending':
+        return 'Assinatura pendente';
+      case 'subscription_past_due':
+        return 'Assinatura vencida';
+      case 'subscription_cancelled':
+        return 'Assinatura cancelada';
+      case 'subscription_inactive':
+        return 'Assinatura inativa';
+      case 'subscription_invalid':
+        return 'Status da assinatura inválido';
       default:
-        return 'Acesso liberado';
+        return 'Status de acesso inválido';
     }
   };
 

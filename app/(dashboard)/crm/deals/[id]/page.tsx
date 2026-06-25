@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, Building2, CalendarDays, ExternalLink, Landmark, MapPin } from 'lucide-react';
 
+import { evaluateCompanyAccess, type AccessReason } from '@/lib/billing-guard';
 import { createClient } from '@/lib/supabase/server';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -168,6 +169,14 @@ function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function getBlockedRoute(reason: AccessReason) {
+  if (reason === 'no_plan') {
+    return '/signup/plan?error=plan_required';
+  }
+
+  return `/settings?billing=blocked&reason=${reason}`;
+}
+
 export default async function DealDetailPage({
   params,
 }: {
@@ -200,18 +209,27 @@ export default async function DealDetailPage({
   const isPlatformAdmin = profile.role === 'platform_admin';
 
   if (!isPlatformAdmin && !isDemo && !isDevUser) {
-    const { data: companyBilling } = await supabase
-      .from('companies')
-      .select('plan_id, status')
-      .eq('id', profile.company_id)
-      .single();
+    const [{ data: companyBilling, error: companyBillingError }, { data: subscription, error: subscriptionError }] = await Promise.all([
+      supabase
+        .from('companies')
+        .select('plan_id, status')
+        .eq('id', profile.company_id)
+        .maybeSingle(),
+      supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('company_id', profile.company_id)
+        .maybeSingle(),
+    ]);
 
-    if (companyBilling?.status && ['past_due', 'cancelled', 'inactive'].includes(companyBilling.status)) {
-      redirect('/settings?billing=blocked');
-    }
+    const decision = evaluateCompanyAccess({
+      companyStatus: companyBillingError ? '__invalid__' : companyBilling?.status ?? null,
+      planId: companyBilling?.plan_id ?? null,
+      subscriptionStatus: subscriptionError ? '__invalid__' : subscription?.status ?? null,
+    });
 
-    if (companyBilling?.plan_id === null) {
-      redirect('/signup/plan?error=plan_required');
+    if (!decision.allowed) {
+      redirect(getBlockedRoute(decision.reason));
     }
   }
 
